@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1049872671714",
+    "project_id": "testinspector-a3dbe",
+    "storage_bucket": "testinspector-a3dbe.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1049872671714:android:c7b7cbbeb696842a880fbb",
+        "android_client_info": {
+          "package_name": "com.example.b1void"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAShJuklAdUslbMKr-NTTFGDO9F8CKU28I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

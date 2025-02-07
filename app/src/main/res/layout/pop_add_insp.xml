@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <EditText
+        android:id="@+id/et_inspector_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Имя сотрудника"
+        android:inputType="textPersonName"
+        android:layout_marginBottom="8dp"/>
+
+    <EditText
+        android:id="@+id/et_inspector_code"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Код сотрудника"
+        android:inputType="number"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btn_add_photo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Добавить фото"
+        android:layout_marginBottom="8dp"/>
+
+    <ImageView
+        android:id="@+id/iv_inspector_preview"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:src="@drawable/def_insp_img"
+        android:scaleType="centerCrop"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="16dp"/>
+
+    <Button
+        android:id="@+id/btn_save_inspector"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Сохранить"
+        android:layout_gravity="center_horizontal"/>
+
+</LinearLayout>

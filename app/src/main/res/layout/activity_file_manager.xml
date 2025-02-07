@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/swipe_refresh_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:id="@+id/buttons_menu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_alignParentTop="true">
+
+            <Button
+                android:id="@+id/add_inspection_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="20sp"
+                android:background="@drawable/rounded_background"
+                android:text="📷" />
+
+            <Button
+                android:id="@+id/show_inspection_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🗒️ Инспекции 🗒️"
+                android:textSize="15sp"
+                android:layout_gravity="center"
+                android:background="@drawable/rounded_background"
+                android:layout_marginLeft="8dp"
+                android:layout_marginRight="8dp"/>
+
+            <Button
+                android:id="@+id/create_folder_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=" 📁 "
+                android:textSize="20sp"
+                android:background="@drawable/rounded_background" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_below="@id/buttons_menu"
+            android:layout_marginTop="16dp"/>
+
+    </RelativeLayout>
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@drawable/rounded_background">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Редактировать инспектора"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentLeft="true" />
+
+        <ImageView
+            android:id="@+id/edit_btn_close"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/close_ic"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:layout_alignParentRight="true" />
+    </RelativeLayout>
+
+    <EditText
+        android:id="@+id/edit_et_inspector_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Имя сотрудника"
+        android:inputType="textPersonName"
+        android:layout_marginTop="8dp"/>
+
+    <EditText
+        android:id="@+id/edit_et_inspector_code"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Код сотрудника"
+        android:inputType="number"
+        android:layout_marginTop="8dp"/>
+
+    <Button
+        android:id="@+id/edit_btn_add_photo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Изменить фото"
+        android:layout_marginTop="8dp"/>
+
+    <ImageView
+        android:id="@+id/edit_iv_inspector_preview"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:src="@drawable/def_insp_img"
+        android:scaleType="centerCrop"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp"/>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_gravity="center_horizontal">
+
+        <Button
+            android:id="@+id/edit_btn_save_inspector"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Сохранить"
+            android:layout_marginEnd="8dp"
+            android:layout_marginRight="8dp" />
+
+        <Button
+            android:id="@+id/edit_btn_delete_inspector"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Удалить"/>
+    </LinearLayout>
+
+
+</LinearLayout>

@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Инспектор</string>
+    <string name="login">Вход</string>
+    <string name="passWorker">Код сотрудника</string>
+    <string name="passAdm">Задайте пароль</string>
+    <string name="nameEmployee">Имя</string>
+    <string name="emailAdm">Задайте email</string>
+    <string name="APP_KEY">elw6ey40dkbo1i0</string>
+</resources>
