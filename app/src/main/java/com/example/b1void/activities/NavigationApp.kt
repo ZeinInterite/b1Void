@@ -1,44 +1,58 @@
-package com.example.b1void.activities;
+package com.example.b1void.activities
+import android.content.Intent
+import android.os.Bundle
+import android.view.View
+import androidx.appcompat.app.AppCompatActivity
+import com.example.b1void.R
 
-import androidx.appcompat.app.AppCompatActivity;
+class NavigationApp : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_navigation_app)
 
-import android.content.Intent;
-import android.os.Bundle;
-import android.view.View;
-import android.widget.Toast;
-import com.example.b1void.R;
+        val takePhotoButton = findViewById<View>(R.id.takePhotoButton)
+        val uploadButton = findViewById<View>(R.id.uploadButton)
+        val createFolderButton = findViewById<View>(R.id.createFolderButton)
 
-public class NavigationApp extends AppCompatActivity {
+        takePhotoButton.setOnClickListener {
+            val intent = Intent(
+                this@NavigationApp,
+                CameraV2Activity::class.java
+            )
+            startActivity(intent)
+        }
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_navigation_app);
+        uploadButton.setOnClickListener {
 
-        View takePhotoButton = findViewById(R.id.takePhotoButton);
-        View uploadButton = findViewById(R.id.uploadButton);
-        View createFolderButton = findViewById(R.id.createFolderButton);
+        }
 
-        takePhotoButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(NavigationApp.this,CameraActivity.class);
-                startActivity(intent);
-            }
-        });
-
-        uploadButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-
-            }
-        });
-
-        createFolderButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-
-            }
-        });
+        createFolderButton.setOnClickListener {
+            val intent = Intent(
+                this@NavigationApp,
+                FileManagerActivity::class.java
+            )
+            startActivity(intent)
+        }
     }
+//    private fun showCreateFolderDialog(parentDir: File) {
+//        val builder = AlertDialog.Builder(this)
+//        val input = EditText(this)
+//        builder.setTitle("Создать новую папку")
+//        builder.setView(input)
+//
+//        builder.setPositiveButton("Создать") { dialog, _ ->
+//            val folderName = input.text.toString()
+//            val newDir = File(parentDir, folderName)
+//
+//
+//            if (newDir.mkdir()) {
+//                loadDirectoryContent(parentDir)
+//            } else {
+//                Toast.makeText(this, "Ошибка при создании папки", Toast.LENGTH_SHORT).show()
+//            }
+//            dialog.dismiss()
+//        }
+//        builder.setNegativeButton("Отмена") { dialog, _ -> dialog.cancel() }
+//        builder.show()
+//    }
 }

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Signature Text:"
+        android:labelFor="@+id/signature_edit_text"/>
+
+    <EditText
+        android:id="@+id/signature_edit_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Enter your signature"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Text Size:"
+        android:labelFor="@+id/text_size_seek_bar"
+        android:layout_marginTop="8dp"/>
+
+    <SeekBar
+        android:id="@+id/text_size_seek_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="50"/>
+
+    <TextView
+        android:id="@+id/text_size_preview"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Preview"
+        android:textSize="20sp"/>
+
+</LinearLayout>

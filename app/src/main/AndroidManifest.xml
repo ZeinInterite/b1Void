@@ -6,13 +6,15 @@
 
     <uses-sdk
         android:minSdkVersion="16"
-        android:targetSdkVersion="19" />
+        android:targetSdkVersion="19"
+        tools:ignore="ExpiredTargetSdkVersion" />
 
     <uses-feature
         android:name="android.hardware.camera"
         android:required="true" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission
@@ -66,6 +68,18 @@
             android:exported="false" />
         <activity
             android:name=".activities.CameraActivity"
+            android:exported="false" />
+        <activity
+            android:name=".activities.CameraV2Activity"
+            android:exported="false" />
+        <activity
+            android:name=".activities.ImagePreviewActivity"
+            android:exported="false" />
+        <activity
+            android:name=".activities.EditImageActivity"
+            android:exported="false" />
+        <activity
+            android:name=".CameraV3Activity"
             android:exported="false" />
         <activity
             android:name=".activities.WorkerActivity"

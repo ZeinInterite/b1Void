@@ -10,66 +10,49 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
+import com.dropbox.core.DbxException;
+import com.dropbox.core.DbxRequestConfig;
 import com.dropbox.core.android.Auth;
+import com.dropbox.core.v2.DbxClientV2;
+import com.dropbox.core.v2.users.FullAccount;
 import com.example.b1void.R;
 
 public class MainActivity extends AppCompatActivity {
 
     private Button btnLog;
-    private static final String ACCESS_TOKEN_KEY = "access-token";
-    private static final int AUTH_REQUEST_CODE = 1001; // Произвольный requestCode
+    private static final String ACCESS_TOKEN = "<ACCESS TOKEN>";
+    private static final int AUTH_REQUEST_CODE = 1001;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        DbxRequestConfig config = DbxRequestConfig.newBuilder("dropbox/java-tutorial").build();
+        DbxClientV2 client = new DbxClientV2(config, ACCESS_TOKEN);
+//
+//        FullAccount account = null;
+//        try {
+//            account = client.users().getCurrentAccount();
+//        } catch (DbxException e) {
+//            throw new RuntimeException(e);
+//        }
+//
+//        System.out.println(account.getName().getDisplayName());
+
         btnLog = findViewById(R.id.logBtn);
         btnLog.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent intent = new Intent(MainActivity.this, FileManagerActivity.class);
+                Intent intent = new Intent(MainActivity.this, NavigationApp.class);
                 startActivity(intent);
             }
         });
 
-        checkAccessToken();
-    }
-
-    private void checkAccessToken() {
-        SharedPreferences prefs = getSharedPreferences("prefs", Context.MODE_PRIVATE);
-        String accessToken = prefs.getString(ACCESS_TOKEN_KEY, null);
-
-        if (accessToken != null) {
-            navigateToFileManagerActivity();
-        } else {
-            Auth.startOAuth2Authentication(this, getString(R.string.APP_KEY));
-        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-    }
-
-    private void navigateToFileManagerActivity() {
-        startActivity(new Intent(this, FileManagerActivity.class));
-        finish();
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == AUTH_REQUEST_CODE) {
-            String accessToken = Auth.getOAuth2Token();
-            if (accessToken != null) {
-                SharedPreferences prefs = getSharedPreferences("prefs", Context.MODE_PRIVATE);
-                prefs.edit().putString(ACCESS_TOKEN_KEY, accessToken).apply();
-                navigateToFileManagerActivity();
-            } else {
-                Toast.makeText(this, "Авторизация не удалась", Toast.LENGTH_SHORT).show();
-            }
-        }
     }
 }

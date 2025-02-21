@@ -29,12 +29,12 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11 // Изменено на 11
-        targetCompatibility = JavaVersion.VERSION_11 // Изменено на 11
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 
     kotlinOptions {
-        jvmTarget = "11" // Оставлено как 11
+        jvmTarget = "11"
     }
 
     buildFeatures {
@@ -75,4 +75,6 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+
+    api("com.otaliastudios:cameraview:2.7.2")
 }

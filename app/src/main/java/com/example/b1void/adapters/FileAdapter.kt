@@ -1,6 +1,5 @@
 package com.example.b1void.adapters;
 
-import android.app.AlertDialog
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.view.LayoutInflater
@@ -52,7 +51,7 @@ class FileAdapter(private var files: List<File>, private val context: Context, p
         }
     }
 
-    private fun isImage(file: File): Boolean {
+    fun isImage(file: File): Boolean {
         val fileName = file.name.lowercase()
         return fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || fileName.endsWith(".png") || fileName.endsWith(".gif") || fileName.endsWith(".bmp")
     }
@@ -73,11 +72,11 @@ class FileAdapter(private var files: List<File>, private val context: Context, p
         notifyDataSetChanged()
     }
     private fun showDeleteDialog(file: File) {
-        AlertDialog.Builder(context)
+        android.app.AlertDialog.Builder(context)
             .setTitle("Удалить?")
             .setMessage("Вы уверены, что хотите удалить ${file.name}?")
             .setPositiveButton("Да") { _, _ ->
-                (context as FileManagerActivity).deleteFileFromDropbox(file)
+                (context as FileManagerActivity).deleteFile(file)
             }
             .setNegativeButton("Нет", null)
             .show()
