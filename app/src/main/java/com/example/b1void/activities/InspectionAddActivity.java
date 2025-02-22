@@ -30,7 +30,7 @@ public class InspectionAddActivity extends AppCompatActivity {
         takePhotoBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent intent = new Intent(InspectionAddActivity.this, CameraActivity.class);
+                Intent intent = new Intent(InspectionAddActivity.this, CameraV2Activity.class);
                 intent.putExtra("current_directory", currentDirectoryPath); // Передаем в CameraActivity
                 startActivity(intent);
             }

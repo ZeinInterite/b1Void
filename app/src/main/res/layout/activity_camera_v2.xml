@@ -10,6 +10,47 @@
         android:layout_height="match_parent"
         android:keepScreenOn="true"/>
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:padding="10dp"
+        android:gravity="center"
+        android:background="#A2404040">
+
+        <TextView
+            android:id="@+id/time_text_view"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="10dp"
+            android:textSize="20sp"
+            android:text="HH:mm:ss"
+            android:textColor="#E9E9E9" />
+
+        <ImageButton
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_exposition"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            />
+
+        <Spinner
+            android:id="@+id/resolution_spinner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:spinnerMode="dropdown"
+            />
+
+        <ImageButton
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/setting_ic" />
+
+    </LinearLayout>
+
     <RelativeLayout
         android:id="@+id/bottom_controls"
         android:layout_width="match_parent"
@@ -22,36 +63,48 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="Signature"
-            android:layout_above="@+id/capture_button"
+            android:layout_above="@+id/cam_ic"
             android:layout_marginBottom="8dp"/>
 
-        <ImageButton
-            android:id="@+id/capture_button"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:layout_alignParentBottom="true"
-            android:layout_centerHorizontal="true"
-            android:layout_marginBottom="30dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:scaleType="centerCrop"
-            android:src="@drawable/camera"
+
+        <LinearLayout
+            android:id="@+id/cam_ic"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:foregroundGravity=""
+            android:gravity="center"
+            android:orientation="horizontal"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:tint="@color/white" />
+            app:layout_constraintStart_toStartOf="parent">
+
+            <ImageButton
+                android:id="@+id/capture_button"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:layout_marginLeft="10dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:scaleType="centerCrop"
+                android:layout_marginStart="20dp"
+                android:src="@drawable/camera"
+                app:tint="@color/white" />
+
+            <ImageButton
+                android:id="@+id/video_capture"
+                android:layout_width="35dp"
+                android:layout_height="35dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:scaleType="centerCrop"
+                android:src="@drawable/ic_videocam"
+                app:tint="@color/white" />
+
+        </LinearLayout>
+
 
     </RelativeLayout>
 
-    <TextView
-        android:id="@+id/time_text_view"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentRight="true"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentEnd="true"
-        android:padding="16dp"
-        android:textSize="30sp"
-        android:textColor="#B40202" />
+
+
 
 
 </RelativeLayout>

@@ -5,18 +5,29 @@ import android.graphics.BitmapFactory
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.CheckBox
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.b1void.R
-import com.example.b1void.activities.FileManagerActivity
 import java.io.File
 
-class FileAdapter(private var files: List<File>, private val context: Context, private val onFileClickListener: (File) -> Unit) : RecyclerView.Adapter<FileAdapter.FileViewHolder>() {
+class FileAdapter(
+    private var files: List<File>,
+    private val context: Context,
+    private val onFileClickListener: (File) -> Unit,
+    private val onFileLongClickListener: (File) -> Unit,
+    private val onSelectionChanged: (File, Boolean) -> Unit,
+    private val onShowOptionsClickListener: (File) -> Unit,
+    private val selectedFiles: Set<File> // Pass selectedFiles from Activity
+) : RecyclerView.Adapter<FileAdapter.FileViewHolder>() {
+
 
     class FileViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val fileName: TextView = itemView.findViewById(R.id.file_name)
         val fileIcon: ImageView = itemView.findViewById(R.id.file_icon)
+        val checkBox: CheckBox = itemView.findViewById(R.id.checkbox)
+        val showOption: ImageView = itemView.findViewById(R.id.show_option)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FileViewHolder {
@@ -29,7 +40,7 @@ class FileAdapter(private var files: List<File>, private val context: Context, p
         holder.fileName.text = file.name
 
         if (file.isDirectory) {
-            holder.fileIcon.setImageResource(R.drawable.folder_ic)
+            holder.fileIcon.setImageResource(R.drawable.ic_folder)
         } else if (isImage(file)) {
             val bitmap = loadImageIcon(file)
             bitmap?.let {
@@ -41,13 +52,24 @@ class FileAdapter(private var files: List<File>, private val context: Context, p
             holder.fileIcon.setImageResource(R.drawable.file_ic)
         }
 
+        val isSelectionMode = selectedFiles.isNotEmpty()
+        holder.checkBox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
+        holder.checkBox.isChecked = selectedFiles.contains(file)
+
         holder.itemView.setOnClickListener {
             onFileClickListener(file)
         }
 
         holder.itemView.setOnLongClickListener {
-            showDeleteDialog(file)
+            onFileLongClickListener(file)
             true
+        }
+
+        holder.checkBox.setOnCheckedChangeListener { _, isChecked ->
+            onSelectionChanged(file, isChecked)
+        }
+        holder.showOption.setOnClickListener {
+            onShowOptionsClickListener(file)
         }
     }
 
@@ -71,14 +93,5 @@ class FileAdapter(private var files: List<File>, private val context: Context, p
         files = updatedFiles
         notifyDataSetChanged()
     }
-    private fun showDeleteDialog(file: File) {
-        android.app.AlertDialog.Builder(context)
-            .setTitle("Удалить?")
-            .setMessage("Вы уверены, что хотите удалить ${file.name}?")
-            .setPositiveButton("Да") { _, _ ->
-                (context as FileManagerActivity).deleteFile(file)
-            }
-            .setNegativeButton("Нет", null)
-            .show()
-    }
+
 }

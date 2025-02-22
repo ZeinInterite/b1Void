@@ -11,6 +11,7 @@ android {
     defaultConfig {
         applicationId = "com.example.b1void"
         minSdk = 25
+        //noinspection OldTargetApi
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -77,4 +78,6 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 
     api("com.otaliastudios:cameraview:2.7.2")
+
+    implementation("net.lingala.zip4j:zip4j:2.9.0")
 }

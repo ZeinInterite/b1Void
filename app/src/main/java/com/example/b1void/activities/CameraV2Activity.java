@@ -1,4 +1,3 @@
-
 package com.example.b1void.activities;
 
 import android.Manifest;
@@ -23,10 +22,13 @@ import android.util.Log;
 import android.util.Size;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.SeekBar;
+import android.widget.Spinner;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -64,6 +66,7 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -77,7 +80,8 @@ public class CameraV2Activity extends AppCompatActivity {
     private int signatureTextSize = 50;
     private boolean isOrientationLocked = false;
     private boolean isManualFocus = false;
-
+    private Spinner resolutionSpinner;
+    private List<Size> supportedResolutions;
     private static final int PERMISSION_REQUEST_CODE = 123;
     private File currentImageFile;
 
@@ -91,8 +95,9 @@ public class CameraV2Activity extends AppCompatActivity {
         captureButton = findViewById(R.id.capture_button);
         timeTextView = findViewById(R.id.time_text_view);
         signatureEditText = findViewById(R.id.signature_edit_text);
+        resolutionSpinner = findViewById(R.id.resolution_spinner);
 
-        // Request permissions if needed
+        // здесь, епта, спрашиваем у дрочилы разрешения октрыть камеру
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED ||
                 ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
@@ -134,7 +139,7 @@ public class CameraV2Activity extends AppCompatActivity {
 
             @Override
             public void onVideoTaken(@NonNull VideoResult result) {
-                // A Video was taken!
+                //  Снимаем ебальничек на видео
                 File videoFile = result.getFile();
                 Toast.makeText(CameraV2Activity.this, "Video saved to: " + videoFile.getAbsolutePath(), Toast.LENGTH_SHORT).show();
             }
@@ -143,6 +148,10 @@ public class CameraV2Activity extends AppCompatActivity {
             public void onCameraOpened(@NonNull CameraOptions options) {
                 // Camera was opened
                 super.onCameraOpened(options);
+                // Initialize the resolution Spinner after the camera is opened
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    setupResolutionSpinner(options);
+                }
             }
 
             @Override
@@ -179,11 +188,16 @@ public class CameraV2Activity extends AppCompatActivity {
                 if (cameraView.isTakingVideo()) {
                     cameraView.stopVideo();
                 } else {
-                    File file = new File(getExternalFilesDir(Environment.DIRECTORY_MOVIES), "video_" + System.currentTimeMillis() + ".mp4");
+                    File videoDir = new File(getFilesDir(), "InspectorAppFolder/saved_videos"); // Use internal storage
+                    if (!videoDir.exists()) {
+                        videoDir.mkdirs();
+                    }
+                    File file = new File(videoDir, "video_" + System.currentTimeMillis() + ".mp4");
                     cameraView.takeVideo(file);
                 }
             }
         });
+
 
         // Set up time display
         updateTimeDisplay();
@@ -224,7 +238,7 @@ public class CameraV2Activity extends AppCompatActivity {
         SimpleDateFormat sdf = new SimpleDateFormat(timeFormat, Locale.getDefault());
         String currentTime = sdf.format(new Date());
         timeTextView.setText(currentTime);
-        timeTextView.setTextSize(30);
+        timeTextView.setTextSize(20);
     }
 
 
@@ -252,9 +266,10 @@ public class CameraV2Activity extends AppCompatActivity {
     }
 
     private File saveImage(Bitmap finalBitmap) {
-        String root = getExternalFilesDir("InspectorAppFolder").toString();
-        File myDir = new File(root + "/saved_images");
-        myDir.mkdirs();
+        File myDir = new File(getFilesDir(), "InspectorAppFolder/saved_images"); // Use internal storage
+        if (!myDir.exists()) {
+            myDir.mkdirs();
+        }
         String fname = "Image-" + System.currentTimeMillis() + ".jpg";
         File file = new File(myDir, fname);
         try {
@@ -271,6 +286,7 @@ public class CameraV2Activity extends AppCompatActivity {
             return null; // Возвращаем null в случае ошибки
         }
     }
+
 
 
     private void setupCameraGestures() {
@@ -297,15 +313,9 @@ public class CameraV2Activity extends AppCompatActivity {
 
         // 3. Подпись фото и выбор размера шрифта для этой подписи
 //        configureSignature(); Перенести!
-        
 
         // 7. Выбор формата изображения
         configureImageFormat();
-
-        // 8. Выбор разрешения
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            configureResolution();
-        }
 
         // 10. Блокировка ориентации фото
         configureOrientationLock();
@@ -314,19 +324,19 @@ public class CameraV2Activity extends AppCompatActivity {
         configureExposure();
 
         // 12. Настройка Facing
-        configureFacing();
+//        configureFacing();
 
         // 13. Настройка Flash
-        configureFlash();
+//        configureFlash();
 
         // 14. Настройка White Balance
-        configureWhiteBalance();
+//        configureWhiteBalance();
 
         // 15. Настройка HDR
-        configureHDR();
+//        configureHDR(); Перенести!
 
         // 16. Настройка Audio
-        configureAudio();
+//        configureAudio();
 
         // 17. Настройка Camera Mode (Picture/Video)
         configureCameraMode();
@@ -355,12 +365,12 @@ public class CameraV2Activity extends AppCompatActivity {
 
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
-                // Do nothing
+
             }
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                // Do nothing
+
             }
         });
 
@@ -374,55 +384,66 @@ public class CameraV2Activity extends AppCompatActivity {
                 .show();
     }
 
-
-
     private void configureImageFormat() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Choose Image Format")
                 .setItems(new CharSequence[]{"JPEG", "DNG"}, (dialog, which) -> {
-                    if (which == 0) {
-                        cameraView.setPictureFormat(PictureFormat.JPEG);
-                    } else {
-                        cameraView.setPictureFormat(PictureFormat.DNG);
+                    switch (which){
+                        case 0: cameraView.setPictureFormat(PictureFormat.JPEG); break;
+                        case 1: cameraView.setPictureFormat(PictureFormat.DNG); break;
                     }
                 })
                 .show();
     }
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-    private void configureResolution() {
-        // Get supported picture sizes
-        CameraOptions options = cameraView.getCameraOptions();
+    private void setupResolutionSpinner(CameraOptions options) {
         if (options == null) {
+
             Toast.makeText(this, "Camera not ready yet.", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        Collection<com.otaliastudios.cameraview.size.Size> supportedSizes = options.getSupportedPictureSizes(); // Get the Collection
-        if (supportedSizes == null || supportedSizes.isEmpty()) {
+        Collection<com.otaliastudios.cameraview.size.Size> supportedSizesCollection = options.getSupportedPictureSizes();
+        if (supportedSizesCollection == null || supportedSizesCollection.isEmpty()) {
             Toast.makeText(this, "No supported resolutions.", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        List<Size> sizes = new ArrayList<>();
-        for (com.otaliastudios.cameraview.size.Size s : supportedSizes) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                sizes.add(new Size(s.getWidth(), s.getHeight()));
+        supportedResolutions = new ArrayList<>();
+        List<String> resolutionLabels = new ArrayList<>();
+
+        for (com.otaliastudios.cameraview.size.Size s : supportedSizesCollection) {
+            Size size = new Size(s.getWidth(), s.getHeight());
+            supportedResolutions.add(size);
+            resolutionLabels.add(size.getWidth() + "x" + size.getHeight());
+        }
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, resolutionLabels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        resolutionSpinner.setAdapter(adapter);
+
+        resolutionSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                Size selectedSize = supportedResolutions.get(position);
+                cameraView.setPictureSize(new SizeSelector() {
+                    @NonNull
+                    @Override
+                    public List<com.otaliastudios.cameraview.size.Size> select(@NonNull List<com.otaliastudios.cameraview.size.Size> source) {
+                        return Collections.emptyList();
+                    }
+                    public boolean accept(@NonNull com.otaliastudios.cameraview.size.Size size) {
+                        return size.getWidth() == selectedSize.getWidth() && size.getHeight() == selectedSize.getHeight();
+                    }
+                });
             }
-        }
 
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {
+            }
+        });
 
-        CharSequence[] resolutionLabels = new CharSequence[sizes.size()];
-        for (int i = 0; i < sizes.size(); i++) {
-            resolutionLabels[i] = sizes.get(i).getWidth() + "x" + sizes.get(i).getHeight();
-        }
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Choose Resolution")
-                .setItems(resolutionLabels, (dialog, which) -> {
-                    Size selectedSize = sizes.get(which);
-                    cameraView.setPictureSize((SizeSelector) new com.otaliastudios.cameraview.size.Size(selectedSize.getWidth(), selectedSize.getHeight()));
-                })
-                .show();
     }
 
 
@@ -559,6 +580,7 @@ public class CameraV2Activity extends AppCompatActivity {
                     } else {
                         cameraView.setHdr(Hdr.ON);
                     }
+
                 })
                 .show();
     }
