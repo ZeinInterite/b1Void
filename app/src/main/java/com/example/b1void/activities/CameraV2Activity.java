@@ -1,3 +1,4 @@
+
 package com.example.b1void.activities;
 
 import android.Manifest;
@@ -22,10 +23,12 @@ import android.util.Log;
 import android.util.Size;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.Switch;
@@ -75,6 +78,7 @@ public class CameraV2Activity extends AppCompatActivity {
 
     private CameraView cameraView;
     private ImageButton captureButton;
+    private ImageButton flipButton;
     private TextView timeTextView;
     private EditText signatureEditText;
     private int signatureTextSize = 50;
@@ -84,6 +88,14 @@ public class CameraV2Activity extends AppCompatActivity {
     private List<Size> supportedResolutions;
     private static final int PERMISSION_REQUEST_CODE = 123;
     private File currentImageFile;
+    private ImageButton flashButton;
+    private int currentFlash;
+    private ImageButton exposureButton;
+    private LinearLayout exposureControlsLayout;
+    private SeekBar exposureSeekBar;
+    private TextView exposureValueTextView;
+
+    private boolean isExposureControlsVisible = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,9 +105,32 @@ public class CameraV2Activity extends AppCompatActivity {
         cameraView = findViewById(R.id.camera);
         cameraView.setLifecycleOwner(this);
         captureButton = findViewById(R.id.capture_button);
+        flipButton = findViewById(R.id.flip_camera);
         timeTextView = findViewById(R.id.time_text_view);
-        signatureEditText = findViewById(R.id.signature_edit_text);
         resolutionSpinner = findViewById(R.id.resolution_spinner);
+        currentFlash = 0;
+
+        flashButton = findViewById(R.id.flash_button);
+        cameraView.setFlash(Flash.OFF);
+
+        // Инициализация новых элементов управления экспозицией
+        exposureButton = findViewById(R.id.exposure_button);
+        exposureControlsLayout = findViewById(R.id.exposure_controls_layout);
+        exposureSeekBar = findViewById(R.id.exposure_seek_bar);
+        exposureValueTextView = findViewById(R.id.exposure_value_text_view);
+
+        // Скрываем элементы управления экспозицией при старте
+        exposureControlsLayout.setVisibility(View.GONE);
+
+        // Обработчик нажатия на кнопку экспозиции
+        exposureButton.setOnClickListener(v -> {
+            isExposureControlsVisible = !isExposureControlsVisible;
+            exposureControlsLayout.setVisibility(isExposureControlsVisible ? View.VISIBLE : View.GONE);
+
+            if (isExposureControlsVisible) {
+                setupExposureControl();
+            }
+        });
 
         // здесь, епта, спрашиваем у дрочилы разрешения октрыть камеру
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -179,6 +214,33 @@ public class CameraV2Activity extends AppCompatActivity {
             }
         });
 
+        flashButton.setOnClickListener(v -> {
+
+            switch (currentFlash) {
+                case 0:
+                    flashButton.setImageResource(R.drawable.flash_on);
+                    cameraView.setFlash(Flash.ON);
+                    break;
+                case 1:
+                    cameraView.setFlash(Flash.OFF);
+                    flashButton.setImageResource(R.drawable.flash_off);
+                    // Replace with your "flash off" icon
+                    break;
+                case 2:
+                    flashButton.setImageResource(R.drawable.flash_auto);
+                    cameraView.setFlash(Flash.AUTO);
+                    break;
+                case 3:
+                    currentFlash = -1;
+                    flashButton.setImageResource(R.drawable.flash_torch);
+                    cameraView.setFlash(Flash.TORCH);
+
+                    break;
+            }
+            currentFlash += 1;
+
+        });
+
         // Set up capture button
         captureButton.setOnClickListener(v -> {
             if (cameraView.getMode() == Mode.PICTURE) {
@@ -198,7 +260,13 @@ public class CameraV2Activity extends AppCompatActivity {
             }
         });
 
-
+        flipButton.setOnClickListener(v -> {
+            if (cameraView.getFacing() == Facing.BACK) {
+                cameraView.setFacing(Facing.FRONT);
+            } else {
+                cameraView.setFacing(Facing.BACK);
+            }
+        });
         // Set up time display
         updateTimeDisplay();
         Thread timeThread = new Thread(() -> {
@@ -321,10 +389,7 @@ public class CameraV2Activity extends AppCompatActivity {
         configureOrientationLock();
 
         // 11. Настройка экспозиции
-        configureExposure();
-
-        // 12. Настройка Facing
-//        configureFacing();
+        //configureExposure();  Убрали отсюда
 
         // 13. Настройка Flash
 //        configureFlash();
@@ -399,7 +464,6 @@ public class CameraV2Activity extends AppCompatActivity {
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     private void setupResolutionSpinner(CameraOptions options) {
         if (options == null) {
-
             Toast.makeText(this, "Camera not ready yet.", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -431,19 +495,39 @@ public class CameraV2Activity extends AppCompatActivity {
                     @NonNull
                     @Override
                     public List<com.otaliastudios.cameraview.size.Size> select(@NonNull List<com.otaliastudios.cameraview.size.Size> source) {
-                        return Collections.emptyList();
+                        List<com.otaliastudios.cameraview.size.Size> result = new ArrayList<>();
+                        for (com.otaliastudios.cameraview.size.Size size : source) {
+                            if (size.getWidth() == selectedSize.getWidth() && size.getHeight() == selectedSize.getHeight()) {
+                                result.add(size);
+                                // Важно! Возвращаем размер, который соответствует выбранному.
+                                break; //  Размер уже найден, незачем дальше перебирать
+                            }
+                        }
+                        return result;
                     }
-                    public boolean accept(@NonNull com.otaliastudios.cameraview.size.Size size) {
-                        return size.getWidth() == selectedSize.getWidth() && size.getHeight() == selectedSize.getHeight();
-                    }
+
                 });
+
+                //  После установки разрешения, нужно обновить размер CameraView
+                updateCameraViewSize(selectedSize.getWidth(), selectedSize.getHeight());
             }
 
             @Override
             public void onNothingSelected(android.widget.AdapterView<?> parent) {
             }
         });
+    }
 
+    private void updateCameraViewSize(int width, int height) {
+        //  Получаем текущие параметры layout
+        ViewGroup.LayoutParams layoutParams = cameraView.getLayoutParams();
+
+        //  Устанавливаем новые размеры
+        layoutParams.width = width;
+        layoutParams.height = height;
+
+        //  Применяем изменения
+        cameraView.setLayoutParams(layoutParams);
     }
 
 
@@ -458,7 +542,7 @@ public class CameraV2Activity extends AppCompatActivity {
     }
 
 
-    private void configureExposure() {
+    private void setupExposureControl() {
         CameraOptions options = cameraView.getCameraOptions();
         if (options == null || !options.isExposureCorrectionSupported()) {
             Toast.makeText(this, "Exposure correction not supported.", Toast.LENGTH_SHORT).show();
@@ -468,20 +552,12 @@ public class CameraV2Activity extends AppCompatActivity {
         float minExposure = options.getExposureCorrectionMinValue();
         float maxExposure = options.getExposureCorrectionMaxValue();
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        LayoutInflater inflater = getLayoutInflater();
-        View dialogView = inflater.inflate(R.layout.dialog_exposure, null);
-        builder.setView(dialogView);
+        int smoothnessFactor = 100;
 
-        SeekBar exposureSeekBar = dialogView.findViewById(R.id.exposure_seek_bar);
-        final TextView exposureValueTextView = dialogView.findViewById(R.id.exposure_value_text_view);
-
-        // Calculate progress based on min/max values
-        int progressOffset = (int) Math.abs(minExposure); // Offset to make min value 0
-        int maxProgress = (int) (maxExposure - minExposure); // Total range of progress
+        int progressOffset = (int) Math.abs(minExposure * smoothnessFactor);
+        int maxProgress = (int) ((maxExposure - minExposure) * smoothnessFactor);
         exposureSeekBar.setMax(maxProgress);
 
-        // Set initial progress to 0 (center)
         exposureSeekBar.setProgress(progressOffset);
         exposureValueTextView.setText(String.valueOf(0.0f));
         cameraView.setExposureCorrection(0.0f);
@@ -489,62 +565,21 @@ public class CameraV2Activity extends AppCompatActivity {
         exposureSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                float exposureValue = (float) (progress - progressOffset);
+                float exposureValue = (float) (progress - progressOffset) / smoothnessFactor;
                 cameraView.setExposureCorrection(exposureValue);
-                exposureValueTextView.setText(String.format(Locale.getDefault(), "%.1f", exposureValue));
+                exposureValueTextView.setText(String.format(Locale.getDefault(), "%.2f", exposureValue));
             }
 
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
-                // Do nothing
             }
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                // Do nothing
             }
         });
-
-        builder.setTitle("Adjust Exposure")
-                .setNegativeButton("Cancel", (dialog, which) -> dialog.cancel())
-                .show();
     }
 
-
-    private void configureFacing() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Select Camera")
-                .setItems(new CharSequence[]{"Front", "Back"}, (dialog, which) -> {
-                    if (which == 0) {
-                        cameraView.setFacing(Facing.FRONT);
-                    } else {
-                        cameraView.setFacing(Facing.BACK);
-                    }
-                })
-                .show();
-    }
-
-    private void configureFlash() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Select Flash Mode")
-                .setItems(new CharSequence[]{"Off", "On", "Auto", "Torch"}, (dialog, which) -> {
-                    switch (which) {
-                        case 0:
-                            cameraView.setFlash(Flash.OFF);
-                            break;
-                        case 1:
-                            cameraView.setFlash(Flash.ON);
-                            break;
-                        case 2:
-                            cameraView.setFlash(Flash.AUTO);
-                            break;
-                        case 3:
-                            cameraView.setFlash(Flash.TORCH);
-                            break;
-                    }
-                })
-                .show();
-    }
 
     private void configureWhiteBalance() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);

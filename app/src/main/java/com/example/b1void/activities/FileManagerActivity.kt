@@ -1,5 +1,4 @@
 
-// FileManagerActivity.kt
 package com.example.b1void.activities
 
 import android.content.Intent
@@ -21,7 +20,12 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.b1void.R
 import com.example.b1void.adapters.FileAdapter
+import net.lingala.zip4j.ZipFile
+import net.lingala.zip4j.model.ZipParameters
+import net.lingala.zip4j.model.enums.CompressionLevel
+import net.lingala.zip4j.model.enums.CompressionMethod
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.util.LinkedList
 
@@ -32,10 +36,17 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var fileAdapter: FileAdapter
     private val directoryStack: LinkedList<File> = LinkedList()
     private lateinit var appDirectory: File
+    private lateinit var zipDirectory: File
     private lateinit var addInspBtn: Button
     private lateinit var showInspBtn: Button
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var shareButton: Button
+
+
+    private var imgGalUriString: String? = null
+    private var imgGalUri: Uri? = null
+    private var selectedFolderGalUri: Uri? = null
+    private val PICK_FOLDER_REQUEST = 2
 
     //  Для Multiple Select
     private var isSelectionMode = false
@@ -55,8 +66,19 @@ class FileManagerActivity : AppCompatActivity() {
         shareButton = findViewById(R.id.share_button)
 
 
+        if(intent.getStringExtra("imageUri") != null){
+            imgGalUriString = intent.getStringExtra("imageUri")
+            imgGalUri = Uri.parse(imgGalUriString)
+
+
+            showCreateFolderDialog { newDir ->
+                saveImageToDirectory(newDir)
+            }
+
+        }
+
         addInspBtn.setOnClickListener {
-            val intent = Intent(this, InspectionAddActivity::class.java)
+            val intent = Intent(this, CameraV2Activity::class.java)
             intent.putExtra("current_directory", getCurrentDirectory().absolutePath)
             startActivity(intent)
         }
@@ -103,10 +125,42 @@ class FileManagerActivity : AppCompatActivity() {
             }
         }
 
+        zipDirectory = File(filesDir, "zipFolder")
+
+        if (!zipDirectory.exists()) {
+            try {
+                if (zipDirectory.mkdirs()) {
+                    Toast.makeText(this, "Папка zip-файлов создана", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(
+                        this,
+                        "Не удалось создать папку zip-файлов",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } catch (e: SecurityException) {
+                Log.e("FileManager", "SecurityException creating directory: ${e.message}")
+                Toast.makeText(
+                    this,
+                    "Ошибка: Недостаточно прав для создания папки zip-файлов ",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } catch (e: IOException) {
+                Log.e("FileManager", "IOException creating directory: ${e.message}")
+                Toast.makeText(
+                    this,
+                    "Ошибка ввода/вывода при создании папки zip-файлов",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+
         loadDirectoryContent(appDirectory)
 
         createFolderButton.setOnClickListener {
-            showCreateFolderDialog(getCurrentDirectory())
+            showCreateFolderDialog { newDir ->
+                loadDirectoryContent(getCurrentDirectory())
+            }
         }
 
         swipeRefreshLayout.setOnRefreshListener {
@@ -114,10 +168,42 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
-    // Добавляем кнопку Share в Action Bar
-    // удалил потому что добавил кнопку в xml
-    //  Обработка нажатия на кнопку Share
-    // удалил потому что добавил кнопку в xml
+    private fun saveImageToDirectory(directory: File) { // Изменили название, чтобы было понятнее
+        val fname = "Image-" + System.currentTimeMillis() + ".jpg"
+        val file = File(directory, fname)
+
+        try {
+            // Получаем InputStream из URI изображения
+            val inputStream = contentResolver.openInputStream(imgGalUri!!)
+
+            // Создаем OutputStream для записи данных в файл
+            val outputStream = FileOutputStream(file)
+
+            // Буфер для чтения и записи данных (рекомендуемый размер)
+            val buffer = ByteArray(4096) // 4KB
+
+            var bytesRead: Int
+            while (inputStream!!.read(buffer).also { bytesRead = it } != -1) {
+                outputStream.write(buffer, 0, bytesRead)
+            }
+
+            // Закрываем потоки (очень важно!)
+            outputStream.close()
+            inputStream.close()
+
+            runOnUiThread {
+                Toast.makeText(this, "Изображение сохранено в: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                loadDirectoryContent(directory) // Обновляем контент
+            }
+
+        } catch (e: IOException) {
+            // Обрабатываем ошибки ввода/вывода
+            e.printStackTrace()
+            runOnUiThread {
+                Toast.makeText(this, "Ошибка при сохранении изображения", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     override fun onCreateContextMenu(
         menu: ContextMenu?,
@@ -210,10 +296,9 @@ class FileManagerActivity : AppCompatActivity() {
             runOnUiThread {
                 swipeRefreshLayout.isRefreshing = false
             }
-        }.start() // Start the background thread
+        }.start()
 
     }
-
 
     // Method to open the image preview activity
     private fun openImagePreview(imageFile: File) {
@@ -221,7 +306,6 @@ class FileManagerActivity : AppCompatActivity() {
         intent.putExtra("image_path", imageFile.absolutePath)
         startActivity(intent)
     }
-
 
     private fun openDirectory(file: File) {
         if (directoryStack.isEmpty() || directoryStack.lastOrNull() != file) {
@@ -242,7 +326,7 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
-    private fun showCreateFolderDialog(parentDir: File) {
+    private fun showCreateFolderDialog(onFolderCreated: (File) -> Unit) {
         val builder = AlertDialog.Builder(this)
         val input = EditText(this)
         builder.setTitle("Создать новую папку")
@@ -250,13 +334,12 @@ class FileManagerActivity : AppCompatActivity() {
 
         builder.setPositiveButton("Создать") { dialog, _ ->
             val folderName = input.text.toString()
+            val newDir = File(getCurrentDirectory(), folderName)
 
-            // Проверка имени папки
-
-            val newDir = File(parentDir, folderName)
             try {
                 if (newDir.mkdir()) {
-                    loadDirectoryContent(parentDir)
+                    onFolderCreated(newDir) // Call the callback with the newly created directory
+                    //loadDirectoryContent(getCurrentDirectory()) // Обновляем контент текущей директории
                 } else {
                     Toast.makeText(this, "Ошибка при создании папки", Toast.LENGTH_SHORT).show()
                 }
@@ -267,7 +350,6 @@ class FileManagerActivity : AppCompatActivity() {
                 Log.e("FileManager", "IOException creating folder: ${e.message}")
                 Toast.makeText(this, "Ошибка ввода/вывода при создании папки", Toast.LENGTH_SHORT).show()
             }
-
             dialog.dismiss()
         }
         builder.setNegativeButton("Отмена") { dialog, _ -> dialog.cancel() }
@@ -307,7 +389,6 @@ class FileManagerActivity : AppCompatActivity() {
         builder.show()
     }
 
-
     fun deleteFile(file: File) {
         try {
             if (file.delete()) {
@@ -328,16 +409,41 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     private fun shareFile(file: File) {
+
+        val mimeType: String
+
+        val uri: Uri
+
         try {
-            val uri = FileProvider.getUriForFile(
-                this,
-                "${packageName}.fileprovider", // Use your app's package name
-                file
-            )
+            if (file.isDirectory) {
+
+                val zipFileName = "${file.name}.zip"
+                val zipFile = File(zipDirectory, zipFileName)
+
+                ZipFile(zipFile).addFolder(file)
+
+
+                uri = FileProvider.getUriForFile(
+                    this,
+                    "${packageName}.fileprovider",
+                    zipFile
+                )
+                mimeType = "application/zip"
+
+                zipFile.deleteOnExit()
+
+            } else {
+                uri = FileProvider.getUriForFile(
+                    this,
+                    "${packageName}.fileprovider",
+                    file
+                )
+                mimeType = "image/*"
+            }
 
             ShareCompat.IntentBuilder(this)
                 .setStream(uri)
-                .setType("*/*") // Adjust MIME type as needed (detect if possible)
+                .setType(mimeType)
                 .setChooserTitle("Поделиться файлом")
                 .startChooser()
         } catch (e: IllegalArgumentException) {
@@ -388,34 +494,117 @@ class FileManagerActivity : AppCompatActivity() {
         shareButton.visibility = if (selectedFiles.isNotEmpty()) View.VISIBLE else View.GONE
     }
 
+    fun zipFolder(folderToZip: File, zipFile: File) {
+        try {
+            val zipParameters = ZipParameters()
+            zipParameters.compressionMethod = CompressionMethod.DEFLATE
+            zipParameters.compressionLevel = CompressionLevel.NORMAL
+
+            ZipFile(zipFile.absolutePath).addFolder(folderToZip, zipParameters)
+
+        } catch (e: Exception) {
+            Log.e("FileManager", "Error zipping folder: ${e.message}")
+            Toast.makeText(this, "Ошибка при архивации папки", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun shareSelectedFiles() {
         if (selectedFiles.isNotEmpty()) {
-            val filesUris = ArrayList<Uri>()
-
-            try {
-                for (file in selectedFiles) {
-                    val uri = FileProvider.getUriForFile(
-                        this,
-                        "${packageName}.fileprovider", // Use your app's package name
-                        file
-                    )
-                    filesUris.add(uri)
+            Thread {
+                val filesUris = ArrayList<Uri>()
+                val tempDir = File(cacheDir, "temp_zip")
+                if (!tempDir.exists()) {
+                    tempDir.mkdirs()
                 }
 
-                val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE)
-                shareIntent.type = "*/*" // Or specific MIME type if you know all files are images
-                shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, filesUris)
-                shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                startActivity(Intent.createChooser(shareIntent, "Share selected files"))
-                clearSelection()  // Clear selection after sharing
-            } catch (e: IllegalArgumentException) {
-                Log.e("FileManager", "FileProvider error: ${e.message}")
-                Toast.makeText(this, "Ошибка при обмене файлами", Toast.LENGTH_SHORT).show()
-            }
+                var errorOccurred = false // Флаг для отслеживания ошибок
+
+                try {
+                    for (file in selectedFiles) {
+                        try { // Дополнительный try-catch для обработки ошибок архивации каждого файла
+                            if (file.isDirectory) {
+                                // Zip the folder
+                                val zipFile = File(tempDir, "${file.name}.zip")
+                                zipFolder(file, zipFile)
+
+                                if (zipFile.exists()) {  //  Проверка существования ZIP-архива
+                                    val uri = FileProvider.getUriForFile(
+                                        this,
+                                        "${packageName}.fileprovider", // Use your app's package name
+                                        zipFile
+                                    )
+                                    filesUris.add(uri)
+                                } else {
+                                    Log.e("FileManager", "Failed to create ZIP archive for ${file.name}")
+                                    errorOccurred = true // Устанавливаем флаг ошибки
+                                    runOnUiThread {
+                                        Toast.makeText(
+                                            this,
+                                            "Ошибка при создании архива для ${file.name}",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                            } else {
+                                val uri = FileProvider.getUriForFile(
+                                    this,
+                                    "${packageName}.fileprovider", // Use your app's package name
+                                    file
+                                )
+                                filesUris.add(uri)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("FileManager", "Error processing file ${file.name}: ${e.message}")
+                            errorOccurred = true // Устанавливаем флаг ошибки
+                            runOnUiThread {
+                                Toast.makeText(
+                                    this,
+                                    "Ошибка при обработке файла ${file.name}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    }
+
+                    if (filesUris.isNotEmpty()) { //  Проверка, что есть что отправлять
+                        val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE)
+                        shareIntent.type = "*/*" // Используем универсальный MIME type
+                        shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, filesUris)
+                        shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+                        runOnUiThread {
+                            startActivity(Intent.createChooser(shareIntent, "Share selected files"))
+                            clearSelection()  // Clear selection after sharing
+                        }
+                    } else {
+                        runOnUiThread {
+                            if (errorOccurred) {
+                                Toast.makeText(
+                                    this,
+                                    "Не удалось подготовить ни один файл для отправки.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                Toast.makeText(this, "Нечего отправлять.", Toast.LENGTH_SHORT).show()
+                            }
+
+                        }
+                    }
+
+
+                } catch (e: IllegalArgumentException) {
+                    Log.e("FileManager", "FileProvider error: ${e.message}")
+                    runOnUiThread {
+                        Toast.makeText(this, "Ошибка при обмене файлами", Toast.LENGTH_SHORT).show()
+                    }
+                } finally {
+                    // Delete temp files
+                    tempDir.listFiles()?.forEach { it.delete() }
+                }
+            }.start()
 
         } else {
             Toast.makeText(this, "No files selected", Toast.LENGTH_SHORT).show()
         }
     }
-
 }
