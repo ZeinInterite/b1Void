@@ -1,4 +1,3 @@
-
 package com.example.b1void.activities
 
 import android.content.Intent
@@ -37,7 +36,7 @@ class FileManagerActivity : AppCompatActivity() {
     private val directoryStack: LinkedList<File> = LinkedList()
     private lateinit var appDirectory: File
     private lateinit var zipDirectory: File
-    private lateinit var addInspBtn: Button
+    private lateinit var captureButton: Button
     private lateinit var showInspBtn: Button
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var shareButton: Button
@@ -48,7 +47,6 @@ class FileManagerActivity : AppCompatActivity() {
     private var selectedFolderGalUri: Uri? = null
     private val PICK_FOLDER_REQUEST = 2
 
-    //  Для Multiple Select
     private var isSelectionMode = false
     private val selectedFiles = mutableSetOf<File>() // Use a Set for efficient contains/remove
 
@@ -60,16 +58,14 @@ class FileManagerActivity : AppCompatActivity() {
 
         recyclerView = findViewById(R.id.recycler_view)
         createFolderButton = findViewById(R.id.create_folder_button)
-        addInspBtn = findViewById(R.id.add_inspection_button)
+        captureButton = findViewById(R.id.capture_button)
         showInspBtn = findViewById(R.id.show_inspection_button)
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout)
         shareButton = findViewById(R.id.share_button)
 
-
         if(intent.getStringExtra("imageUri") != null){
             imgGalUriString = intent.getStringExtra("imageUri")
             imgGalUri = Uri.parse(imgGalUriString)
-
 
             showCreateFolderDialog { newDir ->
                 saveImageToDirectory(newDir)
@@ -77,9 +73,9 @@ class FileManagerActivity : AppCompatActivity() {
 
         }
 
-        addInspBtn.setOnClickListener {
+        captureButton.setOnClickListener {
             val intent = Intent(this, CameraV2Activity::class.java)
-            intent.putExtra("current_directory", getCurrentDirectory().absolutePath)
+            intent.putExtra("save_path", getCurrentDirectory().absolutePath)
             startActivity(intent)
         }
         showInspBtn.setOnClickListener {
@@ -303,7 +299,10 @@ class FileManagerActivity : AppCompatActivity() {
     // Method to open the image preview activity
     private fun openImagePreview(imageFile: File) {
         val intent = Intent(this, ImagePreviewActivity::class.java)
-        intent.putExtra("image_path", imageFile.absolutePath)
+        // Create a list containing only the clicked image's path
+        val imagePaths = arrayListOf(imageFile.absolutePath)
+        intent.putStringArrayListExtra("image_paths", imagePaths)
+        intent.putExtra("current_image_index", 0) // Always start at the first image (index 0)
         startActivity(intent)
     }
 
@@ -391,22 +390,44 @@ class FileManagerActivity : AppCompatActivity() {
 
     fun deleteFile(file: File) {
         try {
-            if (file.delete()) {
-                Log.d("File Manager", "File ${file.name} deleted successfully")
-                loadDirectoryContent(getCurrentDirectory())
+            if (file.isDirectory) {
+                deleteDirectory(file)
             } else {
-                Log.e("File Manager", "Error deleting file ${file.name}")
-                Toast.makeText(
-                    this@FileManagerActivity,
-                    "Ошибка при удалении файла",
-                    Toast.LENGTH_SHORT
-                ).show()
+                if (file.delete()) {
+                    Log.d("File Manager", "File ${file.name} deleted successfully")
+                } else {
+                    Log.e("File Manager", "Error deleting file ${file.name}")
+                    Toast.makeText(
+                        this@FileManagerActivity,
+                        "Ошибка при удалении файла",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
+            loadDirectoryContent(getCurrentDirectory())
         } catch (e: SecurityException) {
             Log.e("FileManager", "SecurityException deleting file: ${e.message}")
             Toast.makeText(this, "Ошибка безопасности при удалении файла", Toast.LENGTH_SHORT).show()
         }
     }
+
+    private fun deleteDirectory(directory: File): Boolean {
+        val files = directory.listFiles()
+        if (files != null) {
+            for (file in files) {
+                if (file.isDirectory) {
+                    deleteDirectory(file)
+                } else {
+                    if (!file.delete()) {
+                        Log.e("FileManager", "Failed to delete file: " + file.absolutePath)
+                        return false
+                    }
+                }
+            }
+        }
+        return directory.delete()
+    }
+
 
     private fun shareFile(file: File) {
 
@@ -598,7 +619,6 @@ class FileManagerActivity : AppCompatActivity() {
                         Toast.makeText(this, "Ошибка при обмене файлами", Toast.LENGTH_SHORT).show()
                     }
                 } finally {
-                    // Delete temp files
                     tempDir.listFiles()?.forEach { it.delete() }
                 }
             }.start()

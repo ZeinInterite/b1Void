@@ -2,11 +2,12 @@ package com.example.b1void.activities
 
 import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.util.Log
+import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.b1void.R
-import android.widget.ImageButton
-import android.widget.Toast
 import java.io.File
 
 class ImagePreviewActivity : AppCompatActivity() {
@@ -32,6 +33,11 @@ class ImagePreviewActivity : AppCompatActivity() {
             Toast.makeText(this, "No images to display.", Toast.LENGTH_SHORT).show()
             finish()
             return
+        }
+
+        if (imagePaths.size == 1) {
+            prevButton.isEnabled = false
+            nextButton.isEnabled = false
         }
 
         displayImage()
@@ -63,6 +69,7 @@ class ImagePreviewActivity : AppCompatActivity() {
             val bitmap = BitmapFactory.decodeFile(imageFile.absolutePath)
             imageView.setImageBitmap(bitmap)
         } else {
+            Log.e("ImagePreview", "Image not found: $imagePath")
             imageView.setImageResource(R.drawable.def_insp_img) // Placeholder
             Toast.makeText(this, "Image not found.", Toast.LENGTH_SHORT).show()
         }

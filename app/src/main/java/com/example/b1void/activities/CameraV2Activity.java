@@ -94,11 +94,19 @@ public class CameraV2Activity extends AppCompatActivity {
     private boolean isSettingsControlsVisible = false;
     private List<Size> supportedResolutions;
     private File currentImageFile;
+    private String customSavePath = null; // Переменная для хранения пути сохранения
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera_v2);
+
+        // Получаем путь из интента, если он был передан
+        Intent intent = getIntent();
+        if (intent != null && intent.hasExtra("save_path")) {
+            customSavePath = intent.getStringExtra("save_path");
+            Log.d("CameraV2Activity", "Custom save path received: " + customSavePath);
+        }
 
         currentFlash = 0;
 
@@ -643,38 +651,74 @@ public class CameraV2Activity extends AppCompatActivity {
     }
 
     private File saveImage(Bitmap finalBitmap) {
-        File myDir = new File(getFilesDir(), "InspectorAppFolder/saved_images");
-        if (!myDir.exists()) {
-            myDir.mkdirs();
-        }
-
-        String fname = "Image-" + System.currentTimeMillis();
-        Bitmap.CompressFormat compressFormat;
-        String fileExtension;
-
-        if (currentImageFormat.equals("PNG")) {
-            compressFormat = Bitmap.CompressFormat.PNG;
-            fileExtension = ".png";
-        } else {
-            compressFormat = Bitmap.CompressFormat.JPEG;
-            fileExtension = ".jpg";
-        }
-
-        fname += fileExtension;
-        File file = new File(myDir, fname);
-
+        File file = null; // Initialize file to null
         try {
+            if (customSavePath != null && !customSavePath.isEmpty()) {
+                // Используем переданный путь для сохранения
+                File customDir = new File(customSavePath);
+                // Check if the custom path is a directory
+                if (customDir.isDirectory()) {
+                    // If it is a directory, create a file inside it with a unique name
+                    String fileName = "Image-" + System.currentTimeMillis() + (currentImageFormat.equals("PNG") ? ".png" : ".jpg");
+                    file = new File(customDir, fileName); // Save inside the directory
+                } else {
+                    // If the custom path is a file, use it directly
+                    file = customDir;
+                }
+
+                File parentDir = file.getParentFile();
+
+                if (parentDir != null && !parentDir.exists()) {
+                    if (!parentDir.mkdirs()) {
+                        Log.e("CameraError", "Failed to create directory: " + parentDir.getAbsolutePath());
+                        Toast.makeText(this, "Failed to create directory.", Toast.LENGTH_SHORT).show();
+                        return null;
+                    }
+                }
+
+
+            } else {
+                // Используем стандартный путь сохранения
+                File myDir = new File(getFilesDir(), "InspectorAppFolder/saved_images");
+                if (!myDir.exists()) {
+                    if (!myDir.mkdirs()) {
+                        Log.e("CameraError", "Failed to create directory: " + myDir.getAbsolutePath());
+                        Toast.makeText(this, "Failed to create directory.", Toast.LENGTH_SHORT).show();
+                        return null;
+                    }
+                }
+
+                String fname = "Image-" + System.currentTimeMillis();
+                Bitmap.CompressFormat compressFormat;
+                String fileExtension;
+
+                if (currentImageFormat.equals("PNG")) {
+                    compressFormat = Bitmap.CompressFormat.PNG;
+                    fileExtension = ".png";
+                } else {
+                    compressFormat = Bitmap.CompressFormat.JPEG;
+                    fileExtension = ".jpg";
+                }
+
+                fname += fileExtension;
+                file = new File(myDir, fname);
+            }
+
+
             FileOutputStream out = new FileOutputStream(file);
+            Bitmap.CompressFormat compressFormat = currentImageFormat.equals("PNG") ? Bitmap.CompressFormat.PNG : Bitmap.CompressFormat.JPEG;
             finalBitmap.compress(compressFormat, 100, out);
             out.flush();
             out.close();
             return file;
+
         } catch (IOException e) {
-            e.printStackTrace();
-            Toast.makeText(this, "Error saving image.", Toast.LENGTH_SHORT).show();
+            Log.e("CameraError", "Error saving image: " + e.getMessage() + " Path: " + (file != null ? file.getAbsolutePath() : "null"));
+            Toast.makeText(this, "Error saving image: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             return null;
         }
     }
+
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     private void setupResolutionSpinner(CameraOptions options) {
