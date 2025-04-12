@@ -1,5 +1,3 @@
-// ImagePreviewActivity.kt
-
 package com.example.b1void.activities
 
 import android.graphics.BitmapFactory
@@ -7,27 +5,66 @@ import android.os.Bundle
 import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 import com.example.b1void.R
+import android.widget.ImageButton
+import android.widget.Toast
 import java.io.File
 
 class ImagePreviewActivity : AppCompatActivity() {
+
+    private lateinit var imagePaths: ArrayList<String>
+    private var currentImageIndex: Int = 0
+    private lateinit var imageView: ImageView
+    private lateinit var prevButton: ImageButton
+    private lateinit var nextButton: ImageButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_image_preview)
 
-        val imagePath = intent.getStringExtra("image_path")
-        val imageView: ImageView = findViewById(R.id.image_preview)
+        imageView = findViewById(R.id.image_preview)
+        prevButton = findViewById(R.id.prev_button)
+        nextButton = findViewById(R.id.next_button)
 
-        if (imagePath != null) {
-            val imageFile = File(imagePath)
-            if (imageFile.exists()) {
-                val bitmap = BitmapFactory.decodeFile(imageFile.absolutePath)
-                imageView.setImageBitmap(bitmap)
+        imagePaths = intent.getStringArrayListExtra("image_paths") ?: ArrayList()
+        currentImageIndex = intent.getIntExtra("current_image_index", 0)
+
+        if (imagePaths.isEmpty()) {
+            Toast.makeText(this, "No images to display.", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+
+        displayImage()
+
+        prevButton.setOnClickListener {
+            if (currentImageIndex > 0) {
+                currentImageIndex--
+                displayImage()
             } else {
-                imageView.setImageResource(R.drawable.image_ic) // Default icon if image not found
+                Toast.makeText(this, "No previous image.", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        nextButton.setOnClickListener {
+            if (currentImageIndex < imagePaths.size - 1) {
+                currentImageIndex++
+                displayImage()
+            } else {
+                Toast.makeText(this, "No next image.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun displayImage() {
+        val imagePath = imagePaths[currentImageIndex]
+        val imageFile = File(imagePath)
+
+        if (imageFile.exists()) {
+            val bitmap = BitmapFactory.decodeFile(imageFile.absolutePath)
+            imageView.setImageBitmap(bitmap)
         } else {
-            imageView.setImageResource(R.drawable.image_ic) // Default icon if path is null
+            imageView.setImageResource(R.drawable.def_insp_img) // Placeholder
+            Toast.makeText(this, "Image not found.", Toast.LENGTH_SHORT).show()
         }
     }
 }

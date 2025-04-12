@@ -2,8 +2,7 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    >
+    android:layout_height="match_parent">
 
     <com.otaliastudios.cameraview.CameraView
         android:id="@+id/camera"
@@ -53,8 +52,7 @@
             android:id="@+id/resolution_spinner"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:spinnerMode="dropdown"
-            />
+            android:spinnerMode="dropdown" />
 
         <ImageButton
             android:id="@+id/settings_button"
@@ -66,34 +64,18 @@
             android:src="@drawable/setting_ic"
             app:tint="@color/white" />
     </LinearLayout>
-
-    <ImageButton
-        android:id="@+id/flip_camera"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/top_bar"
-        android:layout_alignParentEnd="true"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="16dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="Flip Camera"
-        android:src="@drawable/flip_camera"
-        app:tint="@android:color/white" />
-
     <ImageButton
         android:id="@+id/flash_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@id/flip_camera"
         android:layout_alignParentEnd="true"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="100dp"
         android:layout_marginEnd="16dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="Flash"
         android:src="@drawable/flash_off"
         app:tint="@android:color/white" />
 
-    <!--  Добавляем LinearLayout для элементов управления экспозицией  -->
     <LinearLayout
         android:id="@+id/exposure_controls_layout"
         android:layout_width="match_parent"
@@ -101,7 +83,8 @@
         android:layout_below="@id/top_bar"
         android:background="#80000000"
         android:orientation="vertical"
-        android:padding="8dp">
+        android:padding="8dp"
+        android:visibility="gone">
 
         <TextView
             android:layout_width="wrap_content"
@@ -121,52 +104,146 @@
             android:textColor="@android:color/white" />
     </LinearLayout>
 
-    <RelativeLayout
-        android:id="@+id/bottom_controls"
+    <LinearLayout
+        android:id="@+id/settings_controls_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/cam_ic"
+        android:background="#80000000"
+        android:orientation="vertical"
+        android:padding="8dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Image Format:"
+            android:textColor="@android:color/white" />
+
+        <Spinner
+            android:id="@+id/image_format_spinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:spinnerMode="dropdown" />
+
+        <!-- Orientation Lock -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Orientation Lock:"
+                android:textColor="@android:color/white"
+                android:layout_weight="1"/>
+
+            <Switch
+                android:id="@+id/orientation_lock_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <!-- White Balance -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="White Balance:"
+            android:textColor="@android:color/white" />
+
+        <Spinner
+            android:id="@+id/white_balance_spinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:spinnerMode="dropdown" />
+
+        <!-- HDR -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="HDR:"
+            android:textColor="@android:color/white" />
+
+        <Spinner
+            android:id="@+id/hdr_spinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:spinnerMode="dropdown" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Audio:"
+            android:textColor="@android:color/white" />
+
+        <Spinner
+            android:id="@+id/audio_spinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:spinnerMode="dropdown" />
+
+        <ImageButton
+            android:id="@+id/add_signature_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="8dp"
+            android:src="@drawable/ic_add_signature"
+            app:tint="@android:color/white"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/cam_ic"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentEnd="true"
         android:background="#80000000"
-        android:padding="16dp">
+        android:gravity="center"
+        android:orientation="horizontal">
 
-        <LinearLayout
-            android:id="@+id/cam_ic"
-            android:layout_width="match_parent"
+        <ImageButton
+            android:id="@+id/video_capture"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="8dp"
+            android:src="@drawable/ic_videocam"
+            app:tint="@android:color/white" />
+
+        <ImageButton
+            android:id="@+id/capture_button"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="8dp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/camera"
+            app:tint="@android:color/white" />
+
+        <ImageButton
+            android:id="@+id/flip_camera"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentBottom="true"
-            android:gravity="center"
-            android:orientation="horizontal">
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/flip_camera"
+            app:tint="@android:color/white" />
 
-            <ImageButton
-                android:id="@+id/video_capture"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Video"
-                android:padding="8dp"
-                android:src="@drawable/ic_videocam"
-                app:tint="@android:color/white" />
+        <ImageButton
+            android:id="@+id/last_image_preview"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="8dp"
+            android:src="@drawable/def_insp_img"
+            app:tint="@android:color/white" />
 
-            <ImageButton
-                android:id="@+id/capture_button"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Capture"
-                android:padding="8dp"
-                android:scaleType="centerCrop"
-                android:src="@drawable/camera"
-                app:tint="@android:color/white" />
 
-            <ImageButton
-                android:id="@+id/last_image_preview"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Last Image"
-                android:padding="8dp"
-                android:src="@drawable/def_insp_img"
-                app:tint="@android:color/white" />
-        </LinearLayout>
-    </RelativeLayout>
+
+    </LinearLayout>
+
+
 </RelativeLayout>

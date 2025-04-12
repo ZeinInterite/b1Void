@@ -6,4 +6,26 @@
     <string name="nameEmployee">Имя</string>
     <string name="emailAdm">Задайте email</string>
     <string name="APP_KEY">elw6ey40dkbo1i0</string>
+    <string-array name="image_formats">
+        <item>JPEG</item>
+        <item>PNG</item>
+    </string-array>
+    <string-array name="white_balance_options">
+        <item>AUTO</item>
+        <item>INCANDESCENT</item>
+        <item>FLUORESCENT</item>
+        <item>DAYLIGHT</item>
+        <item>CLOUDY</item>
+    </string-array>
+    <string-array name="hdr_options">
+        <item>OFF</item>
+        <item>ON</item>
+    </string-array>
+    <string-array name="audio_options">
+        <item>OFF</item>
+        <item>ON</item>
+        <item>MONO</item>
+        <item>STEREO</item>
+    </string-array>
+
 </resources>
