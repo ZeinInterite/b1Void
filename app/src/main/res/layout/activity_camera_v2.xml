@@ -4,12 +4,33 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <com.otaliastudios.cameraview.CameraView
-        android:id="@+id/camera"
-        android:layout_width="wrap_content"
+    <FrameLayout
+        android:id="@+id/camera_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@+id/cam_ic"
+        android:layout_below="@+id/top_bar">
+
+        <com.otaliastudios.cameraview.CameraView
+            android:id="@+id/camera"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:keepScreenOn="true" />
+
+    </FrameLayout>
+
+    <EditText
+        android:id="@+id/stamp_edit_text"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:keepScreenOn="true" />
+        android:layout_margin="16dp"
+        android:hint="Введите текст штампа"
+        android:imeOptions="actionDone"
+        android:layout_below="@+id/top_bar"
+        android:inputType="text"
+        android:maxLines="1"
+        android:visibility="gone"
+        android:layout_above="@id/stamp_controls_layout"/>
 
     <View
         android:id="@+id/focus_indicator"
@@ -18,6 +39,41 @@
         android:layout_alignParentStart="true"
         android:background="@android:color/white"
         android:visibility="invisible" />
+
+    <FrameLayout
+        android:id="@+id/stamp_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@+id/top_bar"
+        android:layout_above="@+id/cam_ic"
+        android:visibility="visible"/>
+
+    <LinearLayout
+        android:id="@+id/stamp_controls_layout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/top_bar"
+        android:orientation="horizontal"
+        android:visibility="gone"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="16dp">
+
+        <ImageButton
+            android:id="@+id/stamp_color_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_palette"
+            android:background="?attr/selectableItemBackgroundBorderless"/>
+
+        <ImageButton
+            android:id="@+id/stamp_lock_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_unlock"
+            android:background="?attr/selectableItemBackgroundBorderless"/>
+
+    </LinearLayout>
+
 
     <LinearLayout
         android:id="@+id/top_bar"
@@ -104,6 +160,43 @@
             android:textColor="@android:color/white" />
     </LinearLayout>
 
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_below="@+id/top_bar"
+        android:layout_above="@+id/cam_ic"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/stamp_size_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Размер:"
+            android:textColor="@android:color/black"
+            android:gravity="center"
+            android:layout_gravity="center_horizontal"/>
+
+
+            <SeekBar
+                android:id="@+id/stamp_size_progress"
+                android:layout_width="400dp"
+                android:layout_height="0dp"
+                android:max="1000"
+                android:progress="100"
+                android:rotation="-90"
+                android:thumb="@null"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="370dp"/>
+
+
+
+
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
     <LinearLayout
         android:id="@+id/settings_controls_layout"
         android:layout_width="match_parent"
@@ -126,7 +219,6 @@
             android:layout_height="wrap_content"
             android:spinnerMode="dropdown" />
 
-        <!-- Orientation Lock -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -136,7 +228,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Orientation Lock:"
+                android:text="focus Lock:"
                 android:textColor="@android:color/white"
                 android:layout_weight="1"/>
 
@@ -146,7 +238,6 @@
                 android:layout_height="wrap_content" />
         </LinearLayout>
 
-        <!-- White Balance -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -185,13 +276,14 @@
             android:spinnerMode="dropdown" />
 
         <ImageButton
-            android:id="@+id/add_signature_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:padding="8dp"
+            android:id="@+id/stamp_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:src="@drawable/ic_add_signature"
-            app:tint="@android:color/white"/>
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Штамп"
+            android:layout_margin="8dp"/>
+
     </LinearLayout>
 
     <LinearLayout
@@ -242,8 +334,10 @@
             app:tint="@android:color/white" />
 
 
-
     </LinearLayout>
+
+
+
 
 
 </RelativeLayout>

@@ -17,8 +17,6 @@ class NavigationApp : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_navigation_app)
 
-
-
         val takePhotoButton = findViewById<View>(R.id.takePhotoButton)
         val uploadButton = findViewById<View>(R.id.uploadButton)
         val createFolderButton = findViewById<View>(R.id.createFolderButton)

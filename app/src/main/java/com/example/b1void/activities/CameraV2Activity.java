@@ -2,6 +2,7 @@
 package com.example.b1void.activities;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -9,19 +10,32 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PointF;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Size;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.Switch;
@@ -62,6 +76,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+import yuku.ambilwarna.AmbilWarnaDialog;
+
 public class CameraV2Activity extends AppCompatActivity {
 
     private static final String PREFS_NAME = "CameraSettings";
@@ -72,6 +88,9 @@ public class CameraV2Activity extends AppCompatActivity {
     private static final String KEY_AUDIO = "audio";
     private static final int PERMISSION_REQUEST_CODE = 123;
     private static final String KEY_EXPOSURE_COMPENSATION = "exposureCompensation";
+    private static final String KEY_RESOLUTION_SPINNER_POSITION = "resolution_spinner_position";
+
+    // ЮАЙ элементы камеры.
     private CameraView cameraView;
     private ImageButton captureButton;
     private ImageButton videoCaptureButton;
@@ -94,14 +113,40 @@ public class CameraV2Activity extends AppCompatActivity {
     private boolean isSettingsControlsVisible = false;
     private List<Size> supportedResolutions;
     private File currentImageFile;
-    private String customSavePath = null; // Переменная для хранения пути сохранения
+    private String customSavePath = null;
+    private FrameLayout cameraContainer;
+
+    private FrameLayout stampContainer;
+    private TextView currentStampView;
+    private boolean isStampLocked = false;
+    private Paint stampPaint = new Paint();
+    private float initialStampSize = 60f;
+    private float stampScaleFactor = 1f;
+    private int currentStampColor = Color.RED;
+    private EditText stampEditText;
+    private LinearLayout stampControlsLayout;
+    private boolean isStampModeActive = false;
+    private ScaleGestureDetector scaleGestureDetector;
+    private static final float MIN_STAMP_SCALE = 0.5f;
+    private static final float MAX_STAMP_SCALE = 3.0f;
+    private static final float INITIAL_STAMP_SIZE_DP = 14f;
+    private PointF lastTouchPosition = new PointF();
+    private boolean isScaling = false;
+    private float initialDistance = 0f;
+    private float initialStampScale = 1f;
+    private SeekBar stampSizeProgressBar;
+    private TextView stampSizeLabel;
+    private String currentStampText = "";
+
+    private static final String KEY_RESOLUTION_WIDTH = "resolution_width";
+    private static final String KEY_RESOLUTION_HEIGHT = "resolution_height";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera_v2);
 
-        // Получаем путь из интента, если он был передан
+        // Ловим путь сохранения, если его передали. Если нет - похеру, сохраняем в дефолтную папку.
         Intent intent = getIntent();
         if (intent != null && intent.hasExtra("save_path")) {
             customSavePath = intent.getStringExtra("save_path");
@@ -109,22 +154,69 @@ public class CameraV2Activity extends AppCompatActivity {
         }
 
         currentFlash = 0;
+        initViews(); // Инициализируем всю хуйню с View
+        initListeners(); // Цепляем обработчики нажатий
+        checkPermissions(); // Чекаем, есть ли у дрочилы права на камеру и память
+        setupCameraListener(); // Вешаем слушателя на камеру, чтобы ловить фотки/видео
+        setupTimeThread(); // Запускаем поток, который обновляет время
+        setupCameraGestures(); // Настраиваем жесты камеры (зум, фокус)
+        loadSavedSettings(); // Загружаем сохраненные настройки камеры (формат, ориентация и т.д.)
+        updateLastImagePreview(); // Обновляем превью последней фотки
+        setupExposureControls(); // Настраиваем ползунок экспозиции
 
-        flashButton = findViewById(R.id.flash_button);
+        stampSizeProgressBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                stampScaleFactor = (float) progress / 100f; // Преобразуем progress в scaleFactor, который будет менять размер штампа
+                stampScaleFactor = Math.max(MIN_STAMP_SCALE, Math.min(stampScaleFactor, MAX_STAMP_SCALE));
 
+                if (currentStampView != null) {
+                    currentStampView.setTextSize(TypedValue.COMPLEX_UNIT_PX, initialStampSize * stampScaleFactor);
+                }
 
-        initViews();
-        initListeners();
-        checkPermissions();
-        setupCameraListener();
-        setupTimeThread();
-        setupCameraGestures();
-        loadSavedSettings();
-        updateLastImagePreview();
-        setupExposureControls(); // Инициализация элементов управления экспозицией
+                // Обновляем текст label
+                stampSizeLabel.setText("Размер: " + String.format("%.2f", stampScaleFactor));
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+        stampSizeLabel.setText("Размер: " + String.format("%.2f", stampScaleFactor));
+
+        initialStampSize = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                INITIAL_STAMP_SIZE_DP,
+                getResources().getDisplayMetrics()
+        );
+
+        scaleGestureDetector = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            @Override
+            public boolean onScale(ScaleGestureDetector detector) {
+                float scaleFactor = detector.getScaleFactor();
+                stampScaleFactor *= scaleFactor;
+                stampScaleFactor = Math.max(MIN_STAMP_SCALE, Math.min(stampScaleFactor, MAX_STAMP_SCALE));
+
+                if (currentStampView != null) {
+                    currentStampView.setTextSize(TypedValue.COMPLEX_UNIT_PX, initialStampSize * stampScaleFactor);
+                }
+                return true;
+            }
+        });
     }
 
+    // Инициализируем View-элементы
     private void initViews() {
+        stampSizeProgressBar = findViewById(R.id.stamp_size_progress);
+        stampSizeLabel = findViewById(R.id.stamp_size_label);
+
+        stampSizeProgressBar.setProgress((int) (stampScaleFactor * 100));
+
         cameraView = findViewById(R.id.camera);
         cameraView.setLifecycleOwner(this);
         captureButton = findViewById(R.id.capture_button);
@@ -139,19 +231,36 @@ public class CameraV2Activity extends AppCompatActivity {
         exposureControlsLayout = findViewById(R.id.exposure_controls_layout);
         exposureSeekBar = findViewById(R.id.exposure_seek_bar);
         exposureValueTextView = findViewById(R.id.exposure_value_text_view);
+        cameraContainer = findViewById(R.id.camera_container);
+
+        stampContainer = findViewById(R.id.stamp_container);
+        stampControlsLayout = findViewById(R.id.stamp_controls_layout);
+        stampEditText = findViewById(R.id.stamp_edit_text);
+        ImageButton stampButton = findViewById(R.id.stamp_button);
+        ImageButton stampColorButton = findViewById(R.id.stamp_color_button);
+        ImageButton stampLockButton = findViewById(R.id.stamp_lock_button);
 
         cameraView.setFlash(Flash.OFF);
         exposureControlsLayout.setVisibility(View.GONE);
         settingsControlsLayout.setVisibility(View.GONE);
+        stampControlsLayout.setVisibility(View.GONE);
+        stampEditText.setVisibility(View.GONE);
 
         sharedPreferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
+        stampPaint.setColor(currentStampColor);
+        stampPaint.setTextSize(initialStampSize);
+        stampPaint.setAntiAlias(true);
+        stampPaint.setStyle(Paint.Style.FILL);
     }
 
+    // Цепляем слушателей ко всем кнопкам и прочей хуйне
     private void initListeners() {
         exposureButton.setOnClickListener(v -> toggleVisibility(exposureControlsLayout, isExposureControlsVisible));
         settingsButton.setOnClickListener(v -> toggleVisibility(settingsControlsLayout, isSettingsControlsVisible));
-        flashButton.setOnClickListener(v -> {
 
+        // Обработчик нажатия на кнопку "Вспышка"
+        flashButton.setOnClickListener(v -> {
             switch (currentFlash) {
                 case 0:
                     flashButton.setImageResource(R.drawable.flash_on);
@@ -162,24 +271,276 @@ public class CameraV2Activity extends AppCompatActivity {
                     flashButton.setImageResource(R.drawable.flash_off);
                     break;
                 case 2:
-                    flashButton.setImageResource(R.drawable.flash_auto);
                     cameraView.setFlash(Flash.AUTO);
+                    flashButton.setImageResource(R.drawable.flash_auto);
                     break;
                 case 3:
                     currentFlash = -1;
                     flashButton.setImageResource(R.drawable.flash_torch);
                     cameraView.setFlash(Flash.TORCH);
-
                     break;
             }
             currentFlash += 1;
         });
+
         captureButton.setOnClickListener(v -> captureImage());
         videoCaptureButton.setOnClickListener(v -> toggleVideoCapture());
         flipButton.setOnClickListener(v -> flipCamera());
         findViewById(R.id.last_image_preview).setOnClickListener(v -> openImagePreview());
+
+        findViewById(R.id.stamp_button).setOnClickListener(v -> toggleStampMode());
+        findViewById(R.id.stamp_color_button).setOnClickListener(v -> showColorPicker());
+        findViewById(R.id.stamp_lock_button).setOnClickListener(v -> toggleStampLock());
+
+        stampEditText.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                String stampText = stampEditText.getText().toString().trim();
+                if (!stampText.isEmpty()) {
+                    currentStampText = stampText; // Сохраняем текст
+                    createStamp(currentStampText);
+                    // Убираем очистку текста и скрытие поля
+                    hideKeyboard();
+                    return true;
+                }
+            }
+            return false;
+        });
+
+        // хуйня, которая не пригодилась, но удалять лень
+        stampEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                currentStampText = s.toString();
+                if (currentStampView != null) {
+                    currentStampView.setText(currentStampText);
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+        });
+
+
     }
 
+    // Переключаем режим штампа: включаем/выключаем редактирование и отображение контролов
+    private void toggleStampMode() {
+        isStampModeActive = !isStampModeActive;
+        stampControlsLayout.setVisibility(isStampModeActive ? View.VISIBLE : View.GONE);
+
+        if (isStampModeActive) {
+            stampEditText.setVisibility(View.VISIBLE);
+            stampEditText.requestFocus();
+            showKeyboard();
+
+            // Создаем штамп с запомненным текстом или пустой штамп, если текста нет
+            createStamp(currentStampText);
+        } else {
+            hideKeyboard();
+            stampEditText.setVisibility(View.GONE);
+
+            // Удаляем штамп, если текст не введен (пустой штамп)
+            if (currentStampView != null && currentStampView.getText().toString().isEmpty()) {
+                stampContainer.removeView(currentStampView);
+                currentStampView = null;
+            }
+        }
+    }
+
+    private void createStamp(String text) {
+        if (currentStampView != null) {
+            stampContainer.removeView(currentStampView);
+        }
+        exposureControlsLayout.setVisibility(View.GONE);
+        currentStampView = new androidx.appcompat.widget.AppCompatTextView(this) {
+            @Override
+            protected void onDraw(Canvas canvas) {
+                super.onDraw(canvas);
+                // Гарантируем что текст будет виден при изменении размера
+                setBackgroundColor(Color.TRANSPARENT);
+            }
+        };
+
+        currentStampView.setText(text);
+        currentStampView.setTextColor(currentStampColor);
+        currentStampView.setTextSize(TypedValue.COMPLEX_UNIT_PX, initialStampSize * stampScaleFactor);
+        currentStampView.setGravity(Gravity.CENTER);
+        currentStampView.setPadding(20, 10, 20, 10);
+        currentStampView.setBackgroundColor(Color.TRANSPARENT);
+
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER);
+
+        currentStampView.setLayoutParams(params);
+        stampContainer.addView(currentStampView);
+
+        currentStampView.setOnTouchListener((v, event) -> {
+            if (!isStampModeActive || isStampLocked) return false;
+
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    lastTouchPosition.set(event.getX(), event.getY());
+                    return true;
+
+                case MotionEvent.ACTION_MOVE:
+                    float dx = event.getX() - lastTouchPosition.x;
+                    float dy = event.getY() - lastTouchPosition.y;
+
+                    currentStampView.setX(currentStampView.getX() + dx);
+                    currentStampView.setY(currentStampView.getY() + dy);
+
+                    lastTouchPosition.set(event.getX(), event.getY());
+                    return true;
+
+                case MotionEvent.ACTION_UP:
+                    return true;
+            }
+            return false;
+        });
+    }
+
+    // Блокируем/разблокируем штамп, чтобы его нельзя было двигать
+    private void toggleStampLock() {
+        isStampLocked = !isStampLocked;
+        ImageButton lockButton = findViewById(R.id.stamp_lock_button);
+        lockButton.setImageResource(isStampLocked ? R.drawable.ic_lock : R.drawable.ic_unlock);
+
+        if (currentStampView != null) {
+            if (isStampLocked) {
+                currentStampView.setTextColor(Color.RED); // Красный текст при блокировке
+                currentStampView.setBackground(null); // Убираем фон полностью
+            } else {
+                currentStampView.setTextColor(currentStampColor); // Возвращаем выбранный цвет
+            }
+        }
+    }
+
+    // Показываем диалог выбора цвета для штампа
+    private void showColorPicker() {
+        AmbilWarnaDialog colorPicker = new AmbilWarnaDialog(this, currentStampColor, new AmbilWarnaDialog.OnAmbilWarnaListener() {
+            @Override
+            public void onOk(AmbilWarnaDialog dialog, int color) {
+                currentStampColor = color;
+                stampPaint.setColor(color);
+                if (currentStampView != null) {
+                    currentStampView.setTextColor(color);
+                }
+            }
+
+            @Override
+            public void onCancel(AmbilWarnaDialog dialog) {
+                // нихуя не делаем, логично же
+            }
+        });
+        colorPicker.show();
+    }
+    // показываем клаву для ввода текста дрочилы
+    private void showKeyboard() {
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.showSoftInput(stampEditText, InputMethodManager.SHOW_IMPLICIT);
+        }
+    }
+    // Скрываем клавиатуру(ахуеть!)
+    private void hideKeyboard() {
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.hideSoftInputFromWindow(stampEditText.getWindowToken(), 0);
+        }
+    }
+    // Объединяем фотку с камеры и штамп
+    private Bitmap combineCameraAndStamp(Bitmap cameraBitmap) {
+        if (currentStampView == null || currentStampView.getVisibility() != View.VISIBLE) {
+            return addDateToBitmap(cameraBitmap);
+        }
+
+
+        Bitmap combinedBitmap = Bitmap.createBitmap(
+                cameraBitmap.getWidth(),
+                cameraBitmap.getHeight(),
+                Bitmap.Config.ARGB_8888);
+
+        Canvas canvas = new Canvas(combinedBitmap);
+        canvas.drawBitmap(cameraBitmap, 0, 0, null);
+
+        currentStampView.setDrawingCacheEnabled(true);
+        currentStampView.buildDrawingCache();
+        Bitmap stampBitmap = Bitmap.createBitmap(currentStampView.getDrawingCache());
+        currentStampView.setDrawingCacheEnabled(false);
+
+        if (stampBitmap != null) {
+            int[] stampLocation = new int[2];
+            currentStampView.getLocationInWindow(stampLocation);
+
+            int[] cameraLocation = new int[2];
+            cameraContainer.getLocationInWindow(cameraLocation);
+
+            float x = stampLocation[0] - cameraLocation[0];
+            float y = stampLocation[1] - cameraLocation[1];
+
+            float scaleX = (float) cameraBitmap.getWidth() / cameraContainer.getWidth();
+            float scaleY = (float) cameraBitmap.getHeight() / cameraContainer.getHeight();
+
+            Matrix matrix = new Matrix();
+            matrix.postScale(scaleX, scaleY);
+            matrix.postTranslate(x * scaleX, y * scaleY);
+
+            canvas.drawBitmap(stampBitmap, matrix, null);
+        }
+
+        return addDateToBitmap(combinedBitmap);
+    }
+
+    // Добавляем дату и время на фотку
+    private Bitmap addDateToBitmap(Bitmap cameraBitmap) {
+        Bitmap mutableBitmap = cameraBitmap.copy(Bitmap.Config.ARGB_8888, true);
+        Canvas canvas = new Canvas(mutableBitmap);
+
+        String dateTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
+
+        Paint paint = new Paint();
+        paint.setColor(Color.RED);
+
+        //  Размер текста
+        float textSize = cameraBitmap.getWidth() / 25f;
+        paint.setTextSize(textSize);
+
+        paint.setAntiAlias(true);
+        paint.setShadowLayer(5f, 0f, 0f, Color.BLACK);
+
+        //  Позиция текста
+        float x = cameraBitmap.getWidth() / 50f;
+        float y = cameraBitmap.getHeight() / 20f;
+
+        canvas.drawText(dateTime, x, y, paint);
+
+        return mutableBitmap;
+    }
+
+    // Делаем дикпик
+    private void captureImage() {
+        if (stampControlsLayout.getVisibility() == View.VISIBLE) {
+            stampControlsLayout.setVisibility(View.INVISIBLE);
+        }
+
+        cameraView.setMode(Mode.PICTURE);
+        cameraView.takePicture();
+
+        new Handler().postDelayed(() -> {
+            if (isStampModeActive) {
+                stampControlsLayout.setVisibility(View.VISIBLE);
+            }
+        }, 500);
+    }
+
+    // Переключаем видимость контролов (экспозиция, настройки)
     private void toggleVisibility(View view, boolean isVisible) {
         if (view.getId() == R.id.exposure_controls_layout) {
             isExposureControlsVisible = !isExposureControlsVisible;
@@ -191,11 +552,7 @@ public class CameraV2Activity extends AppCompatActivity {
         }
     }
 
-    private void captureImage() {
-        cameraView.setMode(Mode.PICTURE);
-        cameraView.takePicture();
-    }
-
+    // Включаем/выключаем запись видео
     private void toggleVideoCapture() {
         if (isRecordingVideo) {
             cameraView.stopVideo();
@@ -225,6 +582,7 @@ public class CameraV2Activity extends AppCompatActivity {
         cameraView.setFacing(cameraView.getFacing() == Facing.BACK ? Facing.FRONT : Facing.BACK);
     }
 
+    // Открываем экран с превьюшек фоток
     private void openImagePreview() {
         File directory = new File(getFilesDir(), "InspectorAppFolder/saved_images");
         ArrayList<String> imagePaths = getImagePaths(directory);
@@ -238,7 +596,7 @@ public class CameraV2Activity extends AppCompatActivity {
             Toast.makeText(CameraV2Activity.this, "No images captured yet.", Toast.LENGTH_SHORT).show();
         }
     }
-
+    // Получаем список путей к фоткам в папке
     private ArrayList<String> getImagePaths(File directory) {
         ArrayList<String> imagePaths = new ArrayList<>();
         if (directory.exists() && directory.isDirectory()) {
@@ -252,7 +610,7 @@ public class CameraV2Activity extends AppCompatActivity {
         }
         return imagePaths;
     }
-
+    // здесь, епта, спрашиваем у дрочилы разрешения октрыть камеру
     private void checkPermissions() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
                 ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ||
@@ -265,24 +623,25 @@ public class CameraV2Activity extends AppCompatActivity {
         }
     }
 
+    // Настраиваем слушателя камеры, чтобы ловить события (сделали фотку, сняли видео, ошибка и т.д.)
     private void setupCameraListener() {
         cameraView.addCameraListener(new CameraListener() {
             @Override
             public void onPictureTaken(@NonNull PictureResult result) {
                 result.toBitmap(bitmap -> {
                     if (bitmap != null) {
-                        Bitmap stampedBitmap = addStampAndSignature(bitmap);
+                        Bitmap stampedBitmap = combineCameraAndStamp(bitmap); // Используйте combineCameraAndStamp
                         currentImageFile = saveImage(stampedBitmap);
                         if (currentImageFile != null) {
                             updateLastImagePreview();
                             Toast.makeText(CameraV2Activity.this, "Image saved to: " + currentImageFile.getAbsolutePath(), Toast.LENGTH_LONG).show();
                         } else {
                             Log.e("CameraError", "Failed to save image.");
-                            Toast.makeText(CameraV2Activity.this, "Failed to capture and process image.", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(CameraV2Activity.this, "Наебнулось при создании снимка.", Toast.LENGTH_SHORT).show();
                         }
                     } else {
                         Log.e("CameraError", "Failed to decode Bitmap from PictureResult");
-                        Toast.makeText(CameraV2Activity.this, "Failed to capture and process image.", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(CameraV2Activity.this, "Наебнулось при декодировани.", Toast.LENGTH_SHORT).show();
                     }
                 });
             }
@@ -318,6 +677,7 @@ public class CameraV2Activity extends AppCompatActivity {
         });
     }
 
+    // Настраиваем контролы экспозиции (ползунок)
     private void setupExposureControls() {
         exposureSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -351,6 +711,7 @@ public class CameraV2Activity extends AppCompatActivity {
         cameraView.setExposureCorrection(savedExposure);
     }
 
+    // Настраиваем контролы экспозиции с учетом поддерживаемых значений
     private void setupExposureControls(CameraOptions options) {
         if (options != null && options.isExposureCorrectionSupported()) {
             float minExposure = options.getExposureCorrectionMinValue();
@@ -390,7 +751,7 @@ public class CameraV2Activity extends AppCompatActivity {
             cameraView.setExposureCorrection(savedExposure);
 
             // Делаем элементы управления экспозицией видимыми
-            exposureControlsLayout.setVisibility(View.VISIBLE);
+            exposureControlsLayout.setVisibility(View.GONE);
             isExposureControlsVisible = true;
         } else {
             exposureControlsLayout.setVisibility(View.GONE);
@@ -399,7 +760,7 @@ public class CameraV2Activity extends AppCompatActivity {
         }
     }
 
-
+    // Запускаем поток, который каждую секунду обновляет время на экране
     private void setupTimeThread() {
         updateTimeDisplay();
         new Thread(() -> {
@@ -414,22 +775,27 @@ public class CameraV2Activity extends AppCompatActivity {
         }).start();
     }
 
+    // Настраиваем жесты камеры (зум, фокус)
     private void setupCameraGestures() {
         cameraView.mapGesture(Gesture.PINCH, GestureAction.ZOOM);
         cameraView.mapGesture(Gesture.TAP, GestureAction.AUTO_FOCUS);
     }
 
+    // Настраиваем контролы настроек (формат изображения, ориентация и т.д.)
     private void setupSettingsControls() {
+        // Спинер для выбора формата изображения (JPEG, PNG)
         Spinner imageFormatSpinner = findViewById(R.id.image_format_spinner);
         ArrayAdapter<CharSequence> imageFormatAdapter = new ArrayAdapter<>(
                 this, android.R.layout.simple_spinner_item, new CharSequence[]{"JPEG", "PNG"});
         imageFormatAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         imageFormatSpinner.setAdapter(imageFormatAdapter);
 
+        // Подгружаем текущий формат изображения из настроек, епты
         String currentImageFormat = sharedPreferences.getString(KEY_IMAGE_FORMAT, "JPEG");
         int imageFormatPosition = currentImageFormat.equals("JPEG") ? 0 : 1;
         imageFormatSpinner.setSelection(imageFormatPosition);
 
+        // Вешаем слушателя на спиннер формата изображения, чтобы сохранять выбор
         imageFormatSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -438,14 +804,15 @@ public class CameraV2Activity extends AppCompatActivity {
                 editor.putString(KEY_IMAGE_FORMAT, selectedImageFormat);
                 editor.apply();
                 CameraV2Activity.this.currentImageFormat = selectedImageFormat;
-                Toast.makeText(CameraV2Activity.this, "Image Format saved: " + selectedImageFormat, Toast.LENGTH_SHORT).show();
             }
 
+            // Нихуя не делаем
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
             }
         });
 
+        // Свитч для блокировки ориентации экрана
         Switch orientationLockSwitch = findViewById(R.id.orientation_lock_switch);
         boolean isOrientationLocked = sharedPreferences.getBoolean(KEY_ORIENTATION_LOCK, false);
         orientationLockSwitch.setChecked(isOrientationLocked);
@@ -456,19 +823,21 @@ public class CameraV2Activity extends AppCompatActivity {
             editor.apply();
             this.isOrientationLocked = isChecked;
             cameraView.setRotation(this.isOrientationLocked ? 0 : -1);
-            Toast.makeText(CameraV2Activity.this, "Orientation Lock saved: " + isChecked, Toast.LENGTH_SHORT).show();
         });
 
+        // Спинер для выбора баланса белого
         Spinner whiteBalanceSpinner = findViewById(R.id.white_balance_spinner);
         ArrayAdapter<CharSequence> whiteBalanceAdapter = ArrayAdapter.createFromResource(
                 this, R.array.white_balance_options, android.R.layout.simple_spinner_item);
         whiteBalanceAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         whiteBalanceSpinner.setAdapter(whiteBalanceAdapter);
 
+        // Подгружаем текущий баланс белого из настроек
         String currentWhiteBalance = sharedPreferences.getString(KEY_WHITE_BALANCE, "AUTO");
         int whiteBalancePosition = getWhiteBalancePosition(currentWhiteBalance);
         whiteBalanceSpinner.setSelection(whiteBalancePosition);
 
+        // Вешаем слушателя на спиннер баланса белого, чтобы сохранять выбор
         whiteBalanceSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -476,25 +845,30 @@ public class CameraV2Activity extends AppCompatActivity {
                 SharedPreferences.Editor editor = sharedPreferences.edit();
                 editor.putString(KEY_WHITE_BALANCE, selectedWhiteBalance);
                 editor.apply();
+
                 setWhiteBalance(selectedWhiteBalance);
-                Toast.makeText(CameraV2Activity.this, "White Balance saved: " + selectedWhiteBalance, Toast.LENGTH_SHORT).show();
             }
 
+            // Опять же, нихуя не делаем
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
+                // и снова хуйня, которую жалко удалять
             }
         });
 
+        // Спинер для выбора режима HDR (High Dynamic Range - типа улучшает качество фоток, хуйня)
         Spinner hdrSpinner = findViewById(R.id.hdr_spinner);
         ArrayAdapter<CharSequence> hdrAdapter = ArrayAdapter.createFromResource(
                 this, R.array.hdr_options, android.R.layout.simple_spinner_item);
         hdrAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         hdrSpinner.setAdapter(hdrAdapter);
 
+        // Подгружаем текущий режим HDR из настроек
         String currentHDR = sharedPreferences.getString(KEY_HDR, "OFF");
         int hdrPosition = currentHDR.equals("OFF") ? 0 : 1;
         hdrSpinner.setSelection(hdrPosition);
 
+        // Вешаем слушателя на спиннер HDR, чтобы сохранять выбор
         hdrSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -503,24 +877,28 @@ public class CameraV2Activity extends AppCompatActivity {
                 editor.putString(KEY_HDR, selectedHDR);
                 editor.apply();
                 cameraView.setHdr(selectedHDR.equals("OFF") ? Hdr.OFF : Hdr.ON);
-                Toast.makeText(CameraV2Activity.this, "HDR saved: " + selectedHDR, Toast.LENGTH_SHORT).show();
             }
 
+            // Ну ты понял...
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
+                // ...все та же хуйня
             }
         });
 
+        // Спинер для выбора аудиорежима
         Spinner audioSpinner = findViewById(R.id.audio_spinner);
         ArrayAdapter<CharSequence> audioAdapter = ArrayAdapter.createFromResource(
                 this, R.array.audio_options, android.R.layout.simple_spinner_item);
         audioAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         audioSpinner.setAdapter(audioAdapter);
 
+        // Подгружаем текущий аудиорежим из настроек
         String currentAudio = sharedPreferences.getString(KEY_AUDIO, "OFF");
         int audioPosition = getAudioPosition(currentAudio);
         audioSpinner.setSelection(audioPosition);
 
+        // вешаем бла бла бла...
         audioSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -529,30 +907,34 @@ public class CameraV2Activity extends AppCompatActivity {
                 editor.putString(KEY_AUDIO, selectedAudio);
                 editor.apply();
                 setAudio(selectedAudio);
-                Toast.makeText(CameraV2Activity.this, "Audio saved: " + selectedAudio, Toast.LENGTH_SHORT).show();
             }
 
+            // Догадайся, что тут
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
+                // ...ага, она
             }
         });
+
     }
 
+    // Получаем позицию баланса белого в спиннере по его значению
     private int getWhiteBalancePosition(String whiteBalance) {
         switch (whiteBalance) {
-            case "INCANDESCENT":
+            case "INCANDESCENT": // Лампы накаливания
                 return 1;
-            case "FLUORESCENT":
+            case "FLUORESCENT": // Люминесцентные лампы
                 return 2;
-            case "DAYLIGHT":
+            case "DAYLIGHT": // Дневной свет
                 return 3;
-            case "CLOUDY":
+            case "CLOUDY": // Облачно
                 return 4;
             default:
-                return 0;
+                return 0; // Автоматически
         }
     }
 
+    // Устанавливаем баланс белого
     private void setWhiteBalance(String whiteBalance) {
         switch (whiteBalance) {
             case "INCANDESCENT":
@@ -573,6 +955,7 @@ public class CameraV2Activity extends AppCompatActivity {
         }
     }
 
+    // Получаем позицию аудиорежима в спиннере по его значению
     private int getAudioPosition(String audio) {
         switch (audio) {
             case "ON":
@@ -586,6 +969,7 @@ public class CameraV2Activity extends AppCompatActivity {
         }
     }
 
+    // Устанавливаем аудиорежим
     private void setAudio(String audio) {
         switch (audio) {
             case "ON":
@@ -603,16 +987,49 @@ public class CameraV2Activity extends AppCompatActivity {
         }
     }
 
+    // Загружаем сохраненные настройки камеры
     private void loadSavedSettings() {
         currentImageFormat = sharedPreferences.getString(KEY_IMAGE_FORMAT, "JPEG");
         isOrientationLocked = sharedPreferences.getBoolean(KEY_ORIENTATION_LOCK, false);
-        cameraView.setRotation(isOrientationLocked ? 0 : -1);
         setWhiteBalance(sharedPreferences.getString(KEY_WHITE_BALANCE, "AUTO"));
         cameraView.setHdr(sharedPreferences.getString(KEY_HDR, "OFF").equals("OFF") ? Hdr.OFF : Hdr.ON);
         setAudio(sharedPreferences.getString(KEY_AUDIO, "OFF"));
 
+        // Загружаем сохраненную позицию Spinner
+        int savedSpinnerPosition = sharedPreferences.getInt(KEY_RESOLUTION_SPINNER_POSITION, 0);
+
+        int savedWidth = sharedPreferences.getInt(KEY_RESOLUTION_WIDTH, -1); // -1 - значение по умолчанию, если ничего не сохранено
+        int savedHeight = sharedPreferences.getInt(KEY_RESOLUTION_HEIGHT, -1);
+
+        if (savedWidth != -1 && savedHeight != -1) {
+            // Создаем Size из сохраненных значений
+            Size savedSize = new Size(savedWidth, savedHeight);
+            // Устанавливаем его для cameraView
+            cameraView.setPictureSize(new SizeSelector() {
+                @NonNull
+                @Override
+                public List<com.otaliastudios.cameraview.size.Size> select(@NonNull List<com.otaliastudios.cameraview.size.Size> source) {
+                    List<com.otaliastudios.cameraview.size.Size> result = new ArrayList<>();
+                    for (com.otaliastudios.cameraview.size.Size size : source) {
+                        if (size.getWidth() == savedSize.getWidth() && size.getHeight() == savedSize.getHeight()) {
+                            result.add(size);
+                            break;
+                        }
+                    }
+                    return result;
+                }
+
+            });
+            updateCameraViewSize(savedWidth,savedHeight);
+
+            if (supportedResolutions != null && savedSpinnerPosition < supportedResolutions.size()) {
+                resolutionSpinner.setSelection(savedSpinnerPosition);
+            }
+        }
+
     }
 
+    // Обрабатываем результат запроса разрешений (дали или не дали доступ к камере и т.д.)
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -625,6 +1042,7 @@ public class CameraV2Activity extends AppCompatActivity {
         }
     }
 
+    // Обновляем время на экране
     private void updateTimeDisplay() {
         String timeFormat = "HH:mm:ss";
         SimpleDateFormat sdf = new SimpleDateFormat(timeFormat, Locale.getDefault());
@@ -633,36 +1051,17 @@ public class CameraV2Activity extends AppCompatActivity {
         timeTextView.setTextSize(20);
     }
 
-    private Bitmap addStampAndSignature(Bitmap bitmap) {
-        Bitmap mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true);
-        Canvas canvas = new Canvas(mutableBitmap);
-        Paint paint = new Paint();
-        paint.setColor(Color.RED);
-        paint.setTextSize(150);
-        paint.setStyle(Paint.Style.FILL);
-        paint.setAntiAlias(true);
-
-        String dateFormat = "yyyy-MM-dd HH:mm:ss";
-        SimpleDateFormat sdf = new SimpleDateFormat(dateFormat, Locale.getDefault());
-        String timestamp = sdf.format(new Date());
-        canvas.drawText(timestamp, 20, 150, paint);
-
-        return mutableBitmap;
-    }
-
+    // Сохраняем изображение на диск
     private File saveImage(Bitmap finalBitmap) {
-        File file = null; // Initialize file to null
+        File file = null; // Инициализируем file в null, а то IDE ругается
         try {
             if (customSavePath != null && !customSavePath.isEmpty()) {
                 // Используем переданный путь для сохранения
                 File customDir = new File(customSavePath);
-                // Check if the custom path is a directory
                 if (customDir.isDirectory()) {
-                    // If it is a directory, create a file inside it with a unique name
                     String fileName = "Image-" + System.currentTimeMillis() + (currentImageFormat.equals("PNG") ? ".png" : ".jpg");
-                    file = new File(customDir, fileName); // Save inside the directory
+                    file = new File(customDir, fileName);
                 } else {
-                    // If the custom path is a file, use it directly
                     file = customDir;
                 }
 
@@ -678,7 +1077,6 @@ public class CameraV2Activity extends AppCompatActivity {
 
 
             } else {
-                // Используем стандартный путь сохранения
                 File myDir = new File(getFilesDir(), "InspectorAppFolder/saved_images");
                 if (!myDir.exists()) {
                     if (!myDir.mkdirs()) {
@@ -719,7 +1117,7 @@ public class CameraV2Activity extends AppCompatActivity {
         }
     }
 
-
+    // Настраиваем спиннер с разрешением изображения (соотношение сторон фотки)
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     private void setupResolutionSpinner(CameraOptions options) {
         if (options == null) {
@@ -746,6 +1144,12 @@ public class CameraV2Activity extends AppCompatActivity {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         resolutionSpinner.setAdapter(adapter);
 
+        // Загружаем сохраненную позицию Spinner и устанавливаем ее
+        int savedSpinnerPosition = sharedPreferences.getInt(KEY_RESOLUTION_SPINNER_POSITION, 0);
+        if (savedSpinnerPosition < resolutionLabels.size()) {
+            resolutionSpinner.setSelection(savedSpinnerPosition);
+        }
+
         resolutionSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -765,16 +1169,25 @@ public class CameraV2Activity extends AppCompatActivity {
                     }
 
                 });
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putInt(KEY_RESOLUTION_WIDTH, selectedSize.getWidth());
+                editor.putInt(KEY_RESOLUTION_HEIGHT, selectedSize.getHeight());
+
+                // Сохраняем позицию Spinner
+                editor.putInt(KEY_RESOLUTION_SPINNER_POSITION, position);
+                editor.apply();
 
                 updateCameraViewSize(selectedSize.getWidth(), selectedSize.getHeight());
             }
 
+            // И тут, как всегда, нихуя
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
             }
         });
     }
 
+    // Обновляем размер CameraView, чтобы он соответствовал выбранному разрешению
     private void updateCameraViewSize(int cameraWidth, int cameraHeight) {
         DisplayMetrics displayMetrics = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
@@ -801,49 +1214,54 @@ public class CameraV2Activity extends AppCompatActivity {
         cameraView.setLayoutParams(layoutParams);
     }
 
+    // Вызывается при возобновлении работы Activity (когда возвращаемся к приложению)
     @Override
     protected void onResume() {
         super.onResume();
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
-            cameraView.open();
+            cameraView.open(); // Открываем камеру, если есть все разрешения
         }
     }
 
+    // Вызывается при приостановке работы Activity (когда сворачиваем приложение)
     @Override
     protected void onPause() {
         super.onPause();
-        cameraView.close();
+        cameraView.close(); // Закрываем камеру, чтобы не жрала батарею
     }
 
+    // Вызывается при уничтожении Activity (когда закрываем приложение)
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        cameraView.destroy();
+        cameraView.destroy(); // Уничтожаем CameraView, чтобы освободить ресурсы
     }
 
+    // Обновляем превью последней фотки в углу экрана
     private void updateLastImagePreview() {
-        ImageButton lastImagePreview = findViewById(R.id.last_image_preview);
-        File directory = new File(getFilesDir(), "InspectorAppFolder/saved_images");
-        File lastFile = null;
+        ImageButton lastImagePreview = findViewById(R.id.last_image_preview); // Находим кнопку превью
+        File directory = new File(getFilesDir(), "InspectorAppFolder/saved_images"); // Папка с фотками
+        File lastFile = null; // Файл последней фотки (инициализируем в null)
 
-        if (directory.exists() && directory.isDirectory()) {
-            File[] files = directory.listFiles();
-            if (files != null && files.length > 0) {
-                Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+        if (directory.exists() && directory.isDirectory()) { // Если папка существует и это папка
+            File[] files = directory.listFiles(); // Получаем список файлов в папке
+            if (files != null && files.length > 0) { // Сортируем файлы по дате изменения (последние - в начале)
+                Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified())); // Берем первый файл из списка (последний измененный)
                 lastFile = files[0];
             }
         }
 
-        if (lastFile != null && lastFile.exists()) {
-            Bitmap myBitmap = BitmapFactory.decodeFile(lastFile.getAbsolutePath());
-            lastImagePreview.setImageBitmap(myBitmap);
+        if (lastFile != null && lastFile.exists()) { // Если файл последней фотки существует
+            Bitmap myBitmap = BitmapFactory.decodeFile(lastFile.getAbsolutePath()); // Декодируем файл в Bitmap
+            lastImagePreview.setImageBitmap(myBitmap); // Устанавливаем Bitmap в ImageButton
         } else {
-            lastImagePreview.setImageResource(R.drawable.def_insp_img);
+            lastImagePreview.setImageResource(R.drawable.def_insp_img);  // Если нет фотки - ставим дефолтную картинку
         }
     }
 
+    // Обновляем иконку кнопки записи видео (пауза/стоп)
     private void updateVideoCaptureButtonIcon() {
         videoCaptureButton.setImageResource(isRecordingVideo ? R.drawable.ic_stop_video : R.drawable.ic_videocam);
     }
