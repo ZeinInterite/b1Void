@@ -1,5 +1,7 @@
+
 package com.example.b1void.activities
 
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -37,18 +39,20 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var appDirectory: File
     private lateinit var zipDirectory: File
     private lateinit var captureButton: Button
-    private lateinit var showInspBtn: Button
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var shareButton: Button
+    private lateinit var deleteButton: Button
+    private lateinit var moveButton: Button
 
+    private val OPEN_FILE = 1
+
+    private var imageUri: Uri? = null
 
     private var imgGalUriString: String? = null
     private var imgGalUri: Uri? = null
-    private var selectedFolderGalUri: Uri? = null
-    private val PICK_FOLDER_REQUEST = 2
 
     private var isSelectionMode = false
-    private val selectedFiles = mutableSetOf<File>() // Use a Set for efficient contains/remove
+    private val selectedFiles = mutableSetOf<File>()
 
     private var currentFileForMenu: File? = null
 
@@ -59,11 +63,16 @@ class FileManagerActivity : AppCompatActivity() {
         recyclerView = findViewById(R.id.recycler_view)
         createFolderButton = findViewById(R.id.create_folder_button)
         captureButton = findViewById(R.id.capture_button)
-        showInspBtn = findViewById(R.id.show_inspection_button)
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout)
         shareButton = findViewById(R.id.share_button)
+        deleteButton = findViewById(R.id.delete_button)
+        moveButton = findViewById(R.id.move_button)
 
-        if(intent.getStringExtra("imageUri") != null){
+        val takePhotoButton = findViewById<View>(R.id.takePhotoButton)
+        val uploadButton = findViewById<View>(R.id.uploadButton)
+        val navFolderButton = findViewById<View>(R.id.navFolderButton)
+
+        if (intent.getStringExtra("imageUri") != null) {
             imgGalUriString = intent.getStringExtra("imageUri")
             imgGalUri = Uri.parse(imgGalUriString)
 
@@ -73,13 +82,22 @@ class FileManagerActivity : AppCompatActivity() {
 
         }
 
+        uploadButton.setOnClickListener {
+            val intent = Intent(Intent.ACTION_PICK)
+            intent.type = "image/*"
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            startActivityForResult(intent, OPEN_FILE)
+        }
+
         captureButton.setOnClickListener {
             val intent = Intent(this, CameraV2Activity::class.java)
             intent.putExtra("save_path", getCurrentDirectory().absolutePath)
             startActivity(intent)
         }
-        showInspBtn.setOnClickListener {
-            val intent = Intent(this, WorkerActivity::class.java)
+
+        takePhotoButton.setOnClickListener {
+            val intent = Intent(this, CameraV2Activity::class.java)
+            intent.putExtra("save_path", getCurrentDirectory().absolutePath)
             startActivity(intent)
         }
 
@@ -87,10 +105,17 @@ class FileManagerActivity : AppCompatActivity() {
             shareSelectedFiles()
         }
 
+        deleteButton.setOnClickListener {
+            deleteSelectedFiles()
+        }
+
+        moveButton.setOnClickListener {
+            showMoveDialog()
+        }
+
         val gridLayoutManager = GridLayoutManager(this, 4)
         recyclerView.layoutManager = gridLayoutManager
 
-        // Use internal storage
         appDirectory = File(filesDir, "InspectorAppFolder")
 
         if (!appDirectory.exists()) {
@@ -159,8 +184,92 @@ class FileManagerActivity : AppCompatActivity() {
             }
         }
 
+        navFolderButton.setOnClickListener {
+            showCreateFolderDialog { newDir ->
+                loadDirectoryContent(getCurrentDirectory())
+            }
+        }
+
         swipeRefreshLayout.setOnRefreshListener {
             loadDirectoryContent(getCurrentDirectory())
+        }
+    }
+
+
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == OPEN_FILE && resultCode == Activity.RESULT_OK && data != null) {
+            // Handle multiple images selection
+            if (data.clipData != null) {
+                val clipData = data.clipData
+                val count = clipData!!.itemCount
+
+                val uris = mutableListOf<Uri>()
+                for (i in 0 until count) {
+                    val imageUri = clipData.getItemAt(i).uri
+                    uris.add(imageUri)
+                }
+                showCreateFolderDialog { newDir ->
+                    saveImagesToDirectory(newDir, uris)
+                }
+
+
+            } else if (data.data != null) {
+                // Handle single image selection (fallback)
+                imageUri = data.data
+                val uris = mutableListOf<Uri>()
+                uris.add(imageUri!!)
+                showCreateFolderDialog { newDir ->
+                    saveImagesToDirectory(newDir, uris)
+                }
+            }
+        }
+    }
+
+    private fun saveImagesToDirectory(directory: File, uris: List<Uri>) {
+        for (uri in uris) {
+            val fname = "Image-" + System.currentTimeMillis() + ".jpg"
+            val file = File(directory, fname)
+
+            try {
+                // Получаем InputStream из URI изображения
+                val inputStream = contentResolver.openInputStream(uri)
+
+                // Создаем OutputStream для записи данных в файл
+                val outputStream = FileOutputStream(file)
+
+                // Буфер для чтения и записи данных (рекомендуемый размер)
+                val buffer = ByteArray(4096) // 4KB
+
+                var bytesRead: Int
+                while (inputStream!!.read(buffer).also { bytesRead = it } != -1) {
+                    outputStream.write(buffer, 0, bytesRead)
+                }
+
+                // Закрываем потоки (очень важно!)
+                outputStream.close()
+                inputStream.close()
+
+                runOnUiThread {
+                    Toast.makeText(this, "Изображение сохранено в: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                    loadDirectoryContent(directory) // Обновляем контент
+                }
+
+            } catch (e: IOException) {
+                // Обрабатываем ошибки ввода/вывода
+                e.printStackTrace()
+                runOnUiThread {
+                    Toast.makeText(this, "Ошибка при сохранении изображения", Toast.LENGTH_SHORT).show()
+                }
+                return // Stop processing if there's an error
+            }
+        }
+
+        runOnUiThread {
+            loadDirectoryContent(directory) // Обновляем контент
         }
     }
 
@@ -244,41 +353,23 @@ class FileManagerActivity : AppCompatActivity() {
                             filesAndDirs,
                             this,
                             { file -> // single click
-                                if (isSelectionMode) {
-                                    toggleFileSelection(file)
-                                } else if (file.isDirectory) {
-                                    openDirectory(file)
-                                } else {
-                                    // Check if the file is an image, and open preview if so.
-                                    if (fileAdapter.isImage(file)) {
-                                        openImagePreview(file)
-                                    } else {
-                                        Toast.makeText(
-                                            this,
-                                            "Выбран файл: ${file.name}",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
+                                onItemClick(file)
                             },
                             { file ->  //long click
-                                if (!isSelectionMode) {
-                                    startSelectionMode()
-                                    toggleFileSelection(file)
-                                }
-                            },
-                            { file, isSelected -> //selection change
-                                onFileSelectionChanged(file, isSelected)
+                                onItemLongClick(file)
                             },
                             { file -> // show option click
                                 currentFileForMenu = file
                                 registerForContextMenu(recyclerView)
                                 openContextMenu(recyclerView)
                             },
+                            isSelectionMode,
                             selectedFiles // Pass selectedFiles to the adapter
                         )
                         recyclerView.adapter = fileAdapter
                     } else {
+                        fileAdapter.isSelectionMode = isSelectionMode
+                        fileAdapter.selectedFiles = selectedFiles
                         fileAdapter.updateFiles(filesAndDirs)
                         fileAdapter.notifyDataSetChanged()
                     }
@@ -294,6 +385,32 @@ class FileManagerActivity : AppCompatActivity() {
             }
         }.start()
 
+    }
+
+    private fun onItemClick(file: File) {
+        if (isSelectionMode) {
+            toggleFileSelection(file)
+        } else if (file.isDirectory) {
+            openDirectory(file)
+        } else {
+            // Check if the file is an image, and open preview if so.
+            if (fileAdapter.isImage(file)) {
+                openImagePreview(file)
+            } else {
+                Toast.makeText(
+                    this,
+                    "Выбран файл: ${file.name}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun onItemLongClick(file: File) {
+        if (!isSelectionMode) {
+            startSelectionMode()
+            toggleFileSelection(file)
+        }
     }
 
     // Method to open the image preview activity
@@ -397,19 +514,14 @@ class FileManagerActivity : AppCompatActivity() {
                     Log.d("File Manager", "File ${file.name} deleted successfully")
                 } else {
                     Log.e("File Manager", "Error deleting file ${file.name}")
-                    Toast.makeText(
-                        this@FileManagerActivity,
-                        "Ошибка при удалении файла",
-                        Toast.LENGTH_SHORT
-                    ).show()
                 }
             }
             loadDirectoryContent(getCurrentDirectory())
         } catch (e: SecurityException) {
             Log.e("FileManager", "SecurityException deleting file: ${e.message}")
-            Toast.makeText(this, "Ошибка безопасности при удалении файла", Toast.LENGTH_SHORT).show()
         }
     }
+
 
     private fun deleteDirectory(directory: File): Boolean {
         val files = directory.listFiles()
@@ -478,14 +590,18 @@ class FileManagerActivity : AppCompatActivity() {
     private fun startSelectionMode() {
         isSelectionMode = true
         shareButton.visibility = View.VISIBLE
-        fileAdapter.notifyDataSetChanged()
+        deleteButton.visibility = View.VISIBLE // Показываем кнопку удаления
+        moveButton.visibility = View.VISIBLE   // Показываем кнопку перемещения
+        loadDirectoryContent(getCurrentDirectory()) //refresh adapter
     }
 
     private fun clearSelection() {
         isSelectionMode = false
         shareButton.visibility = View.GONE
+        deleteButton.visibility = View.GONE  // Скрываем кнопку удаления
+        moveButton.visibility = View.GONE    // Скрываем кнопку перемещения
         selectedFiles.clear()
-        fileAdapter.notifyDataSetChanged()
+        loadDirectoryContent(getCurrentDirectory()) //refresh adapter
     }
 
     private fun toggleFileSelection(file: File) {
@@ -494,12 +610,142 @@ class FileManagerActivity : AppCompatActivity() {
         } else {
             selectedFiles.add(file)
         }
-        fileAdapter.notifyDataSetChanged()
-
+        fileAdapter.notifyItemChanged(fileAdapter.files.indexOf(file))
         if (selectedFiles.isEmpty()) {
             clearSelection()
         }
     }
+
+    private fun deleteSelectedFiles() {
+        if (selectedFiles.isNotEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle("Удалить выбранные элементы?")
+                .setMessage("Вы уверены, что хотите удалить выбранные элементы?")
+                .setPositiveButton(android.R.string.yes) { dialog, which ->
+                    Thread {
+                        selectedFiles.forEach { file ->
+                            try {
+                                if (file.isDirectory) {
+                                    deleteDirectory(file)
+                                } else {
+                                    if (file.delete()) {
+                                        Log.d("File Manager", "File ${file.name} deleted successfully")
+                                    } else {
+                                        Log.e("File Manager", "Error deleting file ${file.name}")
+                                        runOnUiThread {
+                                            Toast.makeText(
+                                                this@FileManagerActivity,
+                                                "Не удалось удалить файл ${file.name}",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                }
+                                runOnUiThread { // Обновляем UI в основном потоке после каждого удаления
+                                    loadDirectoryContent(getCurrentDirectory()) // Обновляем RecyclerView
+                                }
+
+                            } catch (e: SecurityException) {
+                                Log.e("FileManager", "SecurityException deleting file: ${e.message}")
+                                runOnUiThread {
+                                    Toast.makeText(
+                                        this@FileManagerActivity,
+                                        "Ошибка безопасности при удалении файла ${file.name}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        }
+                        runOnUiThread { // Обновление UI в основном потоке
+                            Toast.makeText(
+                                this@FileManagerActivity,
+                                "Выбранные файлы удалены",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            clearSelection()
+                            loadDirectoryContent(getCurrentDirectory())
+                        }
+                    }.start()
+                }
+                .setNegativeButton(android.R.string.no, null)
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .show()
+        } else {
+            Toast.makeText(this, "Не выбраны файлы для удаления", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+
+                                // Move selected files
+    private fun showMoveDialog() {
+        if (selectedFiles.isNotEmpty()) {
+            val builder = AlertDialog.Builder(this)
+            builder.setTitle("Выберите папку для перемещения")
+
+            // Создаем список папок для отображения в диалоговом окне
+            val directories = getCurrentDirectory().listFiles { file -> file.isDirectory }
+            val directoryNames = directories?.map { it.name }?.toTypedArray() ?: emptyArray()
+
+            if (directoryNames.isNotEmpty()) {
+                builder.setItems(directoryNames) { dialog, which ->
+                    val destinationDirectory = directories!![which]
+                    moveSelectedFiles(destinationDirectory)
+                    dialog.dismiss()
+                }
+
+                builder.setNegativeButton("Отмена") { dialog, _ -> dialog.cancel() }
+                builder.show()
+            } else {
+                Toast.makeText(this, "Нет доступных папок для перемещения", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(this, "Не выбраны файлы для перемещения", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun moveSelectedFiles(destinationDirectory: File) {
+        Thread {
+            selectedFiles.forEach { file ->
+                val newFile = File(destinationDirectory, file.name)
+                try {
+                    if (file.renameTo(newFile)) {
+                        Log.d("FileManager", "File ${file.name} moved successfully to ${destinationDirectory.absolutePath}")
+                    } else {
+                        Log.e("FileManager", "Error moving file ${file.name} to ${destinationDirectory.absolutePath}")
+                        runOnUiThread { // Обновление UI в основном потоке
+                            Toast.makeText(
+                                this@FileManagerActivity,
+                                "Ошибка при перемещении файла ${file.name}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                } catch (e: SecurityException) {
+                    Log.e("FileManager", "SecurityException moving file: ${e.message}")
+                    runOnUiThread { // Обновление UI в основном потоке
+                        Toast.makeText(this, "Ошибка безопасности при перемещении файла ${file.name}", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: IOException) {
+                    Log.e("FileManager", "IOException moving file: ${e.message}")
+                    runOnUiThread { // Обновление UI в основном потоке
+                        Toast.makeText(this, "Ошибка ввода/вывода при перемещении файла ${file.name}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+
+            runOnUiThread { // Обновление UI в основном потоке
+                Toast.makeText(
+                    this@FileManagerActivity,
+                    "Выбранные файлы перемещены",
+                    Toast.LENGTH_SHORT
+                ).show()
+                clearSelection()
+                loadDirectoryContent(getCurrentDirectory())
+            }
+        }.start()
+    }
+
 
     private fun onFileSelectionChanged(file: File, isSelected: Boolean) {
         if (isSelected) {

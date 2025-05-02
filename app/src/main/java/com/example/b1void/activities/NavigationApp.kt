@@ -51,31 +51,12 @@ class NavigationApp : AppCompatActivity() {
         if (requestCode == OPEN_FILE && resultCode == Activity.RESULT_OK && data != null) {
             imageUri = data.data // Получаем URI выбранного изображения
 
-            // Открываем SelectFolderActivity
             val intent = Intent(this, FileManagerActivity::class.java)
-            intent.putExtra("imageUri", imageUri.toString()) // Передаем URI в другую Activity как String
+            intent.putExtra(
+                "imageUri",
+                imageUri.toString()
+            )
             startActivity(intent)
         }
     }
-//    private fun showCreateFolderDialog(parentDir: File) {
-//        val builder = AlertDialog.Builder(this)
-//        val input = EditText(this)
-//        builder.setTitle("Создать новую папку")
-//        builder.setView(input)
-//
-//        builder.setPositiveButton("Создать") { dialog, _ ->
-//            val folderName = input.text.toString()
-//            val newDir = File(parentDir, folderName)
-//
-//
-//            if (newDir.mkdir()) {
-//                loadDirectoryContent(parentDir)
-//            } else {
-//                Toast.makeText(this, "Ошибка при создании папки", Toast.LENGTH_SHORT).show()
-//            }
-//            dialog.dismiss()
-//        }
-//        builder.setNegativeButton("Отмена") { dialog, _ -> dialog.cancel() }
-//        builder.show()
-//    }
 }

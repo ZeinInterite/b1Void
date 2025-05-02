@@ -1,4 +1,4 @@
-package com.example.b1void.adapters;
+package com.example.b1void.adapters
 
 import android.content.Context
 import android.graphics.BitmapFactory
@@ -13,15 +13,14 @@ import com.example.b1void.R
 import java.io.File
 
 class FileAdapter(
-    private var files: List<File>,
+    var files: List<File>,
     private val context: Context,
-    private val onFileClickListener: (File) -> Unit,
-    private val onFileLongClickListener: (File) -> Unit,
-    private val onSelectionChanged: (File, Boolean) -> Unit,
+    private val onItemClickListener: (File) -> Unit,
+    private val onItemLongClickListener: (File) -> Unit,
     private val onShowOptionsClickListener: (File) -> Unit,
-    private val selectedFiles: Set<File> // Pass selectedFiles from Activity
+    var isSelectionMode: Boolean = false,
+    var selectedFiles: Set<File> = emptySet()
 ) : RecyclerView.Adapter<FileAdapter.FileViewHolder>() {
-
 
     class FileViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val fileName: TextView = itemView.findViewById(R.id.file_name)
@@ -52,22 +51,18 @@ class FileAdapter(
             holder.fileIcon.setImageResource(R.drawable.file_ic)
         }
 
-        val isSelectionMode = selectedFiles.isNotEmpty()
         holder.checkBox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
         holder.checkBox.isChecked = selectedFiles.contains(file)
 
         holder.itemView.setOnClickListener {
-            onFileClickListener(file)
+            onItemClickListener(file)
         }
 
         holder.itemView.setOnLongClickListener {
-            onFileLongClickListener(file)
+            onItemLongClickListener(file)
             true
         }
 
-        holder.checkBox.setOnCheckedChangeListener { _, isChecked ->
-            onSelectionChanged(file, isChecked)
-        }
         holder.showOption.setOnClickListener {
             onShowOptionsClickListener(file)
         }
