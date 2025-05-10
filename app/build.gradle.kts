@@ -11,7 +11,6 @@ android {
     defaultConfig {
         applicationId = "com.example.b1void"
         minSdk = 25
-        //noinspection OldTargetApi
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -68,20 +67,24 @@ dependencies {
     implementation ("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
 
     implementation("com.google.android.gms:play-services-auth:21.3.0")
-    implementation ("com.dropbox.core:dropbox-core-sdk:5.2.0")
+
+    implementation ("com.dropbox.core:dropbox-core-sdk:7.0.0")
+    implementation ("com.dropbox.core:dropbox-android-sdk:7.0.0")
+
     implementation ("com.squareup.picasso:picasso:2.71828")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     implementation("com.google.firebase:firebase-database:21.0.0")
-    implementation("com.google.firebase:firebase-auth:23.1.0")
+    implementation("com.google.firebase:firebase-auth:23.2.0")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 
-    implementation("androidx.activity:activity-ktx:1.8.2")
+    implementation("androidx.activity:activity-ktx:1.10.1")
 
     implementation("com.github.yukuku:ambilwarna:2.0.1")
 
     api("com.otaliastudios:cameraview:2.7.2")
 
     implementation("net.lingala.zip4j:zip4j:2.9.0")
+
 }

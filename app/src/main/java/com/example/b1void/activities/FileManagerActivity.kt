@@ -68,9 +68,7 @@ class FileManagerActivity : AppCompatActivity() {
         deleteButton = findViewById(R.id.delete_button)
         moveButton = findViewById(R.id.move_button)
 
-        val takePhotoButton = findViewById<View>(R.id.takePhotoButton)
-        val uploadButton = findViewById<View>(R.id.uploadButton)
-        val navFolderButton = findViewById<View>(R.id.navFolderButton)
+        val uploadButton = findViewById<View>(R.id.upload_button)
 
         if (intent.getStringExtra("imageUri") != null) {
             imgGalUriString = intent.getStringExtra("imageUri")
@@ -79,7 +77,6 @@ class FileManagerActivity : AppCompatActivity() {
             showCreateFolderDialog { newDir ->
                 saveImageToDirectory(newDir)
             }
-
         }
 
         uploadButton.setOnClickListener {
@@ -90,12 +87,6 @@ class FileManagerActivity : AppCompatActivity() {
         }
 
         captureButton.setOnClickListener {
-            val intent = Intent(this, CameraV2Activity::class.java)
-            intent.putExtra("save_path", getCurrentDirectory().absolutePath)
-            startActivity(intent)
-        }
-
-        takePhotoButton.setOnClickListener {
             val intent = Intent(this, CameraV2Activity::class.java)
             intent.putExtra("save_path", getCurrentDirectory().absolutePath)
             startActivity(intent)
@@ -179,12 +170,6 @@ class FileManagerActivity : AppCompatActivity() {
         loadDirectoryContent(appDirectory)
 
         createFolderButton.setOnClickListener {
-            showCreateFolderDialog { newDir ->
-                loadDirectoryContent(getCurrentDirectory())
-            }
-        }
-
-        navFolderButton.setOnClickListener {
             showCreateFolderDialog { newDir ->
                 loadDirectoryContent(getCurrentDirectory())
             }
