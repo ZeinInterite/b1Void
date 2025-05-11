@@ -57,7 +57,7 @@
             android:exported="true"
             android:launchMode="singleTask">
             <intent-filter>
-                <data android:scheme="db-pozl63episyy7so" />
+                <data android:scheme="db-elw6ey40dkbo1i0" />
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -74,7 +74,7 @@
 
         <activity
             android:name=".activities.FileManagerActivity"
-            android:exported="false" />  <!--  Изменил exported на false -->
+            android:exported="false" />
 
         <activity
             android:name=".activities.SplashActivity"

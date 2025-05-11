@@ -56,6 +56,7 @@ dependencies {
     implementation("com.google.firebase:firebase-storage-ktx:21.0.1")
     implementation("com.google.firebase:firebase-storage:21.0.1")
     implementation("androidx.datastore:datastore-core-android:1.1.1")
+    implementation("com.google.firebase:firebase-crashlytics-buildtools:3.0.3")
     annotationProcessor ("com.github.bumptech.glide:compiler:4.16.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
@@ -86,5 +87,7 @@ dependencies {
     api("com.otaliastudios:cameraview:2.7.2")
 
     implementation("net.lingala.zip4j:zip4j:2.9.0")
+
+    implementation ("com.google.code.gson:gson:2.10.1")
 
 }

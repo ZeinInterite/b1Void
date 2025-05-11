@@ -14,7 +14,6 @@ import com.dropbox.core.InvalidAccessTokenException
 import com.dropbox.core.v2.DbxClientV2
 import com.dropbox.core.v2.files.CreateFolderErrorException
 import com.dropbox.core.v2.files.Metadata
-import com.example.b1void.DBX.DropboxClient
 import com.example.b1void.R
 import com.example.b1void.tasks.CreateFolderTask
 import com.example.b1void.tasks.ListFolderTask
@@ -65,7 +64,6 @@ class ShowInspectionActivity : AppCompatActivity() {
             return
         }
 
-        dropboxClient = DropboxClient.getClient(accessToken!!)
         inspectorName?.let { searchDropboxForInspectorFolder(it) }
     }
 

@@ -20,7 +20,7 @@ import com.example.b1void.R;
 public class SplashActivity extends AppCompatActivity {
 
     private static final String TAG = "SplashActivity";
-    private static final String APP_KEY = "pozl63episyy7so"; // Ключ Dropbox
+    private static final String APP_KEY = "elw6ey40dkbo1i0"; // Ключ Dropbox
     private DbxClientV2 dropboxClient; // Клиент Dropbox
     private ProgressBar progressBar; // Прогресс-бар
 
@@ -96,7 +96,7 @@ public class SplashActivity extends AppCompatActivity {
             dropboxClient = null;
             return;
         }
-        DbxRequestConfig config = DbxRequestConfig.newBuilder("dropbox/DiplomGazprom").build();
+        DbxRequestConfig config = DbxRequestConfig.newBuilder("dropbox/DiplomGaz ").build();
         dropboxClient = new DbxClientV2(config, token);
         testDropboxToken();
     }

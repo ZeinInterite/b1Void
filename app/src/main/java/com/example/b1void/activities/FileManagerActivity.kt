@@ -1,4 +1,3 @@
-
 package com.example.b1void.activities
 
 import android.app.Activity
@@ -21,11 +20,18 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.b1void.R
 import com.example.b1void.adapters.FileAdapter
+import com.dropbox.core.DbxException
+import com.dropbox.core.DbxRequestConfig
+import com.dropbox.core.v2.DbxClientV2
+import com.dropbox.core.v2.files.DeleteErrorException
+import com.dropbox.core.v2.files.FileMetadata
+import com.dropbox.core.v2.files.FolderMetadata
 import net.lingala.zip4j.ZipFile
 import net.lingala.zip4j.model.ZipParameters
 import net.lingala.zip4j.model.enums.CompressionLevel
 import net.lingala.zip4j.model.enums.CompressionMethod
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.LinkedList
@@ -43,6 +49,7 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var shareButton: Button
     private lateinit var deleteButton: Button
     private lateinit var moveButton: Button
+    private lateinit var uploadAllButton: Button // New button
 
     private val OPEN_FILE = 1
 
@@ -56,6 +63,13 @@ class FileManagerActivity : AppCompatActivity() {
 
     private var currentFileForMenu: File? = null
 
+    // Dropbox integration
+    private var dropboxClient: DbxClientV2? = null
+    private val DROPBOX_APP_KEY = "elw6ey40dkbo1i0" // Replace with your Dropbox App Key
+    private val ROOT_DROPBOX_PATH = "/InspectorAppFolder"  // The root path in Dropbox
+    private val tokensPrefs = "tokensPrefs"
+    private val accessTokenKey = "accessToken"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_file_manager)
@@ -67,6 +81,7 @@ class FileManagerActivity : AppCompatActivity() {
         shareButton = findViewById(R.id.share_button)
         deleteButton = findViewById(R.id.delete_button)
         moveButton = findViewById(R.id.move_button)
+        uploadAllButton = findViewById(R.id.synth_button) // Initialize the new button
 
         val uploadButton = findViewById<View>(R.id.upload_button)
 
@@ -102,6 +117,10 @@ class FileManagerActivity : AppCompatActivity() {
 
         moveButton.setOnClickListener {
             showMoveDialog()
+        }
+
+        uploadAllButton.setOnClickListener { // Set the listener for the new button
+            uploadAllMissingFiles()
         }
 
         val gridLayoutManager = GridLayoutManager(this, 4)
@@ -167,20 +186,39 @@ class FileManagerActivity : AppCompatActivity() {
             }
         }
 
+        // Initialize Dropbox client
+        initializeDropboxClient()
+
         loadDirectoryContent(appDirectory)
 
         createFolderButton.setOnClickListener {
             showCreateFolderDialog { newDir ->
+                uploadFolderToDropbox(newDir)  // Upload the newly created folder
                 loadDirectoryContent(getCurrentDirectory())
             }
         }
 
         swipeRefreshLayout.setOnRefreshListener {
             loadDirectoryContent(getCurrentDirectory())
+            syncWithDropbox() // Synchronize on refresh
         }
     }
 
+    private fun initializeDropboxClient() {
+        val accessToken = getAccessToken()
+        if (accessToken.isNullOrEmpty()) {
+            Log.w("FileManager", "No Dropbox access token found.")
+            return
+        }
 
+        val config = DbxRequestConfig.newBuilder("dropbox/DiplomGaz").build()
+        dropboxClient = DbxClientV2(config, accessToken)
+    }
+
+    private fun getAccessToken(): String? {
+        val prefs = getSharedPreferences(tokensPrefs, MODE_PRIVATE)
+        return prefs.getString(accessTokenKey, null)
+    }
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -501,6 +539,7 @@ class FileManagerActivity : AppCompatActivity() {
                     Log.e("File Manager", "Error deleting file ${file.name}")
                 }
             }
+            deleteFromDropbox(file) // Delete the file or folder from Dropbox
             loadDirectoryContent(getCurrentDirectory())
         } catch (e: SecurityException) {
             Log.e("FileManager", "SecurityException deleting file: ${e.message}")
@@ -626,6 +665,7 @@ class FileManagerActivity : AppCompatActivity() {
                                         }
                                     }
                                 }
+                                deleteFromDropbox(file)
                                 runOnUiThread { // Обновляем UI в основном потоке после каждого удаления
                                     loadDirectoryContent(getCurrentDirectory()) // Обновляем RecyclerView
                                 }
@@ -662,7 +702,7 @@ class FileManagerActivity : AppCompatActivity() {
 
 
 
-                                // Move selected files
+    // Move selected files
     private fun showMoveDialog() {
         if (selectedFiles.isNotEmpty()) {
             val builder = AlertDialog.Builder(this)
@@ -857,5 +897,180 @@ class FileManagerActivity : AppCompatActivity() {
         } else {
             Toast.makeText(this, "No files selected", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    //Dropbox Integration
+    private fun getDropboxPath(localPath: String): String {
+        val relativePath = localPath.removePrefix(appDirectory.absolutePath)
+        return "$ROOT_DROPBOX_PATH$relativePath"
+    }
+
+    private fun uploadFolderToDropbox(folder: File) {
+        Thread {
+            try {
+                val dropboxPath = getDropboxPath(folder.absolutePath)
+                dropboxClient?.files()?.createFolderV2(dropboxPath)
+                runOnUiThread {
+                    Toast.makeText(this, "Папка ${folder.name} создана в Dropbox", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: DbxException) {
+                Log.e("FileManager", "Error creating folder in Dropbox: ${e.message}")
+                runOnUiThread {
+                    Toast.makeText(this, "Ошибка при создании папки в Dropbox", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun uploadFileToDropbox(file: File) {
+        Thread {
+            try {
+                val dropboxPath = getDropboxPath(file.absolutePath)
+                FileInputStream(file).use { `in` ->
+                    val uploadResult = dropboxClient?.files()?.uploadBuilder(dropboxPath)
+                        ?.uploadAndFinish(`in`)
+                    if (uploadResult != null) {
+                        Log.d("FileManager", "File uploaded to Dropbox: $dropboxPath")
+                        runOnUiThread {
+                            Toast.makeText(this, "Файл ${file.name} загружен в Dropbox", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        Log.e("FileManager", "Failed to upload file to Dropbox: $dropboxPath")
+                        runOnUiThread {
+                            Toast.makeText(this, "Не удалось загрузить файл ${file.name} в Dropbox", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            } catch (e: DbxException) {
+                Log.e("FileManager", "Error uploading file to Dropbox: ${e.message}")
+                runOnUiThread {
+                    Toast.makeText(this, "Ошибка при загрузке файла в Dropbox", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: IOException) {
+                Log.e("FileManager", "IO error uploading file to Dropbox: ${e.message}")
+                runOnUiThread {
+                    Toast.makeText(this, "Ошибка ввода/вывода при загрузке файла в Dropbox", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun deleteFromDropbox(file: File) {
+        Thread {
+            try {
+                val dropboxPath = getDropboxPath(file.absolutePath)
+                dropboxClient?.files()?.deleteV2(dropboxPath)
+                runOnUiThread {
+                    Toast.makeText(this, "Файл/папка ${file.name} удалены из Dropbox", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: DeleteErrorException) {
+                Log.e("FileManager", "Error deleting from Dropbox: ${e.errorValue.toString()}", e)
+                runOnUiThread {
+                    Toast.makeText(this, "Ошибка при удалении из Dropbox: ${e.errorValue.toString()}", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: DbxException) {
+                Log.e("FileManager", "Error deleting from Dropbox: ${e.message}", e)
+                runOnUiThread {
+                    Toast.makeText(this, "Ошибка при удалении из Dropbox", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun syncWithDropbox() {
+        swipeRefreshLayout.isRefreshing = true
+        Thread {
+            try {
+                // List files in the root Dropbox path
+                val dropboxPath = getDropboxPath(appDirectory.absolutePath)
+                val listFolderResult = dropboxClient?.files()?.listFolder(dropboxPath)
+
+                if (listFolderResult != null) {
+                    val entries = listFolderResult.entries
+                    for (entry in entries) {
+                        val localFile = File(appDirectory, entry.name)
+                        if (!localFile.exists()) {
+                            // Download the file from Dropbox
+                            if (entry is FileMetadata) {
+                                downloadFileFromDropbox(entry.pathDisplay.toString(), localFile)
+                            } else if (entry is FolderMetadata) {
+                                // Create the folder locally
+                                localFile.mkdirs()
+                            }
+                        }
+                    }
+                }
+            } catch (e: DbxException) {
+                Log.e("FileManager", "Error listing files from Dropbox: ${e.message}")
+                runOnUiThread {
+                    Toast.makeText(this, "Ошибка при синхронизации с Dropbox", Toast.LENGTH_SHORT).show()
+                }
+            } finally {
+                runOnUiThread {
+                    loadDirectoryContent(getCurrentDirectory())
+                    swipeRefreshLayout.isRefreshing = false
+                }
+            }
+        }.start()
+    }
+
+    private fun downloadFileFromDropbox(dropboxPath: String, localFile: File) {
+        try {
+            FileOutputStream(localFile).use { out ->
+                dropboxClient?.files()?.download(dropboxPath)?.download(out)
+            }
+            Log.d("FileManager", "File downloaded from Dropbox: $dropboxPath to ${localFile.absolutePath}")
+            runOnUiThread {
+                Toast.makeText(this, "Файл ${localFile.name} загружен из Dropbox", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: DbxException) {
+            Log.e("FileManager", "Error downloading file from Dropbox: ${e.message}")
+            runOnUiThread {
+                Toast.makeText(this, "Ошибка при загрузке файла из Dropbox", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: IOException) {
+            Log.e("FileManager", "IO error downloading file from Dropbox: ${e.message}")
+            runOnUiThread {
+                Toast.makeText(this, "Ошибка ввода/вывода при загрузке файла из Dropbox", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun uploadAllMissingFiles() {
+        Thread {
+            try {
+                val dropboxPath = getDropboxPath(appDirectory.absolutePath)
+                val listFolderResult = dropboxClient?.files()?.listFolder(dropboxPath)
+                val existingDropboxFiles = listFolderResult?.entries?.map { it.name }?.toSet() ?: emptySet()
+
+                val localFiles = appDirectory.listFiles()?.toList() ?: emptyList()
+
+                for (localFile in localFiles) {
+                    if (!existingDropboxFiles.contains(localFile.name)) {
+                        // File exists locally but not in Dropbox, upload it
+                        if (localFile.isDirectory) {
+                            uploadFolderToDropbox(localFile)
+                        } else {
+                            uploadFileToDropbox(localFile)
+                        }
+                    }
+                }
+
+                runOnUiThread {
+                    Toast.makeText(this, "Загрузка отсутствующих файлов в Dropbox завершена", Toast.LENGTH_SHORT).show()
+                    loadDirectoryContent(getCurrentDirectory())  // Refresh the list
+                }
+
+            } catch (e: DbxException) {
+                Log.e("FileManager", "Error listing files from Dropbox: ${e.message}")
+                runOnUiThread {
+                    Toast.makeText(this, "Ошибка при получении списка файлов из Dropbox", Toast.LENGTH_SHORT).show()
+                }
+            } finally {
+                runOnUiThread {
+                    loadDirectoryContent(getCurrentDirectory())  // Refresh the list
+                }
+            }
+        }.start()
     }
 }
