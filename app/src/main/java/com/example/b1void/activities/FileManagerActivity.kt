@@ -981,7 +981,6 @@ class FileManagerActivity : AppCompatActivity() {
         swipeRefreshLayout.isRefreshing = true
         Thread {
             try {
-                // List files in the root Dropbox path
                 val dropboxPath = getDropboxPath(appDirectory.absolutePath)
                 val listFolderResult = dropboxClient?.files()?.listFolder(dropboxPath)
 
