@@ -20,12 +20,12 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.b1void.R
 import com.example.b1void.adapters.FileAdapter
-import com.dropbox.core.DbxException
-import com.dropbox.core.DbxRequestConfig
-import com.dropbox.core.v2.DbxClientV2
-import com.dropbox.core.v2.files.DeleteErrorException
-import com.dropbox.core.v2.files.FileMetadata
-import com.dropbox.core.v2.files.FolderMetadata
+//import com.dropbox.core.DbxException
+//import com.dropbox.core.DbxRequestConfig
+//import com.dropbox.core.v2.DbxClientV2
+//import com.dropbox.core.v2.files.DeleteErrorException
+//import com.dropbox.core.v2.files.FileMetadata
+//import com.dropbox.core.v2.files.FolderMetadata
 import net.lingala.zip4j.ZipFile
 import net.lingala.zip4j.model.ZipParameters
 import net.lingala.zip4j.model.enums.CompressionLevel
@@ -49,7 +49,7 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var shareButton: Button
     private lateinit var deleteButton: Button
     private lateinit var moveButton: Button
-    private lateinit var uploadAllButton: Button // New button
+//    private lateinit var uploadAllButton: Button // New button
 
     private val OPEN_FILE = 1
 
@@ -187,21 +187,21 @@ class FileManagerActivity : AppCompatActivity() {
         }
 
         // Initialize Dropbox client
-        initializeDropboxClient()
+//        initializeDropboxClient()
 
         loadDirectoryContent(appDirectory)
 
-        createFolderButton.setOnClickListener {
-            showCreateFolderDialog { newDir ->
-                uploadFolderToDropbox(newDir)  // Upload the newly created folder
-                loadDirectoryContent(getCurrentDirectory())
-            }
-        }
+//        createFolderButton.setOnClickListener {
+//            showCreateFolderDialog { newDir ->
+//                uploadFolderToDropbox(newDir)  // Upload the newly created folder
+//                loadDirectoryContent(getCurrentDirectory())
+//            }
+//        }
 
-        swipeRefreshLayout.setOnRefreshListener {
-            loadDirectoryContent(getCurrentDirectory())
-            syncWithDropbox() // Synchronize on refresh
-        }
+//        swipeRefreshLayout.setOnRefreshListener {
+//            loadDirectoryContent(getCurrentDirectory())
+//            syncWithDropbox() // Synchronize on refresh
+//        }
     }
 
     private fun initializeDropboxClient() {
@@ -539,7 +539,7 @@ class FileManagerActivity : AppCompatActivity() {
                     Log.e("File Manager", "Error deleting file ${file.name}")
                 }
             }
-            deleteFromDropbox(file) // Delete the file or folder from Dropbox
+//            deleteFromDropbox(file) // Delete the file or folder from Dropbox
             loadDirectoryContent(getCurrentDirectory())
         } catch (e: SecurityException) {
             Log.e("FileManager", "SecurityException deleting file: ${e.message}")

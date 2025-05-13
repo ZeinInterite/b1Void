@@ -20,25 +20,16 @@
             android:orientation="horizontal"
             android:padding="16dp">
 
-            <TextView
-                android:id="@+id/titleTextView"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="DOCUMENT LLC "
-                android:textColor="#FFFFFF"
-                android:textSize="24sp"
-                android:layout_gravity="center"/>
-
-            <Button
-                android:id="@+id/synth_button"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="2"
-                android:background="@color/back"
-                android:text=" ↻ "
-                android:textSize="25sp"
-                android:layout_marginStart="110dp"
-                android:layout_marginLeft="8dp"/>
+            <!--            <Button-->
+<!--                android:id="@+id/synth_button"-->
+<!--                android:layout_width="0dp"-->
+<!--                android:layout_height="wrap_content"-->
+<!--                android:layout_weight="2"-->
+<!--                android:background="@color/back"-->
+<!--                android:text=" ↻ "-->
+<!--                android:textSize="25sp"-->
+<!--                android:layout_marginStart="110dp"-->
+<!--                android:layout_marginLeft="8dp"/>-->
         </LinearLayout>
 
 
@@ -71,16 +62,16 @@
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipe_refresh_layout"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recycler_view"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_marginTop="16dp"
-            android:paddingLeft="16dp"
-            android:paddingRight="16dp"/>
+        <!--        <androidx.recyclerview.widget.RecyclerView-->
+        <!--            android:id="@+id/recycler_view"-->
+        <!--            android:layout_width="match_parent"-->
+        <!--            android:layout_height="match_parent"-->
+        <!--            android:layout_marginTop="16dp"-->
+        <!--            android:paddingLeft="16dp"-->
+        <!--            android:paddingRight="16dp"/>-->
 
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
@@ -124,5 +115,16 @@
             android:layout_marginStart="8dp"
             android:layout_marginLeft="8dp"/>
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/titleTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="DOCUMENT LLC "
+        android:textColor="#FFFFFF"
+        android:textSize="24sp"
+        app:layout_anchor="@+id/appbar"
+        app:layout_anchorGravity="center" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
