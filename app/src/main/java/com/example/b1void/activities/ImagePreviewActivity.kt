@@ -1,12 +1,12 @@
 package com.example.b1void.activities
 
-import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Log
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.bumptech.glide.Glide
 import com.example.b1void.R
 import java.io.File
 
@@ -35,9 +35,11 @@ class ImagePreviewActivity : AppCompatActivity() {
             return
         }
 
-        if (imagePaths.size == 1) {
+        if (imagePaths.size <= 1) {
             prevButton.isEnabled = false
             nextButton.isEnabled = false
+        } else {
+            updateButtonVisibility()
         }
 
         displayImage()
@@ -46,8 +48,7 @@ class ImagePreviewActivity : AppCompatActivity() {
             if (currentImageIndex > 0) {
                 currentImageIndex--
                 displayImage()
-            } else {
-                Toast.makeText(this, "No previous image.", Toast.LENGTH_SHORT).show()
+                updateButtonVisibility()
             }
         }
 
@@ -55,8 +56,7 @@ class ImagePreviewActivity : AppCompatActivity() {
             if (currentImageIndex < imagePaths.size - 1) {
                 currentImageIndex++
                 displayImage()
-            } else {
-                Toast.makeText(this, "No next image.", Toast.LENGTH_SHORT).show()
+                updateButtonVisibility()
             }
         }
     }
@@ -66,12 +66,20 @@ class ImagePreviewActivity : AppCompatActivity() {
         val imageFile = File(imagePath)
 
         if (imageFile.exists()) {
-            val bitmap = BitmapFactory.decodeFile(imageFile.absolutePath)
-            imageView.setImageBitmap(bitmap)
+            Glide.with(this)
+                .load(imageFile)
+                .placeholder(R.drawable.def_insp_img)
+                .error(R.drawable.def_insp_img)
+                .into(imageView)
         } else {
             Log.e("ImagePreview", "Image not found: $imagePath")
-            imageView.setImageResource(R.drawable.def_insp_img) // Placeholder
+            imageView.setImageResource(R.drawable.def_insp_img)
             Toast.makeText(this, "Image not found.", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun updateButtonVisibility() {
+        prevButton.isEnabled = currentImageIndex > 0
+        nextButton.isEnabled = currentImageIndex < imagePaths.size - 1
     }
 }

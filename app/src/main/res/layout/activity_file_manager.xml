@@ -40,14 +40,20 @@
                 android:layout_marginStart="110dp"
                 android:layout_marginLeft="8dp"/>
         </LinearLayout>
-
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:layout_marginBottom="10dp"
+        android:orientation="horizontal"
+        >
 
         <Button
             android:id="@+id/share_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="Share"
+            android:text="Поделиться"
             android:visibility="gone" />
 
         <Button
@@ -65,6 +71,9 @@
             android:layout_marginTop="16dp"
             android:text="Переместить"
             android:visibility="gone" />
+
+    </LinearLayout>
+
 
     </com.google.android.material.appbar.AppBarLayout>
 

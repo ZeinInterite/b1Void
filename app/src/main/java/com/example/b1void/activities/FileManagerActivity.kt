@@ -193,14 +193,14 @@ class FileManagerActivity : AppCompatActivity() {
 
         createFolderButton.setOnClickListener {
             showCreateFolderDialog { newDir ->
-                uploadFolderToDropbox(newDir)  // Upload the newly created folder
+                uploadFolderToDropbox(newDir)
                 loadDirectoryContent(getCurrentDirectory())
             }
         }
 
         swipeRefreshLayout.setOnRefreshListener {
             loadDirectoryContent(getCurrentDirectory())
-            syncWithDropbox() // Synchronize on refresh
+            syncWithDropbox()
         }
     }
 
@@ -416,9 +416,16 @@ class FileManagerActivity : AppCompatActivity() {
         } else if (file.isDirectory) {
             openDirectory(file)
         } else {
-            // Check if the file is an image, and open preview if so.
             if (fileAdapter.isImage(file)) {
-                openImagePreview(file)
+                val directory = getCurrentDirectory()
+                val imageFiles = directory.listFiles { f ->
+                    f.isFile && fileAdapter.isImage(f)
+                }?.toList() ?: emptyList()
+
+                val imagePaths = imageFiles.map { it.absolutePath }
+                val currentImageIndex = imagePaths.indexOf(file.absolutePath)
+
+                openImagePreview(imagePaths as ArrayList<String>, currentImageIndex)
             } else {
                 Toast.makeText(
                     this,
@@ -436,13 +443,10 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
-    // Method to open the image preview activity
-    private fun openImagePreview(imageFile: File) {
+    private fun openImagePreview(imagePaths: ArrayList<String>, currentImageIndex: Int) {
         val intent = Intent(this, ImagePreviewActivity::class.java)
-        // Create a list containing only the clicked image's path
-        val imagePaths = arrayListOf(imageFile.absolutePath)
         intent.putStringArrayListExtra("image_paths", imagePaths)
-        intent.putExtra("current_image_index", 0) // Always start at the first image (index 0)
+        intent.putExtra("current_image_index", currentImageIndex)
         startActivity(intent)
     }
 

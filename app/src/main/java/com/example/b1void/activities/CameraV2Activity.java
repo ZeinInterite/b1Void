@@ -89,7 +89,6 @@ public class CameraV2Activity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_CODE = 123;
     private static final String KEY_EXPOSURE_COMPENSATION = "exposureCompensation";
     private static final String KEY_RESOLUTION_SPINNER_POSITION = "resolution_spinner_position";
-
     // ЮАЙ элементы камеры.
     private CameraView cameraView;
     private ImageButton captureButton;
@@ -582,7 +581,7 @@ public class CameraV2Activity extends AppCompatActivity {
         cameraView.setFacing(cameraView.getFacing() == Facing.BACK ? Facing.FRONT : Facing.BACK);
     }
 
-    // Открываем экран с превьюшек фоток
+    // Открываем экран с превьюшками фоток
     private void openImagePreview() {
         File directory = new File(getFilesDir(), "InspectorAppFolder/saved_images");
         ArrayList<String> imagePaths = getImagePaths(directory);
@@ -590,7 +589,13 @@ public class CameraV2Activity extends AppCompatActivity {
         if (!imagePaths.isEmpty()) {
             Intent intent = new Intent(CameraV2Activity.this, ImagePreviewActivity.class);
             intent.putStringArrayListExtra("image_paths", imagePaths);
-            intent.putExtra("current_image_index", 0);
+
+            // Определяем индекс последнего сделанного снимка
+            int currentImageIndex = 0; // По умолчанию - первый снимок
+            if (currentImageFile != null && imagePaths.contains(currentImageFile.getAbsolutePath())) {
+                currentImageIndex = imagePaths.indexOf(currentImageFile.getAbsolutePath());
+            }
+            intent.putExtra("current_image_index", currentImageIndex);
             startActivity(intent);
         } else {
             Toast.makeText(CameraV2Activity.this, "No images captured yet.", Toast.LENGTH_SHORT).show();
