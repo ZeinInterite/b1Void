@@ -3,5 +3,8 @@
     <cache-path name="cache" path="/" />
 
     <files-path name="archive" path="zipFolder/" />
-
+    <external-path name="external_files" path="."/>
+    <files-path name="internal_files" path="InspectorAppFolder/"/>
+    <files-path name="zip_files" path="zipFolder/"/>
+    <cache-path name="cache" path="temp_zip/" />
 </paths>
