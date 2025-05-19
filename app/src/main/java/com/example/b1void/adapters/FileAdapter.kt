@@ -26,7 +26,6 @@ class FileAdapter(
         val fileName: TextView = itemView.findViewById(R.id.file_name)
         val fileIcon: ImageView = itemView.findViewById(R.id.file_icon)
         val checkBox: CheckBox = itemView.findViewById(R.id.checkbox)
-        val showOption: ImageView = itemView.findViewById(R.id.show_option)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FileViewHolder {
@@ -61,10 +60,6 @@ class FileAdapter(
         holder.itemView.setOnLongClickListener {
             onItemLongClickListener(file)
             true
-        }
-
-        holder.showOption.setOnClickListener {
-            onShowOptionsClickListener(file)
         }
     }
 

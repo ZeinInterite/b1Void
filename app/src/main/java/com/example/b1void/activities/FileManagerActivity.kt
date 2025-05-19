@@ -1032,6 +1032,12 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
+
+    override fun onResume() {
+        super.onResume()
+        loadDirectoryContent(getCurrentDirectory())
+    }
+
     //Dropbox Integration
    // private fun getDropboxPath(localPath: String): String {
    //     val relativePath = localPath.removePrefix(appDirectory.absolutePath)
