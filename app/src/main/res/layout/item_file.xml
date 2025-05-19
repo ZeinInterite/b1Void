@@ -3,7 +3,6 @@
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp"
     android:gravity="center_horizontal">
 
     <FrameLayout
@@ -12,8 +11,8 @@
 
         <ImageView
             android:id="@+id/file_icon"
-            android:layout_width="54dp"
-            android:layout_height="54dp"
+            android:layout_width="85dp"
+            android:layout_height="85dp"
             android:scaleType="centerCrop" />
 
         <CheckBox
@@ -26,15 +25,15 @@
             android:focusable="false"
             android:focusableInTouchMode="false"/>
 
-        <ImageView
-            android:id="@+id/show_option"
-            android:layout_width="30dp"
-            android:layout_height="50dp"
-            android:background="#00000000"
-            android:src="@drawable/more_option_ic"
-            android:layout_marginRight="-10dp"
-            android:layout_gravity="right"
-            />
+<!--        <ImageView-->
+<!--            android:id="@+id/show_option"-->
+<!--            android:layout_width="30dp"-->
+<!--            android:layout_height="50dp"-->
+<!--            android:background="#00000000"-->
+<!--            android:src="@drawable/more_option_ic"-->
+<!--            android:layout_marginRight="-10dp"-->
+<!--            android:layout_gravity="right"-->
+<!--            />-->
 
     </FrameLayout>
 
@@ -42,6 +41,6 @@
         android:id="@+id/file_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textSize="16sp"
+        android:textSize="12sp"
         android:gravity="center"/>
 </LinearLayout>

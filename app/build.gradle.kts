@@ -27,7 +27,6 @@ android {
             )
         }
     }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -40,6 +39,7 @@ android {
     buildFeatures {
         viewBinding = true
     }
+
 }
 
 dependencies {
@@ -89,5 +89,5 @@ dependencies {
     implementation("net.lingala.zip4j:zip4j:2.9.0")
 
     implementation ("com.google.code.gson:gson:2.10.1")
-
+    implementation ("com.h6ah4i.android.widget.verticalseekbar:verticalseekbar:1.0.0")
 }

@@ -50,4 +50,14 @@
 
     </style>
 
+        <declare-styleable name="VerticalSeekBar">
+            <attr name="vsb_background_color" format="color" />
+            <attr name="vsb_progress_color" format="color" />
+            <attr name="vsb_thumb_color" format="color" />
+            <attr name="vsb_bar_width" format="dimension" />
+            <attr name="vsb_thumb_radius" format="dimension" />
+            <attr name="vsb_max" format="integer" />
+            <attr name="vsb_progress" format="integer" />
+        </declare-styleable>
+
 </resources>

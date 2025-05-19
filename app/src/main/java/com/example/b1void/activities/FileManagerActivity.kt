@@ -10,6 +10,8 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ProgressBar
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -18,14 +20,14 @@ import androidx.core.content.FileProvider
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.example.b1void.R
-import com.example.b1void.adapters.FileAdapter
 import com.dropbox.core.DbxException
 import com.dropbox.core.DbxRequestConfig
 import com.dropbox.core.v2.DbxClientV2
 import com.dropbox.core.v2.files.DeleteErrorException
 import com.dropbox.core.v2.files.FileMetadata
 import com.dropbox.core.v2.files.FolderMetadata
+import com.example.b1void.FileAdapter
+import com.example.b1void.R
 import net.lingala.zip4j.ZipFile
 import net.lingala.zip4j.model.ZipParameters
 import net.lingala.zip4j.model.enums.CompressionLevel
@@ -34,7 +36,9 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-import java.util.LinkedList
+import java.util.*
+import kotlin.collections.ArrayList
+import kotlin.concurrent.thread
 
 class FileManagerActivity : AppCompatActivity() {
 
@@ -49,7 +53,8 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var shareButton: Button
     private lateinit var deleteButton: Button
     private lateinit var moveButton: Button
-    private lateinit var uploadAllButton: Button // New button
+    private lateinit var uploadAllButton: Button
+    private lateinit var progressBar: SeekBar
 
     private val OPEN_FILE = 1
 
@@ -63,10 +68,9 @@ class FileManagerActivity : AppCompatActivity() {
 
     private var currentFileForMenu: File? = null
 
-    // Dropbox integration
     private var dropboxClient: DbxClientV2? = null
-    private val DROPBOX_APP_KEY = "elw6ey40dkbo1i0" // Replace with your Dropbox App Key
-    private val ROOT_DROPBOX_PATH = "/InspectorAppFolder"  // The root path in Dropbox
+    private val DROPBOX_APP_KEY = "elw6ey40dkbo1i0"
+    private val ROOT_DROPBOX_PATH = "/InspectorAppFolder"
     private val tokensPrefs = "tokensPrefs"
     private val accessTokenKey = "accessToken"
 
@@ -81,7 +85,22 @@ class FileManagerActivity : AppCompatActivity() {
         shareButton = findViewById(R.id.share_button)
         deleteButton = findViewById(R.id.delete_button)
         moveButton = findViewById(R.id.move_button)
-        uploadAllButton = findViewById(R.id.synth_button) // Initialize the new button
+        uploadAllButton = findViewById(R.id.synth_button)
+        progressBar = findViewById(R.id.progressBar)
+
+        progressBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    updateProgress(progress)
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+            }
+        })
 
         val uploadButton = findViewById<View>(R.id.upload_button)
 
@@ -119,7 +138,7 @@ class FileManagerActivity : AppCompatActivity() {
             showMoveDialog()
         }
 
-        uploadAllButton.setOnClickListener { // Set the listener for the new button
+        uploadAllButton.setOnClickListener {
             uploadAllMissingFiles()
         }
 
@@ -186,7 +205,6 @@ class FileManagerActivity : AppCompatActivity() {
             }
         }
 
-        // Initialize Dropbox client
         initializeDropboxClient()
 
         loadDirectoryContent(appDirectory)
@@ -203,6 +221,20 @@ class FileManagerActivity : AppCompatActivity() {
             syncWithDropbox()
         }
     }
+
+    fun updateProgress(progress: Int) {
+        progressBar.progress = progress
+        fileAdapter.setProgress(progress)
+
+        // 1. Рассчитываем новое количество столбцов
+        val noOfColumns = calculateNoOfColumns(progress)
+
+        // 2. Обновляем GridLayoutManager
+        (recyclerView.layoutManager as GridLayoutManager).spanCount = noOfColumns
+    }
+
+
+
 
     private fun initializeDropboxClient() {
         val accessToken = getAccessToken()
@@ -253,13 +285,55 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     private fun saveImagesToDirectory(directory: File, uris: List<Uri>) {
-        for (uri in uris) {
+        thread {
+            val totalImages = uris.size
+            for (i in uris.indices) {
+                val uri = uris[i]
+                val fname = "Image-" + System.currentTimeMillis() + ".jpg"
+                val file = File(directory, fname)
+
+                try {
+                    val inputStream = contentResolver.openInputStream(uri)
+                    val outputStream = FileOutputStream(file)
+                    val buffer = ByteArray(4096)
+                    var bytesRead: Int
+                    while (inputStream!!.read(buffer).also { bytesRead = it } != -1) {
+                        outputStream.write(buffer, 0, bytesRead)
+                    }
+                    outputStream.close()
+                    inputStream.close()
+
+                    val progress = ((i + 1).toFloat() / totalImages * 100).toInt()
+                    updateProgress(progress)
+
+                    runOnUiThread {
+                        Toast.makeText(this@FileManagerActivity, "Изображение сохранено в: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                    }
+
+                } catch (e: IOException) {
+                    e.printStackTrace()
+                    runOnUiThread {
+                        Toast.makeText(this@FileManagerActivity, "Ошибка при сохранении изображения", Toast.LENGTH_SHORT).show()
+                    }
+                    return@thread // Stop processing if there's an error
+                }
+            }
+
+            runOnUiThread {
+                loadDirectoryContent(directory) // Обновляем контент
+                progressBar.visibility = View.GONE // Скрываем ProgressBar после завершения
+            }
+        }
+    }
+
+    private fun saveImageToDirectory(directory: File) { // Изменили название, чтобы было понятнее
+        thread {
             val fname = "Image-" + System.currentTimeMillis() + ".jpg"
             val file = File(directory, fname)
 
             try {
                 // Получаем InputStream из URI изображения
-                val inputStream = contentResolver.openInputStream(uri)
+                val inputStream = contentResolver.openInputStream(imgGalUri!!)
 
                 // Создаем OutputStream для записи данных в файл
                 val outputStream = FileOutputStream(file)
@@ -277,7 +351,7 @@ class FileManagerActivity : AppCompatActivity() {
                 inputStream.close()
 
                 runOnUiThread {
-                    Toast.makeText(this, "Изображение сохранено в: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@FileManagerActivity, "Изображение сохранено в: ${file.absolutePath}", Toast.LENGTH_LONG).show()
                     loadDirectoryContent(directory) // Обновляем контент
                 }
 
@@ -285,50 +359,8 @@ class FileManagerActivity : AppCompatActivity() {
                 // Обрабатываем ошибки ввода/вывода
                 e.printStackTrace()
                 runOnUiThread {
-                    Toast.makeText(this, "Ошибка при сохранении изображения", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Ошибка при сохранении изображения", Toast.LENGTH_SHORT).show()
                 }
-                return // Stop processing if there's an error
-            }
-        }
-
-        runOnUiThread {
-            loadDirectoryContent(directory) // Обновляем контент
-        }
-    }
-
-    private fun saveImageToDirectory(directory: File) { // Изменили название, чтобы было понятнее
-        val fname = "Image-" + System.currentTimeMillis() + ".jpg"
-        val file = File(directory, fname)
-
-        try {
-            // Получаем InputStream из URI изображения
-            val inputStream = contentResolver.openInputStream(imgGalUri!!)
-
-            // Создаем OutputStream для записи данных в файл
-            val outputStream = FileOutputStream(file)
-
-            // Буфер для чтения и записи данных (рекомендуемый размер)
-            val buffer = ByteArray(4096) // 4KB
-
-            var bytesRead: Int
-            while (inputStream!!.read(buffer).also { bytesRead = it } != -1) {
-                outputStream.write(buffer, 0, bytesRead)
-            }
-
-            // Закрываем потоки (очень важно!)
-            outputStream.close()
-            inputStream.close()
-
-            runOnUiThread {
-                Toast.makeText(this, "Изображение сохранено в: ${file.absolutePath}", Toast.LENGTH_LONG).show()
-                loadDirectoryContent(directory) // Обновляем контент
-            }
-
-        } catch (e: IOException) {
-            // Обрабатываем ошибки ввода/вывода
-            e.printStackTrace()
-            runOnUiThread {
-                Toast.makeText(this, "Ошибка при сохранении изображения", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -366,7 +398,7 @@ class FileManagerActivity : AppCompatActivity() {
 
     private fun loadDirectoryContent(directory: File) {
         swipeRefreshLayout.isRefreshing = true
-        Thread { // Run the loading in a background thread
+        thread { // Run the loading in a background thread
             if (directory.exists() && directory.isDirectory) {
                 val filesAndDirs = directory.listFiles()?.toList() ?: emptyList()
 
@@ -381,33 +413,26 @@ class FileManagerActivity : AppCompatActivity() {
                             { file ->  //long click
                                 onItemLongClick(file)
                             },
-                            { file -> // show option click
-                                currentFileForMenu = file
-                                registerForContextMenu(recyclerView)
-                                openContextMenu(recyclerView)
-                            },
-                            isSelectionMode,
-                            selectedFiles // Pass selectedFiles to the adapter
+                            isSelectionMode = isSelectionMode,
+                            selectedFiles = selectedFiles // Pass selectedFiles to the adapter
                         )
                         recyclerView.adapter = fileAdapter
                     } else {
                         fileAdapter.isSelectionMode = isSelectionMode
                         fileAdapter.selectedFiles = selectedFiles
                         fileAdapter.updateFiles(filesAndDirs)
-                        fileAdapter.notifyDataSetChanged()
                     }
                     title = directory.name
                 }
             } else {
                 runOnUiThread {
-                    Toast.makeText(this, "Папка не найдена", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Папка не найдена", Toast.LENGTH_SHORT).show()
                 }
             }
             runOnUiThread {
                 swipeRefreshLayout.isRefreshing = false
             }
-        }.start()
-
+        }
     }
 
     private fun onItemClick(file: File) {
@@ -428,7 +453,7 @@ class FileManagerActivity : AppCompatActivity() {
                 openImagePreview(imagePaths as ArrayList<String>, currentImageIndex)
             } else {
                 Toast.makeText(
-                    this,
+                    this@FileManagerActivity,
                     "Выбран файл: ${file.name}",
                     Toast.LENGTH_SHORT
                 ).show()
@@ -484,14 +509,14 @@ class FileManagerActivity : AppCompatActivity() {
                     onFolderCreated(newDir) // Call the callback with the newly created directory
                     //loadDirectoryContent(getCurrentDirectory()) // Обновляем контент текущей директории
                 } else {
-                    Toast.makeText(this, "Ошибка при создании папки", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Ошибка при создании папки", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: SecurityException) {
                 Log.e("FileManager", "SecurityException creating folder: ${e.message}")
-                Toast.makeText(this, "Ошибка безопасности при создании папки", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@FileManagerActivity, "Ошибка безопасности при создании папки", Toast.LENGTH_SHORT).show()
             } catch (e: IOException) {
                 Log.e("FileManager", "IOException creating folder: ${e.message}")
-                Toast.makeText(this, "Ошибка ввода/вывода при создании папки", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@FileManagerActivity, "Ошибка ввода/вывода при создании папки", Toast.LENGTH_SHORT).show()
             }
             dialog.dismiss()
         }
@@ -516,14 +541,14 @@ class FileManagerActivity : AppCompatActivity() {
                 if (file.renameTo(newFile)) {
                     loadDirectoryContent(getCurrentDirectory())
                 } else {
-                    Toast.makeText(this, "Ошибка при переименовании", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Ошибка при переименовании", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: SecurityException) {
                 Log.e("FileManager", "SecurityException renaming file: ${e.message}")
-                Toast.makeText(this, "Ошибка безопасности при переименовании файла", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@FileManagerActivity, "Ошибка безопасности при переименовании файла", Toast.LENGTH_SHORT).show()
             } catch (e: IOException) {
                 Log.e("FileManager", "IOException renaming file: ${e.message}")
-                Toast.makeText(this, "Ошибка ввода/вывода при переименовании файла", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@FileManagerActivity, "Ошибка ввода/вывода при переименовании файла", Toast.LENGTH_SHORT).show()
             }
 
             dialog.dismiss()
@@ -585,7 +610,7 @@ class FileManagerActivity : AppCompatActivity() {
 
 
                 uri = FileProvider.getUriForFile(
-                    this,
+                    this@FileManagerActivity,
                     "${packageName}.fileprovider",
                     zipFile
                 )
@@ -595,21 +620,21 @@ class FileManagerActivity : AppCompatActivity() {
 
             } else {
                 uri = FileProvider.getUriForFile(
-                    this,
+                    this@FileManagerActivity,
                     "${packageName}.fileprovider",
                     file
                 )
                 mimeType = "image/*"
             }
 
-            ShareCompat.IntentBuilder(this)
+            ShareCompat.IntentBuilder(this@FileManagerActivity)
                 .setStream(uri)
                 .setType(mimeType)
                 .setChooserTitle("Поделиться файлом")
                 .startChooser()
         } catch (e: IllegalArgumentException) {
             Log.e("FileManager", "FileProvider error: ${e.message}")
-            Toast.makeText(this, "Ошибка при обмене файлом", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@FileManagerActivity, "Ошибка при обмене файлом", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -650,7 +675,7 @@ class FileManagerActivity : AppCompatActivity() {
                 .setTitle("Удалить выбранные элементы?")
                 .setMessage("Вы уверены, что хотите удалить выбранные элементы?")
                 .setPositiveButton(android.R.string.yes) { dialog, which ->
-                    Thread {
+                    thread {
                         selectedFiles.forEach { file ->
                             try {
                                 if (file.isDirectory) {
@@ -734,7 +759,7 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     private fun moveSelectedFiles(destinationDirectory: File) {
-        Thread {
+        thread {
             selectedFiles.forEach { file ->
                 val newFile = File(destinationDirectory, file.name)
                 try {
@@ -775,6 +800,17 @@ class FileManagerActivity : AppCompatActivity() {
         }.start()
     }
 
+    private fun calculateNoOfColumns(progress: Int): Int {
+        // 1. Вычисляем scaleFactor на основе прогресса
+        val scaleFactor = 0.5f + (progress / 100f) * 0.5f // От 0.5 до 1.0
+
+        // 2. Определяем логику расчета количества столбцов
+        return when {
+            scaleFactor <= 0.65 -> 5
+            scaleFactor >= 0.85 -> 3
+            else -> 4
+        }
+    }
 
     private fun onFileSelectionChanged(file: File, isSelected: Boolean) {
         if (isSelected) {
@@ -806,7 +842,7 @@ class FileManagerActivity : AppCompatActivity() {
 
     private fun shareSelectedFiles() {
         if (selectedFiles.isNotEmpty()) {
-            Thread {
+            thread {
                 val filesUris = ArrayList<Uri>()
                 val tempDir = File(cacheDir, "temp_zip")
                 if (!tempDir.exists()) {
@@ -825,7 +861,7 @@ class FileManagerActivity : AppCompatActivity() {
 
                                 if (zipFile.exists()) {  //  Проверка существования ZIP-архива
                                     val uri = FileProvider.getUriForFile(
-                                        this,
+                                        this@FileManagerActivity,
                                         "${packageName}.fileprovider", // Use your app's package name
                                         zipFile
                                     )
@@ -835,7 +871,7 @@ class FileManagerActivity : AppCompatActivity() {
                                     errorOccurred = true // Устанавливаем флаг ошибки
                                     runOnUiThread {
                                         Toast.makeText(
-                                            this,
+                                            this@FileManagerActivity,
                                             "Ошибка при создании архива для ${file.name}",
                                             Toast.LENGTH_SHORT
                                         ).show()
@@ -843,7 +879,7 @@ class FileManagerActivity : AppCompatActivity() {
                                 }
                             } else {
                                 val uri = FileProvider.getUriForFile(
-                                    this,
+                                    this@FileManagerActivity,
                                     "${packageName}.fileprovider", // Use your app's package name
                                     file
                                 )
@@ -854,7 +890,7 @@ class FileManagerActivity : AppCompatActivity() {
                             errorOccurred = true // Устанавливаем флаг ошибки
                             runOnUiThread {
                                 Toast.makeText(
-                                    this,
+                                    this@FileManagerActivity,
                                     "Ошибка при обработке файла ${file.name}",
                                     Toast.LENGTH_SHORT
                                 ).show()
@@ -876,7 +912,7 @@ class FileManagerActivity : AppCompatActivity() {
                         runOnUiThread {
                             if (errorOccurred) {
                                 Toast.makeText(
-                                    this,
+                                    this@FileManagerActivity,
                                     "Не удалось подготовить ни один файл для отправки.",
                                     Toast.LENGTH_SHORT
                                 ).show()
@@ -891,7 +927,7 @@ class FileManagerActivity : AppCompatActivity() {
                 } catch (e: IllegalArgumentException) {
                     Log.e("FileManager", "FileProvider error: ${e.message}")
                     runOnUiThread {
-                        Toast.makeText(this, "Ошибка при обмене файлами", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@FileManagerActivity, "Ошибка при обмене файлами", Toast.LENGTH_SHORT).show()
                     }
                 } finally {
                     tempDir.listFiles()?.forEach { it.delete() }
@@ -915,12 +951,12 @@ class FileManagerActivity : AppCompatActivity() {
                 val dropboxPath = getDropboxPath(folder.absolutePath)
                 dropboxClient?.files()?.createFolderV2(dropboxPath)
                 runOnUiThread {
-                    Toast.makeText(this, "Папка ${folder.name} создана в Dropbox", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Папка ${folder.name} создана в Dropbox", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: DbxException) {
                 Log.e("FileManager", "Error creating folder in Dropbox: ${e.message}")
                 runOnUiThread {
-                    Toast.makeText(this, "Ошибка при создании папки в Dropbox", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Ошибка при создании папки в Dropbox", Toast.LENGTH_SHORT).show()
                 }
             }
         }.start()
@@ -936,24 +972,24 @@ class FileManagerActivity : AppCompatActivity() {
                     if (uploadResult != null) {
                         Log.d("FileManager", "File uploaded to Dropbox: $dropboxPath")
                         runOnUiThread {
-                            Toast.makeText(this, "Файл ${file.name} загружен в Dropbox", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@FileManagerActivity, "Файл ${file.name} загружен в Dropbox", Toast.LENGTH_SHORT).show()
                         }
                     } else {
                         Log.e("FileManager", "Failed to upload file to Dropbox: $dropboxPath")
                         runOnUiThread {
-                            Toast.makeText(this, "Не удалось загрузить файл ${file.name} в Dropbox", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@FileManagerActivity, "Не удалось загрузить файл ${file.name} в Dropbox", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
             } catch (e: DbxException) {
                 Log.e("FileManager", "Error uploading file to Dropbox: ${e.message}")
                 runOnUiThread {
-                    Toast.makeText(this, "Ошибка при загрузке файла в Dropbox", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Ошибка при загрузке файла в Dropbox   ", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: IOException) {
                 Log.e("FileManager", "IO error uploading file to Dropbox: ${e.message}")
                 runOnUiThread {
-                    Toast.makeText(this, "Ошибка ввода/вывода при загрузке файла в Dropbox", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Ошибка ввода/вывода при загрузке файла в Dropbox", Toast.LENGTH_SHORT).show()
                 }
             }
         }.start()
@@ -965,17 +1001,17 @@ class FileManagerActivity : AppCompatActivity() {
                 val dropboxPath = getDropboxPath(file.absolutePath)
                 dropboxClient?.files()?.deleteV2(dropboxPath)
                 runOnUiThread {
-                    Toast.makeText(this, "Файл/папка ${file.name} удалены из Dropbox", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Файл/папка ${file.name} удалены из Dropbox", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: DeleteErrorException) {
                 Log.e("FileManager", "Error deleting from Dropbox: ${e.errorValue.toString()}", e)
                 runOnUiThread {
-                    Toast.makeText(this, "Ошибка при удалении из Dropbox: ${e.errorValue.toString()}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Ошибка при удалении из Dropbox: ${e.errorValue.toString()}", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: DbxException) {
                 Log.e("FileManager", "Error deleting from Dropbox: ${e.message}", e)
                 runOnUiThread {
-                    Toast.makeText(this, "Ошибка при удалении из Dropbox", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Ошибка при удалении из Dropbox", Toast.LENGTH_SHORT).show()
                 }
             }
         }.start()
@@ -1006,7 +1042,7 @@ class FileManagerActivity : AppCompatActivity() {
             } catch (e: DbxException) {
                 Log.e("FileManager", "Error listing files from Dropbox: ${e.message}")
                 runOnUiThread {
-                    Toast.makeText(this, "Ошибка при синхронизации с Dropbox", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Ошибка при синхронизации с Dropbox", Toast.LENGTH_SHORT).show()
                 }
             } finally {
                 runOnUiThread {
@@ -1024,17 +1060,17 @@ class FileManagerActivity : AppCompatActivity() {
             }
             Log.d("FileManager", "File downloaded from Dropbox: $dropboxPath to ${localFile.absolutePath}")
             runOnUiThread {
-                Toast.makeText(this, "Файл ${localFile.name} загружен из Dropbox", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@FileManagerActivity, "Файл ${localFile.name} загружен из Dropbox", Toast.LENGTH_SHORT).show()
             }
         } catch (e: DbxException) {
             Log.e("FileManager", "Error downloading file from Dropbox: ${e.message}")
             runOnUiThread {
-                Toast.makeText(this, "Ошибка при загрузке файла из Dropbox", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@FileManagerActivity, "Ошибка при загрузке файла из Dropbox", Toast.LENGTH_SHORT).show()
             }
         } catch (e: IOException) {
             Log.e("FileManager", "IO error downloading file from Dropbox: ${e.message}")
             runOnUiThread {
-                Toast.makeText(this, "Ошибка ввода/вывода при загрузке файла из Dropbox", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@FileManagerActivity, "Ошибка ввода/вывода при загрузке файла из Dropbox", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -1050,7 +1086,6 @@ class FileManagerActivity : AppCompatActivity() {
 
                 for (localFile in localFiles) {
                     if (!existingDropboxFiles.contains(localFile.name)) {
-                        // File exists locally but not in Dropbox, upload it
                         if (localFile.isDirectory) {
                             uploadFolderToDropbox(localFile)
                         } else {
@@ -1060,20 +1095,26 @@ class FileManagerActivity : AppCompatActivity() {
                 }
 
                 runOnUiThread {
-                    Toast.makeText(this, "Загрузка отсутствующих файлов в Dropbox завершена", Toast.LENGTH_SHORT).show()
-                    loadDirectoryContent(getCurrentDirectory())  // Refresh the list
+                    Toast.makeText(this@FileManagerActivity, "Загрузка отсутствующих файлов в Dropbox завершена", Toast.LENGTH_SHORT).show()
+                    loadDirectoryContent(getCurrentDirectory()) // Refresh the list
                 }
 
             } catch (e: DbxException) {
                 Log.e("FileManager", "Error listing files from Dropbox: ${e.message}")
                 runOnUiThread {
-                    Toast.makeText(this, "Ошибка при получении списка файлов из Dropbox", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Ошибка при получении списка файлов из Dropbox", Toast.LENGTH_SHORT).show()
                 }
             } finally {
                 runOnUiThread {
-                    loadDirectoryContent(getCurrentDirectory())  // Refresh the list
+                    loadDirectoryContent(getCurrentDirectory()) // Refresh the list
                 }
             }
         }.start()
     }
+
+    override fun onResume() {
+        super.onResume()
+        loadDirectoryContent(getCurrentDirectory())
+    }
 }
+
