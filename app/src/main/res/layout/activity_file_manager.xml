@@ -77,7 +77,10 @@
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <LinearLayout
+
+
+
+<LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="horizontal"
@@ -103,7 +106,26 @@
 
     </LinearLayout>
 
+    <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper
+        android:id="@+id/seekbar_wrapper"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:layout_marginTop="100dp"
+        android:layout_marginBottom="65dp"
+        >
 
+        <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBar
+            android:id="@+id/progressBar"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:max="150"
+            android:progress="75"
+            style="@style/VerticalSeekBarStyle"
+            android:padding="10dp"
+            android:splitTrack="false"
+            app:seekBarRotation="CW270" />
+    </com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper>
 
     <LinearLayout
         android:id="@+id/buttons_menu"
@@ -146,25 +168,5 @@
             android:layout_marginLeft="8dp"/>
     </LinearLayout>
 
-<!--    <SeekBar-->
-<!--        android:id="@+id/progressBar"-->
-<!--        android:layout_width="match_parent"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:max="150"-->
-<!--        android:progress="75"-->
-<!--        />-->
-
-    <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent">
-        <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBar
-            android:id="@+id/progressBar"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:max="150"
-            android:progress="75"
-            android:splitTrack="true"
-            app:seekBarRotation="CW270" />
-    </com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
