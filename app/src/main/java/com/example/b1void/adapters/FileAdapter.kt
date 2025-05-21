@@ -1,6 +1,8 @@
+
 package com.example.b1void.adapters
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.BitmapFactory
 import android.util.TypedValue
 import android.view.LayoutInflater
@@ -12,6 +14,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.b1void.R
 import java.io.File
+import android.preference.PreferenceManager
 
 class FileAdapter(
     var files: List<File>,
@@ -23,10 +26,17 @@ class FileAdapter(
 ) : RecyclerView.Adapter<FileAdapter.FileViewHolder>() {
 
     private var currentProgress = 0
+    private val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+    companion object {
+        private const val PREF_SCALE_FACTOR = "scale_factor"
+    }
 
     // Добавьте функцию для обновления прогресса
     fun setProgress(progress: Int) {
         currentProgress = progress
+        // Сохранение scaleFactor в SharedPreferences
+        val scaleFactor = 0.5f + (currentProgress / 100f) * 0.5f
+        sharedPreferences.edit().putFloat(PREF_SCALE_FACTOR, scaleFactor).apply()
         notifyDataSetChanged()
     }
 
@@ -90,7 +100,8 @@ class FileAdapter(
         }
 
         // 2. Вычисляем scaleFactor на основе прогресса (от 0.5 до 1.0)
-        val scaleFactor = 0.5f + (currentProgress / 100f) * 0.5f
+        val scaleFactor = sharedPreferences.getFloat(PREF_SCALE_FACTOR, 0.75f)
+        currentProgress = ((scaleFactor - 0.5f) / 0.5f * 100).toInt()
 
         // 3. Изменяем размеры ImageView
         val imageParams = holder.fileIcon.layoutParams

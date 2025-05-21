@@ -1,84 +1,47 @@
+
 package com.example.b1void.activities
 
 import android.app.Activity
-
-// Нужны для работы с другими экранами/приложениями, передачи инфы между ними и указания на конкретные файлы/изображения.
-// Короче, чтобы шарить, открывать, выбирать и вообще взаимодействовать с внешним миром.
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
-
-// Нужен для хранения всякой хуйни при пересоздании активити. Чтобы не терять данные, когда .зер экран переворачивает.
 import android.os.Bundle
-
-// Чтобы дебажить, то что сломал и смотреть, что вообще происходит по коду. видно в вкладке слева внизу с котом (logcat)
 import android.util.Log
-
-// Для создания менюшки, которая появляется при долгом тапе на файл. Чтобы пользователь мог переименовать, удалить или еще че-нибудь.
 import android.view.ContextMenu
 import android.view.MenuItem
-
-// Это все стандартные элементы интерфейса: кнопки, поля ввода и т.д.. Без ничего не увидеть и не нажать.
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
-
-//Всплывашка внизу
 import android.widget.Toast
-
-// Для создания всяких окошек с вопросами и предупреждениями. Типа "Ты уверен, что хочешь удалить этот файл, бро?".
 import androidx.appcompat.app.AlertDialog
-
-// Базовый класс для активити. Без него ничего работать не будет. Как бы говорит : "Я имею макет! Со мной взаимодействуют на прямую"
 import androidx.appcompat.app.AppCompatActivity
-
-// Чтобы шарить файлы с другими приложениями безопасно. FileProvider нужен, чтобы не давать всем подряд доступ ко всем файлам.
 import androidx.core.app.ShareCompat
 import androidx.core.content.FileProvider
-
-// RecyclerView и GridLayoutManager нужны для создания списка файлов в виде сетки. Чтобы польз мог видеть много файлов сразу.
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-
-// Чтоб мог обновить список файлов, просто свайпнув сверху вниз. А то вдруг там новые файлы появились, а он не знает. (Это нужно при создании фоток)
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-
-// Наши собственные ресурсы и адаптер для RecyclerView. Тут вся логика отображения и взаимодействия с файлами.
 import com.example.b1void.R
 import com.example.b1void.adapters.FileAdapter
-
-// Дроп бокс апи и смежная шелуха
-
-//import com.dropbox.core.DbxException
-//import com.dropbox.core.DbxRequestConfig
-//import com.dropbox.core.v2.DbxClientV2
-//import com.dropbox.core.v2.files.DeleteErrorException
-//import com.dropbox.core.v2.files.FileMetadata
-//import com.dropbox.core.v2.files.FolderMetadata
-
-// Чтобы архивировать папки в zip файлы и делиться ими с другими приложениями. А то вдруг дрочила захочет всю папку сразу отправить.
 import net.lingala.zip4j.ZipFile
 import net.lingala.zip4j.model.ZipParameters
 import net.lingala.zip4j.model.enums.CompressionLevel
 import net.lingala.zip4j.model.enums.CompressionMethod
-
-// Для работы с файловой системой: создание, удаление, чтение, запись файлов и папок. Без этого вообще ничего работать не будет.
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-
-// Чтобы хранить список открытых папок. Чтобы пользователь мог возвращаться назад по истории.
 import java.util.LinkedList
-
 import android.os.Handler
 import android.os.Looper
+import android.preference.PreferenceManager
+import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.SeekBar
 import kotlin.concurrent.thread
 
-
 class FileManagerActivity : AppCompatActivity() {
-
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var createFolderButton: Button
@@ -93,6 +56,9 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var moveButton: Button
     private lateinit var titleTextView: TextView
     private lateinit var progressBar: SeekBar
+    private lateinit var buttonContainer : LinearLayout
+    private lateinit var sharedPreferences: SharedPreferences
+    private var currentProgress = 0
 
     private val OPEN_FILE = 1
 
@@ -106,6 +72,11 @@ class FileManagerActivity : AppCompatActivity() {
 
     private var currentFileForMenu: File? = null
 
+    private var sortAscending = false
+
+    companion object {
+        private const val PREF_SEEK_BAR_PROGRESS = "seek_bar_progress"
+    }
 
     // Самый первый метод, который вызывается при создании экрана. Тут инициализируется вся хуйня.
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -124,6 +95,19 @@ class FileManagerActivity : AppCompatActivity() {
         titleTextView = findViewById(R.id.titleTextView)
         val uploadButton = findViewById<View>(R.id.upload_button)
         progressBar = findViewById(R.id.progressBar)
+        val sortButton: ImageButton = findViewById(R.id.sort_button)
+        buttonContainer = findViewById(R.id.button_container)
+
+        sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
+
+        // Восстановление прогресса SeekBar из SharedPreferences
+        currentProgress = sharedPreferences.getInt(PREF_SEEK_BAR_PROGRESS, 0)
+        progressBar.progress = currentProgress
+
+
+        sortButton.setOnClickListener {
+            toggleSortOrder()
+        }
 
         // Ловим URI изображения, если его передали из другого активити.
         // Например, из галереи, когда дрочила выбрал картинку и нажал "Поделиться" -> "InspectorApp".
@@ -169,7 +153,10 @@ class FileManagerActivity : AppCompatActivity() {
         progressBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
+                    currentProgress = progress
                     updateProgress(progress)
+                    // Сохранение прогресса SeekBar в SharedPreferences
+                    sharedPreferences.edit().putInt(PREF_SEEK_BAR_PROGRESS, progress).apply()
                 }
             }
 
@@ -260,9 +247,22 @@ class FileManagerActivity : AppCompatActivity() {
 
         swipeRefreshLayout.setOnRefreshListener {
             loadDirectoryContent(getCurrentDirectory())
-        } //}
+        }
     }
 
+    private fun toggleSortOrder() {
+        sortAscending = !sortAscending
+        val sortButton: ImageView = findViewById(R.id.sort_button)
+
+        if (sortAscending) {
+            sortButton.scaleY = -1f  // Отражение по вертикали
+        } else {
+            sortButton.scaleY = 1f // Вернуть в исходное состояние
+            sortButton.translationY = 0f
+        }
+
+        loadDirectoryContent(getCurrentDirectory())
+    }
 
     // Функция, которая вызывается, когда возвращаемся из другого активити (например, из галереи).
     // requestCode - это код запроса, который мы передавали при запуске другого активити (OPEN_FILE).
@@ -459,10 +459,17 @@ class FileManagerActivity : AppCompatActivity() {
             if (directory.exists() && directory.isDirectory) {
                 val filesAndDirs = directory.listFiles()?.toList() ?: emptyList()
 
+                // Сортировка файлов по дате изменения
+                val sortedFilesAndDirs = if (sortAscending) {
+                    filesAndDirs.sortedBy { it.lastModified() } // От старых к новым
+                } else {
+                    filesAndDirs.sortedByDescending { it.lastModified() } // От новых к старым
+                }
+
                 runOnUiThread { // Post the UI update back to the main thread
                     if (!this::fileAdapter.isInitialized) {
                         fileAdapter = FileAdapter(
-                            filesAndDirs,
+                            sortedFilesAndDirs,  // Use the sorted list here
                             this,
                             { file -> // single click
                                 onItemClick(file)
@@ -474,12 +481,18 @@ class FileManagerActivity : AppCompatActivity() {
                             selectedFiles = selectedFiles // Pass selectedFiles to the adapter
                         )
                         recyclerView.adapter = fileAdapter
+                        fileAdapter.setProgress(currentProgress)
                     } else {
                         fileAdapter.isSelectionMode = isSelectionMode
                         fileAdapter.selectedFiles = selectedFiles
-                        fileAdapter.updateFiles(filesAndDirs)
+                        fileAdapter.updateFiles(sortedFilesAndDirs)  // Update with the sorted list
                     }
                     title = directory.name
+                    if(title != appDirectory.name) {
+                        titleTextView.text = title
+                    } else {
+                        titleTextView.text = "DOCUMENT   LLC"
+                    }
                 }
             } else {
                 runOnUiThread {
@@ -491,7 +504,6 @@ class FileManagerActivity : AppCompatActivity() {
             }
         }
     }
-
     private fun onItemClick(file: File) {
         if (isSelectionMode) {
             toggleFileSelection(file)
@@ -736,6 +748,8 @@ class FileManagerActivity : AppCompatActivity() {
         // isSelectionMode - это переменная, которая указывает, включен ли режим выделения.
         isSelectionMode = true
 
+        buttonContainer.visibility = View.VISIBLE
+
         shareButton.visibility = View.VISIBLE
         deleteButton.visibility = View.VISIBLE // Показываем кнопку удаления
         moveButton.visibility = View.VISIBLE   // Показываем кнопку перемещения
@@ -744,6 +758,8 @@ class FileManagerActivity : AppCompatActivity() {
 
     private fun clearSelection() {
         isSelectionMode = false
+
+        buttonContainer.visibility = View.GONE
         shareButton.visibility = View.GONE
         deleteButton.visibility = View.GONE  // Скрываем кнопку удаления
         moveButton.visibility = View.GONE    // Скрываем кнопку перемещения
@@ -1099,8 +1115,9 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
-        override fun onResume() {
-            super.onResume()
-            loadDirectoryContent(getCurrentDirectory())
-        }
+    override fun onResume() {
+        super.onResume()
+        loadDirectoryContent(getCurrentDirectory())
+    }
 }
+
