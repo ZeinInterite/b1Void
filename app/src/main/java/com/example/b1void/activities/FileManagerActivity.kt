@@ -73,6 +73,8 @@ import java.util.LinkedList
 
 import android.os.Handler
 import android.os.Looper
+import android.widget.SeekBar
+import kotlin.concurrent.thread
 
 
 class FileManagerActivity : AppCompatActivity() {
@@ -90,7 +92,7 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var deleteButton: Button
     private lateinit var moveButton: Button
     private lateinit var titleTextView: TextView
-//    private lateinit var uploadAllButton: Button // New button
+    private lateinit var progressBar: SeekBar
 
     private val OPEN_FILE = 1
 
@@ -103,13 +105,6 @@ class FileManagerActivity : AppCompatActivity() {
     private val selectedFiles = mutableSetOf<File>()
 
     private var currentFileForMenu: File? = null
-
-    // Dropbox integration
-   // private var dropboxClient: DbxClientV2? = null
-   // private val DROPBOX_APP_KEY = "elw6ey40dkbo1i0" // Replace with your Dropbox App Key
- //   private val ROOT_DROPBOX_PATH = "/InspectorAppFolder"  // The root path in Dropbox
- //   private val tokensPrefs = "tokensPrefs"
- //   private val accessTokenKey = "accessToken"
 
 
     // Самый первый метод, который вызывается при создании экрана. Тут инициализируется вся хуйня.
@@ -127,8 +122,8 @@ class FileManagerActivity : AppCompatActivity() {
         deleteButton = findViewById(R.id.delete_button)
         moveButton = findViewById(R.id.move_button)
         titleTextView = findViewById(R.id.titleTextView)
-       // uploadAllButton = findViewById(R.id.synth_button)
         val uploadButton = findViewById<View>(R.id.upload_button)
+        progressBar = findViewById(R.id.progressBar)
 
         // Ловим URI изображения, если его передали из другого активити.
         // Например, из галереи, когда дрочила выбрал картинку и нажал "Поделиться" -> "InspectorApp".
@@ -171,6 +166,19 @@ class FileManagerActivity : AppCompatActivity() {
             showMoveDialog()
         }
 
+        progressBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    updateProgress(progress)
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+            }
+        })
 
         // Настраиваем RecyclerView: используем GridLayoutManager для отображения файлов в виде сетки.
         val gridLayoutManager = GridLayoutManager(this, 4)
@@ -244,16 +252,17 @@ class FileManagerActivity : AppCompatActivity() {
         loadDirectoryContent(appDirectory)
 
         // Слушатели
-       createFolderButton.setOnClickListener {
+        createFolderButton.setOnClickListener {
             showCreateFolderDialog { newDir ->
                 loadDirectoryContent(getCurrentDirectory())
             }
         }
 
-       swipeRefreshLayout.setOnRefreshListener {
-          loadDirectoryContent(getCurrentDirectory())
-     } //}
+        swipeRefreshLayout.setOnRefreshListener {
+            loadDirectoryContent(getCurrentDirectory())
+        } //}
     }
+
 
     // Функция, которая вызывается, когда возвращаемся из другого активити (например, из галереи).
     // requestCode - это код запроса, который мы передавали при запуске другого активити (OPEN_FILE).
@@ -279,8 +288,7 @@ class FileManagerActivity : AppCompatActivity() {
                 }
 
                 // сохраняем в папку, в которой находимся (исправил создание новой папки)
-                    saveImagesToDirectory(getCurrentDirectory(), uris)
-
+                saveImagesToDirectory(getCurrentDirectory(), uris)
 
 
             } else if (data.data != null) {
@@ -336,7 +344,11 @@ class FileManagerActivity : AppCompatActivity() {
                 // runOnUiThread - запускает код в основном потоке. Это необходимо, потому что всплывашку можно показывать только из основного потока
                 // loadDirectoryContent(directory) - обновляет список файлов в RecyclerView
                 runOnUiThread {
-                    Toast.makeText(this, "Изображение сохранено в: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this,
+                        "Изображение сохранено в: ${file.absolutePath}",
+                        Toast.LENGTH_LONG
+                    ).show()
                     loadDirectoryContent(directory)
                 }
 
@@ -346,7 +358,8 @@ class FileManagerActivity : AppCompatActivity() {
                 e.printStackTrace()
                 runOnUiThread {
                     // Показываем сообщение об проебе
-                    Toast.makeText(this, "Ошибка при сохранении изображения", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Ошибка при сохранении изображения", Toast.LENGTH_SHORT)
+                        .show()
                 }
                 return
             }
@@ -380,7 +393,11 @@ class FileManagerActivity : AppCompatActivity() {
             inputStream.close()
 
             runOnUiThread {
-                Toast.makeText(this, "Изображение сохранено в: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    this,
+                    "Изображение сохранено в: ${file.absolutePath}",
+                    Toast.LENGTH_LONG
+                ).show()
                 loadDirectoryContent(directory)
             }
 
@@ -411,14 +428,17 @@ class FileManagerActivity : AppCompatActivity() {
                 showRenameDialog(currentFileForMenu!!)
                 true
             }
+
             R.id.action_delete -> {
                 deleteFile(currentFileForMenu!!)
                 true
             }
+
             R.id.action_share_single -> {
                 shareFile(currentFileForMenu!!)
                 true
             }
+
             else -> super.onContextItemSelected(item)
         }
     }
@@ -435,67 +455,43 @@ class FileManagerActivity : AppCompatActivity() {
     // Включаем анимацию обновления списка. Чтобы дрочила видел, что что-то происходит.
     private fun loadDirectoryContent(directory: File) {
         swipeRefreshLayout.isRefreshing = true
-        // Запускаем загрузку содержимого папки в отдельном потоке.
-        // Чтобы не тормозить основной поток и не заморозить UI.
-        Thread {
-            // Получаем список файлов и папок в указанной папке.
-            // listFiles() - возвращает массив файлов и папок.
-            // toList() - преобразует массив в список.
-            // ?: emptyList() - если listFiles() вернул null, то возвращаем пустой список.
+        thread { // Run the loading in a background thread
             if (directory.exists() && directory.isDirectory) {
                 val filesAndDirs = directory.listFiles()?.toList() ?: emptyList()
 
-                // Обновляем UI в основном потоке.
-                // Потому что UI можно обновлять только из основного потока.
-                runOnUiThread {
+                runOnUiThread { // Post the UI update back to the main thread
                     if (!this::fileAdapter.isInitialized) {
                         fileAdapter = FileAdapter(
                             filesAndDirs,
                             this,
-                            { file ->
+                            { file -> // single click
                                 onItemClick(file)
                             },
-                            { file ->
+                            { file ->  //long click
                                 onItemLongClick(file)
                             },
-                            { file ->
-                                currentFileForMenu = file
-                                registerForContextMenu(recyclerView)
-                                openContextMenu(recyclerView)
-                            },
-                            isSelectionMode,
-                            selectedFiles
+                            isSelectionMode = isSelectionMode,
+                            selectedFiles = selectedFiles // Pass selectedFiles to the adapter
                         )
                         recyclerView.adapter = fileAdapter
                     } else {
                         fileAdapter.isSelectionMode = isSelectionMode
                         fileAdapter.selectedFiles = selectedFiles
                         fileAdapter.updateFiles(filesAndDirs)
-                        fileAdapter.notifyDataSetChanged()
                     }
-                    // Устанавливаем заголовок экрана в соответствии с названием папки.
                     title = directory.name
-                    if (directory.name != appDirectory.name) {
-                        titleTextView.text = directory.name
-                    } else {
-                        titleTextView.text = "DOCUMENT LLC"
-                    }
                 }
             } else {
                 runOnUiThread {
-                    Toast.makeText(this, "Папка не найдена", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@FileManagerActivity, "Папка не найдена", Toast.LENGTH_SHORT).show()
                 }
             }
             runOnUiThread {
                 swipeRefreshLayout.isRefreshing = false
             }
-        }.start()
-        // Сверху создаем или обновляем адаптер для RecyclerView
-        // Адаптер связывает данные (список файлов) с RecyclerView
-        // Если адаптер еще не создан, то создаем его
-        // Если адаптер уже создан, то обновляем его данные
-        // Адаптер сам знает, как отображать файлы в RecyclerView
+        }
     }
+
     private fun onItemClick(file: File) {
         if (isSelectionMode) {
             toggleFileSelection(file)
@@ -590,10 +586,12 @@ class FileManagerActivity : AppCompatActivity() {
                 }
             } catch (e: SecurityException) {
                 Log.e("FileManager", "SecurityException creating folder: ${e.message}")
-                Toast.makeText(this, "Ошибка безопасности при создании папки", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Ошибка безопасности при создании папки", Toast.LENGTH_SHORT)
+                    .show()
             } catch (e: IOException) {
                 Log.e("FileManager", "IOException creating folder: ${e.message}")
-                Toast.makeText(this, "Ошибка ввода/вывода при создании папки", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Ошибка ввода/вывода при создании папки", Toast.LENGTH_SHORT)
+                    .show()
             }
             dialog.dismiss()
         }
@@ -623,10 +621,18 @@ class FileManagerActivity : AppCompatActivity() {
                 }
             } catch (e: SecurityException) {
                 Log.e("FileManager", "SecurityException renaming file: ${e.message}")
-                Toast.makeText(this, "Ошибка безопасности при переименовании файла", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    "Ошибка безопасности при переименовании файла",
+                    Toast.LENGTH_SHORT
+                ).show()
             } catch (e: IOException) {
                 Log.e("FileManager", "IOException renaming file: ${e.message}")
-                Toast.makeText(this, "Ошибка ввода/вывода при переименовании файла", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    "Ошибка ввода/вывода при переименовании файла",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
 
             dialog.dismiss()
@@ -654,7 +660,7 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
-// Сносим директорию рекурсивно
+    // Сносим директорию рекурсивно
     private fun deleteDirectory(directory: File): Boolean {
         val files = directory.listFiles()
         if (files != null) {
@@ -770,7 +776,10 @@ class FileManagerActivity : AppCompatActivity() {
                                     deleteDirectory(file)
                                 } else {
                                     if (file.delete()) {
-                                        Log.d("File Manager", "File ${file.name} deleted successfully")
+                                        Log.d(
+                                            "File Manager",
+                                            "File ${file.name} deleted successfully"
+                                        )
                                     } else {
                                         Log.e("File Manager", "Error deleting file ${file.name}")
                                         runOnUiThread {
@@ -782,13 +791,15 @@ class FileManagerActivity : AppCompatActivity() {
                                         }
                                     }
                                 }
-//                                deleteFromDropbox(file)
                                 runOnUiThread { // Обновляем UI в основном потоке после каждого удаления
                                     loadDirectoryContent(getCurrentDirectory()) // Обновляем RecyclerView
                                 }
 
                             } catch (e: SecurityException) {
-                                Log.e("FileManager", "SecurityException deleting file: ${e.message}")
+                                Log.e(
+                                    "FileManager",
+                                    "SecurityException deleting file: ${e.message}"
+                                )
                                 runOnUiThread {
                                     Toast.makeText(
                                         this@FileManagerActivity,
@@ -837,7 +848,8 @@ class FileManagerActivity : AppCompatActivity() {
                 builder.setNegativeButton("Отмена") { dialog, _ -> dialog.cancel() }
                 builder.show()
             } else {
-                Toast.makeText(this, "Нет доступных папок для перемещения", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Нет доступных папок для перемещения", Toast.LENGTH_SHORT)
+                    .show()
             }
         } else {
             Toast.makeText(this, "Не выбраны файлы для перемещения", Toast.LENGTH_SHORT).show()
@@ -850,9 +862,15 @@ class FileManagerActivity : AppCompatActivity() {
                 val newFile = File(destinationDirectory, file.name)
                 try {
                     if (file.renameTo(newFile)) {
-                        Log.d("FileManager", "File ${file.name} moved successfully to ${destinationDirectory.absolutePath}")
+                        Log.d(
+                            "FileManager",
+                            "File ${file.name} moved successfully to ${destinationDirectory.absolutePath}"
+                        )
                     } else {
-                        Log.e("FileManager", "Error moving file ${file.name} to ${destinationDirectory.absolutePath}")
+                        Log.e(
+                            "FileManager",
+                            "Error moving file ${file.name} to ${destinationDirectory.absolutePath}"
+                        )
                         runOnUiThread { // Обновление UI в основном потоке
                             Toast.makeText(
                                 this@FileManagerActivity,
@@ -864,12 +882,20 @@ class FileManagerActivity : AppCompatActivity() {
                 } catch (e: SecurityException) {
                     Log.e("FileManager", "SecurityException moving file: ${e.message}")
                     runOnUiThread { // Обновление UI в основном потоке
-                        Toast.makeText(this, "Ошибка безопасности при перемещении файла ${file.name}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            this,
+                            "Ошибка безопасности при перемещении файла ${file.name}",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 } catch (e: IOException) {
                     Log.e("FileManager", "IOException moving file: ${e.message}")
                     runOnUiThread { // Обновление UI в основном потоке
-                        Toast.makeText(this, "Ошибка ввода/вывода при перемещении файла ${file.name}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            this,
+                            "Ошибка ввода/вывода при перемещении файла ${file.name}",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
             }
@@ -931,7 +957,10 @@ class FileManagerActivity : AppCompatActivity() {
                                     filesUris.add(uri)
                                     filesToDelete.add(zipFile) // Добавляем zip-файл в список для удаления
                                 } else {
-                                    Log.e("FileManager", "Failed to create ZIP archive for ${file.name}")
+                                    Log.e(
+                                        "FileManager",
+                                        "Failed to create ZIP archive for ${file.name}"
+                                    )
                                     errorOccurred = true
                                     runOnUiThread {
                                         Toast.makeText(
@@ -970,7 +999,8 @@ class FileManagerActivity : AppCompatActivity() {
                         shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
                         runOnUiThread {
-                            val chooserIntent = Intent.createChooser(shareIntent, "Share selected files")
+                            val chooserIntent =
+                                Intent.createChooser(shareIntent, "Share selected files")
                             startActivity(chooserIntent)
                             clearSelection()
 
@@ -989,7 +1019,8 @@ class FileManagerActivity : AppCompatActivity() {
                                     Toast.LENGTH_SHORT
                                 ).show()
                             } else {
-                                Toast.makeText(this, "Нечего отправлять.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this, "Нечего отправлять.", Toast.LENGTH_SHORT)
+                                    .show()
                             }
                         }
                     }
@@ -1015,7 +1046,11 @@ class FileManagerActivity : AppCompatActivity() {
                     Log.e("FileManager", "Не удалось удалить временный файл: ${file.absolutePath}")
                 }
             } catch (e: Exception) {
-                Log.e("FileManager", "Ошибка при удалении временного файла: ${file.absolutePath}", e)
+                Log.e(
+                    "FileManager",
+                    "Ошибка при удалении временного файла: ${file.absolutePath}",
+                    e
+                )
             }
         }
     }
@@ -1029,16 +1064,43 @@ class FileManagerActivity : AppCompatActivity() {
             ZipFile(zipFile.absolutePath).addFolder(folderToZip, zipParameters)
 
         } catch (e: Exception) {
-            Log.e("FileManager", "Error zipping folder ${folderToZip.absolutePath} to ${zipFile.absolutePath}: ${e.message}", e)
+            Log.e(
+                "FileManager",
+                "Error zipping folder ${folderToZip.absolutePath} to ${zipFile.absolutePath}: ${e.message}",
+                e
+            )
             runOnUiThread {
-                Toast.makeText(this, "Ошибка при архивации папки: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Ошибка при архивации папки: ${e.message}", Toast.LENGTH_SHORT)
+                    .show()
             }
         }
     }
 
+    fun updateProgress(progress: Int) {
+        progressBar.progress = progress
+        fileAdapter.setProgress(progress)
 
-    override fun onResume() {
-        super.onResume()
-        loadDirectoryContent(getCurrentDirectory())
+        // 1. Рассчитываем новое количество столбцов
+        val noOfColumns = calculateNoOfColumns(progress)
+
+        // 2. Обновляем GridLayoutManager
+        (recyclerView.layoutManager as GridLayoutManager).spanCount = noOfColumns
     }
+
+    private fun calculateNoOfColumns(progress: Int): Int {
+        // 1. Вычисляем scaleFactor на основе прогресса
+        val scaleFactor = 0.5f + (progress / 100f) * 0.5f // От 0.5 до 1.0
+
+        // 2. Определяем логику расчета количества столбцов
+        return when {
+            scaleFactor <= 0.65 -> 5
+            scaleFactor >= 0.85 -> 3
+            else -> 4
+        }
+    }
+
+        override fun onResume() {
+            super.onResume()
+            loadDirectoryContent(getCurrentDirectory())
+        }
 }

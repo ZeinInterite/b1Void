@@ -50,4 +50,21 @@
 
     </style>
 
+    <declare-styleable name="VerticalSeekBar">
+        <attr name="vsb_background_color" format="color" />
+        <attr name="vsb_progress_color" format="color" />
+        <attr name="vsb_thumb_color" format="color" />
+        <attr name="vsb_bar_width" format="dimension" />
+        <attr name="vsb_thumb_radius" format="dimension" />
+        <attr name="vsb_max" format="integer" />
+        <attr name="vsb_progress" format="integer" />
+    </declare-styleable>
+
+    <style name="VerticalSeekBarStyle">
+        <item name="android:progressDrawable">@drawable/vertical_seekbar_progress</item>
+        <item name="android:thumb">@drawable/custom_seekbar_thumb</item>
+        <item name="android:minHeight">2dp</item>
+        <item name="android:maxHeight">2dp</item>
+    </style>
+
 </resources>
