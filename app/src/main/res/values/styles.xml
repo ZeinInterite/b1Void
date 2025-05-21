@@ -67,4 +67,12 @@
         <item name="android:maxHeight">2dp</item>
     </style>
 
+    <style name="BottomButtonStyle" parent="Widget.AppCompat.Button">
+        <item name="android:background">@drawable/button_background</item>
+        <item name="android:textColor">#FFFFFF</item> <!-- Замените на нужный цвет текста -->
+        <item name="android:textSize">16sp</item> <!-- Размер текста (по желанию) -->
+        <item name="android:textAllCaps">false</item> <!-- Отключение преобразования в верхний регистр (по желанию) -->
+        <item name="android:gravity">center</item>
+    </style>
+
 </resources>

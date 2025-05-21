@@ -109,7 +109,8 @@
             android:text=" 📷 "
             android:textSize="20sp"
             android:layout_marginEnd="8dp"
-            android:layout_marginRight="8dp"/>
+            android:layout_marginRight="8dp"
+            style="@style/BottomButtonStyle"/>
 
         <Button
             android:id="@+id/upload_button"
@@ -120,7 +121,8 @@
             android:text=" 📥 "
             android:textSize="20sp"
             android:layout_marginEnd="5dp"
-            android:layout_marginRight="10dp"/>
+            android:layout_marginRight="10dp"
+            style="@style/BottomButtonStyle"/>
 
         <Button
             android:id="@+id/create_folder_button"
@@ -131,7 +133,8 @@
             android:text="📁"
             android:textSize="20sp"
             android:layout_marginStart="8dp"
-            android:layout_marginLeft="8dp"/>
+            android:layout_marginLeft="8dp"
+            style="@style/BottomButtonStyle"/>
     </LinearLayout>
 
     <TextView
