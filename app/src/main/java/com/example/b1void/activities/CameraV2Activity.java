@@ -501,25 +501,24 @@ public class CameraV2Activity extends AppCompatActivity {
     // Добавляем дату и время на фотку
     private Bitmap addDateToBitmap(Bitmap cameraBitmap) {
         Bitmap mutableBitmap = cameraBitmap.copy(Bitmap.Config.ARGB_8888, true);
-        Canvas canvas = new Canvas(mutableBitmap);
+        //       Canvas canvas = new Canvas(mutableBitmap);
 
-        String dateTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
-
-        Paint paint = new Paint();
-        paint.setColor(Color.RED);
-
-        //  Размер текста
-        float textSize = cameraBitmap.getWidth() / 25f;
-        paint.setTextSize(textSize);
-
-        paint.setAntiAlias(true);
-        paint.setShadowLayer(5f, 0f, 0f, Color.BLACK);
-
-        //  Позиция текста
-        float x = cameraBitmap.getWidth() / 50f;
-        float y = cameraBitmap.getHeight() / 20f;
-
-        canvas.drawText(dateTime, x, y, paint);
+//        String dateTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
+//
+//        Paint paint = new Paint();
+//        paint.setColor(Color.RED);
+//
+//        //  Размер текста
+//        float textSize = cameraBitmap.getWidth() / 25f;
+//        paint.setTextSize(textSize);
+//
+//        paint.setAntiAlias(true);
+//        paint.setShadowLayer(5f, 0f, 0f, Color.BLACK);
+//
+//        //  Позиция текста
+//        float x = cameraBitmap.getWidth() / 50f;
+//        float y = cameraBitmap.getHeight() / 20f;
+//        canvas.drawText(dateTime, x, y, paint);
 
         return mutableBitmap;
     }
