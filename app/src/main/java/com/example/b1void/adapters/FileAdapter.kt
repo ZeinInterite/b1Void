@@ -1,9 +1,7 @@
-
 package com.example.b1void.adapters
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.graphics.BitmapFactory
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
@@ -11,7 +9,9 @@ import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.example.b1void.R
 import java.io.File
 import android.preference.PreferenceManager
@@ -27,14 +27,13 @@ class FileAdapter(
 
     private var currentProgress = 0
     private val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+
     companion object {
         private const val PREF_SCALE_FACTOR = "scale_factor"
     }
 
-    // Добавьте функцию для обновления прогресса
     fun setProgress(progress: Int) {
         currentProgress = progress
-        // Сохранение scaleFactor в SharedPreferences
         val scaleFactor = 0.5f + (currentProgress / 100f) * 0.5f
         sharedPreferences.edit().putFloat(PREF_SCALE_FACTOR, scaleFactor).apply()
         notifyDataSetChanged()
@@ -45,7 +44,6 @@ class FileAdapter(
         val fileIcon: ImageView = itemView.findViewById(R.id.file_icon)
         val checkBox: CheckBox = itemView.findViewById(R.id.checkbox)
 
-        // Сохраняем оригинальные размеры
         var originalImageWidth: Int = 85
         var originalImageHeight: Int = 85
         var originalTextSize: Float = 0f
@@ -60,38 +58,32 @@ class FileAdapter(
     override fun onBindViewHolder(holder: FileViewHolder, position: Int) {
         val file = files[position]
 
-        // Устанавливаем иконку файла
         if (file.isDirectory) {
             holder.fileIcon.setImageResource(R.drawable.ic_folder)
-            holder.fileName.text = file.name // Отображаем имя только для папок
+            holder.fileName.text = file.name
         } else if (isImage(file)) {
-            val bitmap = loadImageIcon(file)
-            bitmap?.let {
-                holder.fileIcon.setImageBitmap(it)
-            } ?: run {
-                holder.fileIcon.setImageResource(R.drawable.image_ic)
-            }
-            holder.fileName.text = "" // Не отображаем имя для изображений
+            Glide.with(context)
+                .load(file)
+                .override(95, 95)
+                .centerCrop()
+                .placeholder(R.drawable.image_ic)
+                .error(R.drawable.image_ic)
+                .into(holder.fileIcon)
+            holder.fileName.text = ""
         } else {
             holder.fileIcon.setImageResource(R.drawable.file_ic)
-            holder.fileName.text = "" // Не отображаем имя для других файлов
+            holder.fileName.text = ""
         }
 
-        // Устанавливаем видимость CheckBox в зависимости от режима выделения
         holder.checkBox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
         holder.checkBox.isChecked = selectedFiles.contains(file)
 
-        // Обработчики кликов
-        holder.itemView.setOnClickListener {
-            onItemClickListener(file)
-        }
-
+        holder.itemView.setOnClickListener { onItemClickListener(file) }
         holder.itemView.setOnLongClickListener {
             onItemLongClickListener(file)
             true
         }
 
-        // Логика масштабирования
         if (!holder.isOriginalSizeSaved) {
             holder.originalImageWidth = holder.fileIcon.layoutParams.width
             holder.originalImageHeight = holder.fileIcon.layoutParams.height
@@ -99,42 +91,44 @@ class FileAdapter(
             holder.isOriginalSizeSaved = true
         }
 
-        // 2. Вычисляем scaleFactor на основе прогресса (от 0.5 до 1.0)
         val scaleFactor = sharedPreferences.getFloat(PREF_SCALE_FACTOR, 0.75f)
-        currentProgress = ((scaleFactor - 0.5f) / 0.5f * 100).toInt()
 
-        // 3. Изменяем размеры ImageView
         val imageParams = holder.fileIcon.layoutParams
         imageParams.width = (holder.originalImageWidth * scaleFactor).toInt()
         imageParams.height = (holder.originalImageHeight * scaleFactor).toInt()
         holder.fileIcon.layoutParams = imageParams
 
-        // 4. Изменяем размер текста TextView
         holder.fileName.setTextSize(TypedValue.COMPLEX_UNIT_PX, holder.originalTextSize * scaleFactor)
-
     }
 
-    // Проверка, является ли файл изображением
+    override fun getItemCount(): Int = files.size
+
+    fun updateFiles(updatedFiles: List<File>) {
+        val diffResult = DiffUtil.calculateDiff(FileDiffCallback(this.files, updatedFiles))
+        this.files = updatedFiles
+        diffResult.dispatchUpdatesTo(this)
+    }
+
     internal fun isImage(file: File): Boolean {
         val fileName = file.name.lowercase()
         return fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || fileName.endsWith(".png") || fileName.endsWith(".gif") || fileName.endsWith(".bmp")
     }
 
-    // Загрузка иконки изображения
-    private fun loadImageIcon(file: File): android.graphics.Bitmap? {
-        return try {
-            BitmapFactory.decodeFile(file.absolutePath)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
+    class FileDiffCallback(
+        private val oldList: List<File>,
+        private val newList: List<File>
+    ) : DiffUtil.Callback() {
+        override fun getOldListSize() = oldList.size
+        override fun getNewListSize() = newList.size
+
+        override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+            return oldList[oldItemPosition].absolutePath == newList[newItemPosition].absolutePath
         }
-    }
 
-    override fun getItemCount(): Int = files.size
-
-    // Функция для обновления списка файлов
-    fun updateFiles(updatedFiles: List<File>) {
-        files = updatedFiles
-        notifyDataSetChanged()
+        override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+            val oldFile = oldList[oldItemPosition]
+            val newFile = newList[newItemPosition]
+            return oldFile.lastModified() == newFile.lastModified() && oldFile.name == newFile.name
+        }
     }
 }
