@@ -86,8 +86,6 @@ public class SplashActivity extends AppCompatActivity {
         }).start();
     }
 
-
-
     private void initializeDropboxClient() {
         SharedPreferences prefs = getSharedPreferences("tokensPrefs", MODE_PRIVATE);
         String token = prefs.getString("accessToken", null);

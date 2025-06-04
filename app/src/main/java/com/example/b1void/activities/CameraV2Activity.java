@@ -145,7 +145,7 @@ public class CameraV2Activity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera_v2);
 
-        // Ловим путь сохранения, если его передали. Если нет - похеру, сохраняем в дефолтную папку.
+            // Ловим путь сохранения, если его передали. Если нет - похеру, сохраняем в дефолтную папку.
         Intent intent = getIntent();
         if (intent != null && intent.hasExtra("save_path")) {
             customSavePath = intent.getStringExtra("save_path");
