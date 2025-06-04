@@ -15,6 +15,7 @@ import com.bumptech.glide.Glide
 import com.example.b1void.R
 import java.io.File
 import android.preference.PreferenceManager
+import android.widget.ImageButton
 
 class FileAdapter(
     var files: List<File>,
@@ -22,7 +23,8 @@ class FileAdapter(
     private val onItemClickListener: (File) -> Unit,
     private val onItemLongClickListener: (File) -> Unit,
     var isSelectionMode: Boolean = false,
-    var selectedFiles: Set<File> = emptySet()
+    var selectedFiles: Set<File> = emptySet(),
+    private val onMoreOptionsClickListener: (File) -> Unit
 ) : RecyclerView.Adapter<FileAdapter.FileViewHolder>() {
 
     private var currentProgress = 0
@@ -99,6 +101,12 @@ class FileAdapter(
         holder.fileIcon.layoutParams = imageParams
 
         holder.fileName.setTextSize(TypedValue.COMPLEX_UNIT_PX, holder.originalTextSize * scaleFactor)
+
+        val moreOptionsButton = holder.itemView.findViewById<ImageButton>(R.id.more_option_button)
+        moreOptionsButton.visibility = View.VISIBLE
+        moreOptionsButton.setOnClickListener {
+            onMoreOptionsClickListener(file)
+        }
     }
 
     override fun getItemCount(): Int = files.size

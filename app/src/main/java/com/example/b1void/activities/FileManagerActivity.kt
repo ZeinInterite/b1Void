@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.b1void.R
 import com.example.b1void.adapters.FileAdapter
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import net.lingala.zip4j.ZipFile
 import net.lingala.zip4j.model.ZipParameters
 import net.lingala.zip4j.model.enums.CompressionLevel
@@ -128,7 +129,7 @@ class FileManagerActivity : AppCompatActivity() {
         }
 
         moveButton.setOnClickListener {
-            showMoveDialog()
+            showMoveDialogForSelectedFiles()
         }
 
         progressBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -193,10 +194,8 @@ class FileManagerActivity : AppCompatActivity() {
             loadDirectoryContent(getCurrentDirectory())
         }
 
-        // Убираем старый onTouchListener, чтобы не мешал скроллингу и свайпу
         recyclerView.setOnTouchListener(null)
 
-        // Инициализация GestureDetector для обработки свайпа выделения при включенном режиме выделения
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onScroll(
                 e1: MotionEvent?,
@@ -222,12 +221,10 @@ class FileManagerActivity : AppCompatActivity() {
             }
         })
 
-        // Обработка касаний для выделения свайпом в режиме множественного выбора, но без блокировки скроллинга
         recyclerView.setOnTouchListener { _, event ->
             if (isSelectionMode) {
                 gestureDetector?.onTouchEvent(event)
             }
-            // Возвращаем false, чтобы RecyclerView мог обрабатывать остальные жесты (например, скроллинг)
             false
         }
     }
@@ -386,7 +383,11 @@ class FileManagerActivity : AppCompatActivity() {
                             { file -> onItemClick(file) },
                             { file -> onItemLongClick(file) },
                             isSelectionMode,
-                            selectedFiles
+                            selectedFiles,
+                            onMoreOptionsClickListener = { file ->
+                                currentFileForMenu = file
+                                showBottomSheetMenu(file)
+                            }
                         )
                         recyclerView.adapter = fileAdapter
                         fileAdapter.setProgress(currentProgress)
@@ -595,7 +596,6 @@ class FileManagerActivity : AppCompatActivity() {
         loadDirectoryContent(getCurrentDirectory())
     }
 
-
     private fun clearSelection() {
         isSelectionMode = false
 
@@ -609,7 +609,6 @@ class FileManagerActivity : AppCompatActivity() {
 
         loadDirectoryContent(getCurrentDirectory())
     }
-
 
     private fun toggleFileSelection(file: File) {
         if (selectedFiles.contains(file)) {
@@ -672,156 +671,95 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
-    private fun showMoveDialog() {
-        if (selectedFiles.isNotEmpty()) {
-            val builder = AlertDialog.Builder(this)
-            builder.setTitle("Выберите папку для перемещения")
+    // ----- НОВЫЙ КОД: ВСПЛЫВАЮЩЕЕ МЕНЮ С ПЕРЕМЕЩЕНИЕМ -----
 
-            val currentDir = getCurrentDirectory()
-            val parentDir = currentDir.parentFile
+    private fun showBottomSheetMenu(file: File) {
+        val dialog = BottomSheetDialog(this)
+        val view = layoutInflater.inflate(R.layout.bottom_sheet_menu, null)
+        dialog.setContentView(view)
 
-            val directories = currentDir.listFiles { file -> file.isDirectory }?.toMutableList() ?: mutableListOf()
+        val rename = view.findViewById<TextView>(R.id.menu_rename)
+        val delete = view.findViewById<TextView>(R.id.menu_delete)
+        val share = view.findViewById<TextView>(R.id.menu_share)
+        val move = view.findViewById<TextView>(R.id.menu_move)
 
-            val directoryNames = mutableListOf<String>()
-            if (parentDir != null) {
-                directoryNames.add(".. (переместить на уровень выше)")
-            }
-            directoryNames.addAll(directories.map { it.name })
+        rename.setOnClickListener {
+            dialog.dismiss()
+            showRenameDialog(file)
+        }
 
-            builder.setItems(directoryNames.toTypedArray()) { dialog, which ->
-                if (parentDir != null && which == 0) {
-                    // Переместить на уровень выше
-                    moveSelectedFilesUp()
-                } else {
-                    val index = if (parentDir != null) which - 1 else which
-                    val destinationDirectory = directories[index]
-                    moveSelectedFiles(destinationDirectory)
+        delete.setOnClickListener {
+            dialog.dismiss()
+            AlertDialog.Builder(this)
+                .setTitle("Удалить файл?")
+                .setMessage("Вы уверены, что хотите удалить файл ${file.name}?")
+                .setPositiveButton("Да") { _, _ ->
+                    deleteFile(file)
                 }
-                dialog.dismiss()
-            }
-
-            builder.setNegativeButton("Отмена") { dialog, _ -> dialog.cancel() }
-            builder.show()
-        } else {
-            Toast.makeText(this, "Не выбраны файлы для перемещения", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-
-    private fun moveSelectedFiles(destinationDirectory: File) {
-        Thread {
-            selectedFiles.forEach { file ->
-                val newFile = File(destinationDirectory, file.name)
-                try {
-                    if (file.renameTo(newFile)) {
-                        Log.d("FileManager", "File ${file.name} moved successfully to ${destinationDirectory.absolutePath}")
-                    } else {
-                        Log.e("FileManager", "Error moving file ${file.name} to ${destinationDirectory.absolutePath}")
-                        runOnUiThread {
-                            Toast.makeText(this@FileManagerActivity, "Ошибка при перемещении файла ${file.name}", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                } catch (e: SecurityException) {
-                    Log.e("FileManager", "SecurityException moving file: ${e.message}")
-                    runOnUiThread {
-                        Toast.makeText(this, "Ошибка безопасности при перемещении файла ${file.name}", Toast.LENGTH_SHORT).show()
-                    }
-                } catch (e: IOException) {
-                    Log.e("FileManager", "IOException moving file: ${e.message}")
-                    runOnUiThread {
-                        Toast.makeText(this, "Ошибка ввода/вывода при перемещении файла ${file.name}", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-
-            runOnUiThread {
-                Toast.makeText(this@FileManagerActivity, "Выбранные файлы перемещены", Toast.LENGTH_SHORT).show()
-                clearSelection()
-                loadDirectoryContent(getCurrentDirectory())
-            }
-        }.start()
-    }
-
-    private fun onFileSelectionChanged(file: File, isSelected: Boolean) {
-        if (isSelected) {
-            selectedFiles.add(file)
-        } else {
-            selectedFiles.remove(file)
+                .setNegativeButton("Отмена", null)
+                .show()
         }
 
-        if (isSelectionMode && selectedFiles.isEmpty()) {
-            clearSelection()
+        share.setOnClickListener {
+            dialog.dismiss()
+            shareFile(file)
         }
 
-        shareButton.visibility = if (selectedFiles.isNotEmpty()) View.VISIBLE else View.GONE
+        move.setOnClickListener {
+            dialog.dismiss()
+            showMoveDialogForFile(file)
+        }
+
+        dialog.show()
     }
 
     private fun shareSelectedFiles() {
         if (selectedFiles.isNotEmpty()) {
             Thread {
                 val filesUris = ArrayList<Uri>()
-                val filesToDelete = mutableListOf<File>()
                 val tempDir = File(cacheDir, "temp_zip")
-
-                if (!tempDir.exists()) {
-                    tempDir.mkdirs()
-                }
+                if (!tempDir.exists()) tempDir.mkdirs()
 
                 var errorOccurred = false
 
                 try {
                     for (file in selectedFiles) {
-                        try {
-                            if (file.isDirectory) {
-                                val zipFile = File(tempDir, "${file.name}.zip")
-                                zipFolder(file, zipFile)
-
-                                if (zipFile.exists()) {
-                                    val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", zipFile)
-                                    filesUris.add(uri)
-                                    filesToDelete.add(zipFile)
-                                } else {
-                                    Log.e("FileManager", "Failed to create ZIP archive for ${file.name}")
-                                    errorOccurred = true
-                                    runOnUiThread {
-                                        Toast.makeText(this, "Ошибка при создании архива для ${file.name}", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            } else {
-                                val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
+                        if (file.isDirectory) {
+                            // Создаем zip архив папки
+                            val zipFile = File(tempDir, "${file.name}.zip")
+                            zipFolder(file, zipFile)
+                            if (zipFile.exists()) {
+                                val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", zipFile)
                                 filesUris.add(uri)
-                                filesToDelete.add(file)
+                            } else {
+                                errorOccurred = true
+                                runOnUiThread {
+                                    Toast.makeText(this, "Ошибка при создании архива для ${file.name}", Toast.LENGTH_SHORT).show()
+                                }
                             }
-                        } catch (e: Exception) {
-                            Log.e("FileManager", "Error processing file ${file.name}: ${e.message}")
-                            errorOccurred = true
-                            runOnUiThread {
-                                Toast.makeText(this, "Ошибка при обработке файла ${file.name}", Toast.LENGTH_SHORT).show()
-                            }
+                        } else {
+                            val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
+                            filesUris.add(uri)
                         }
                     }
 
                     if (filesUris.isNotEmpty()) {
                         val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE)
-                        shareIntent.type = "application/zip"
+                        shareIntent.type = "*/*"
                         shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, filesUris)
                         shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
                         runOnUiThread {
-                            val chooserIntent = Intent.createChooser(shareIntent, "Share selected files")
+                            val chooserIntent = Intent.createChooser(shareIntent, "Поделиться файлами")
                             startActivity(chooserIntent)
                             clearSelection()
-
-                            Handler(Looper.getMainLooper()).postDelayed({
-                                deleteTempFiles(filesToDelete)
-                            }, 100000)
                         }
                     } else {
                         runOnUiThread {
                             if (errorOccurred) {
-                                Toast.makeText(this, "Не удалось подготовить ни один файл для отправки.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this, "Не удалось подготовить файлы для отправки.", Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(this, "Нечего отправлять.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this, "Нет файлов для отправки.", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -833,82 +771,148 @@ class FileManagerActivity : AppCompatActivity() {
                 }
             }.start()
         } else {
-            Toast.makeText(this, "No files selected", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Нет выбранных файлов", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun deleteTempFiles(filesToDelete: List<File>) {
-        for (file in filesToDelete) {
-            try {
-                if (file.delete()) {
-                    Log.d("FileManager", "Удален временный файл: ${file.absolutePath}")
-                } else {
-                    Log.e("FileManager", "Не удалось удалить временный файл: ${file.absolutePath}")
-                }
-            } catch (e: Exception) {
-                Log.e("FileManager", "Ошибка при удалении временного файла: ${file.absolutePath}", e)
-            }
-        }
-    }
-
-    fun zipFolder(folderToZip: File, zipFile: File) {
+    private fun zipFolder(folderToZip: File, zipFile: File) {
         try {
             val zipParameters = ZipParameters()
             zipParameters.compressionMethod = CompressionMethod.DEFLATE
             zipParameters.compressionLevel = CompressionLevel.NORMAL
 
             ZipFile(zipFile.absolutePath).addFolder(folderToZip, zipParameters)
-
         } catch (e: Exception) {
-            Log.e("FileManager", "Error zipping folder ${folderToZip.absolutePath} to ${zipFile.absolutePath}: ${e.message}", e)
+            Log.e("FileManager", "Ошибка архивации папки: ${e.message}", e)
             runOnUiThread {
-                Toast.makeText(this, "Ошибка при архивации папки: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Ошибка архивации папки: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun moveSelectedFilesUp() {
+    private fun showMoveDialogForFile(file: File) {
         val currentDir = getCurrentDirectory()
         val parentDir = currentDir.parentFile
 
-        if (parentDir == null) {
-            Toast.makeText(this, "Нет родительской папки для перемещения", Toast.LENGTH_SHORT).show()
+        val directories = currentDir.listFiles { f -> f.isDirectory }?.toMutableList() ?: mutableListOf()
+
+        val directoryNames = mutableListOf<String>()
+        if (parentDir != null) {
+            directoryNames.add(".. (переместить на уровень выше)")
+        }
+        directoryNames.addAll(directories.map { it.name })
+
+        AlertDialog.Builder(this)
+            .setTitle("Выберите папку назначения")
+            .setItems(directoryNames.toTypedArray()) { _, which ->
+                val destinationDirectory: File? = if (parentDir != null && which == 0) {
+                    parentDir
+                } else {
+                    val index = if (parentDir != null) which - 1 else which
+                    directories.getOrNull(index)
+                }
+
+                if (destinationDirectory == null) {
+                    Toast.makeText(this, "Неверная папка назначения", Toast.LENGTH_SHORT).show()
+                    return@setItems
+                }
+
+                moveFileToDirectory(file, destinationDirectory)
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun moveFileToDirectory(file: File, destinationDirectory: File) {
+        Thread {
+            val newFile = File(destinationDirectory, file.name)
+            try {
+                if (file.renameTo(newFile)) {
+                    runOnUiThread {
+                        Toast.makeText(this, "Файл перемещён в ${destinationDirectory.name}", Toast.LENGTH_SHORT).show()
+                        loadDirectoryContent(getCurrentDirectory())
+                    }
+                } else {
+                    runOnUiThread {
+                        Toast.makeText(this, "Ошибка при перемещении файла", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(this, "Ошибка при перемещении: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun showMoveDialogForSelectedFiles() {
+        if (selectedFiles.isEmpty()) {
+            Toast.makeText(this, "Не выбраны файлы для перемещения", Toast.LENGTH_SHORT).show()
             return
         }
 
+        val currentDir = getCurrentDirectory()
+        val parentDir = currentDir.parentFile
+
+        val directories = currentDir.listFiles { f -> f.isDirectory }?.toMutableList() ?: mutableListOf()
+
+        val directoryNames = mutableListOf<String>()
+        if (parentDir != null) {
+            directoryNames.add(".. (переместить на уровень выше)")
+        }
+        directoryNames.addAll(directories.map { it.name })
+
+        AlertDialog.Builder(this)
+            .setTitle("Выберите папку назначения")
+            .setItems(directoryNames.toTypedArray()) { _, which ->
+                val destinationDirectory: File? = if (parentDir != null && which == 0) {
+                    parentDir
+                } else {
+                    val index = if (parentDir != null) which - 1 else which
+                    directories.getOrNull(index)
+                }
+
+                if (destinationDirectory == null) {
+                    Toast.makeText(this, "Неверная папка назначения", Toast.LENGTH_SHORT).show()
+                    return@setItems
+                }
+
+                moveSelectedFiles(destinationDirectory)
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun moveSelectedFiles(destinationDirectory: File) {
         Thread {
+            var errorOccurred = false
+
             selectedFiles.forEach { file ->
-                val newFile = File(parentDir, file.name)
+                val newFile = File(destinationDirectory, file.name)
                 try {
-                    if (file.renameTo(newFile)) {
-                        Log.d("FileManager", "Файл ${file.name} успешно перемещен в ${parentDir.absolutePath}")
-                    } else {
-                        Log.e("FileManager", "Ошибка при перемещении файла ${file.name} в ${parentDir.absolutePath}")
+                    if (!file.renameTo(newFile)) {
+                        errorOccurred = true
                         runOnUiThread {
                             Toast.makeText(this@FileManagerActivity, "Ошибка при перемещении файла ${file.name}", Toast.LENGTH_SHORT).show()
                         }
                     }
-                } catch (e: SecurityException) {
-                    Log.e("FileManager", "SecurityException при перемещении файла: ${e.message}")
+                } catch (e: Exception) {
+                    errorOccurred = true
                     runOnUiThread {
-                        Toast.makeText(this, "Ошибка безопасности при перемещении файла ${file.name}", Toast.LENGTH_SHORT).show()
-                    }
-                } catch (e: IOException) {
-                    Log.e("FileManager", "IOException при перемещении файла: ${e.message}")
-                    runOnUiThread {
-                        Toast.makeText(this, "Ошибка ввода/вывода при перемещении файла ${file.name}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@FileManagerActivity, "Ошибка при перемещении файла ${file.name}: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
 
             runOnUiThread {
-                Toast.makeText(this@FileManagerActivity, "Выбранные файлы перемещены на уровень выше", Toast.LENGTH_SHORT).show()
+                if (!errorOccurred) {
+                    Toast.makeText(this@FileManagerActivity, "Файлы перемещены", Toast.LENGTH_SHORT).show()
+                }
                 clearSelection()
                 loadDirectoryContent(getCurrentDirectory())
             }
         }.start()
     }
-
 
     fun updateProgress(progress: Int) {
         progressBar.progress = progress
