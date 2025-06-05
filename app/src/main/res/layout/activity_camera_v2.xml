@@ -191,10 +191,6 @@
                 android:layout_marginStart="8dp"
                 android:layout_marginEnd="370dp"/>
 
-
-
-
-
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <LinearLayout
@@ -210,7 +206,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Image Format:"
+            android:text="Формат изображения:"
             android:textColor="@android:color/white" />
 
         <Spinner
@@ -241,7 +237,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="White Balance:"
+            android:text="Баланс белого:"
             android:textColor="@android:color/white" />
 
         <Spinner
@@ -250,7 +246,6 @@
             android:layout_height="wrap_content"
             android:spinnerMode="dropdown" />
 
-        <!-- HDR -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -266,7 +261,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Audio:"
+            android:text="Аудио:"
             android:textColor="@android:color/white" />
 
         <Spinner

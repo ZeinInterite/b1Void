@@ -61,7 +61,7 @@
                 android:id="@+id/share_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Share"
+                android:text="Поделиться"
                 android:layout_marginEnd="8dp"/>
 
             <Button
