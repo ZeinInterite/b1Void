@@ -61,21 +61,31 @@
                 android:id="@+id/share_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Поделиться"
+                android:background="@drawable/rounded_background"
+                android:backgroundTint="@null"
+                android:text=" 📤 "
+                android:textSize="20sp"
                 android:layout_marginEnd="8dp"/>
 
             <Button
                 android:id="@+id/delete_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Удалить"
-                android:layout_marginEnd="8dp"/>
+                android:background="@drawable/rounded_background"
+                android:backgroundTint="@null"
+                android:text=" 🗑 "
+                android:textSize="20sp"
+                android:layout_marginEnd="8dp"
+                android:textColor="#FFFFFF" />
 
             <Button
                 android:id="@+id/move_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Переместить"/>
+                android:background="@drawable/rounded_background"
+                android:backgroundTint="@null"
+                android:textSize="20sp"
+                android:text=" 🗄️" />
 
         </LinearLayout>
 
@@ -141,6 +151,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:background="@drawable/rounded_background"
+            android:backgroundTint="@null"
             android:text=" 📷 "
             android:textSize="20sp"
             android:layout_marginEnd="8dp"
@@ -152,6 +163,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:background="@drawable/rounded_background"
+            android:backgroundTint="@null"
             android:text=" 📥 "
             android:textSize="20sp"
             android:layout_marginEnd="8dp"
@@ -163,6 +175,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:background="@drawable/rounded_background"
+            android:backgroundTint="@null"
             android:text="📁"
             android:textSize="20sp"
             style="@style/BottomButtonStyle"/>

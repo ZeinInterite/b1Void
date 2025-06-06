@@ -327,8 +327,7 @@
             android:padding="8dp"
             android:src="@drawable/def_insp_img"
             app:tint="@android:color/white" />
-
-
+        
     </LinearLayout>
 
 
