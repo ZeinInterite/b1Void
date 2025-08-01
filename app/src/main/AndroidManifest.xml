@@ -17,6 +17,7 @@
         android:maxSdkVersion="32" />
 
     <application
+        android:name=".B1VoidApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -25,6 +26,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.B1Void"
+        android:largeHeap="true"
+        android:hardwareAccelerated="true"
         tools:targetApi="31">
 
         <provider

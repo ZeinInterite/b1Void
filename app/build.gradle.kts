@@ -16,15 +16,28 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // Оптимизация для слабых устройств
+        multiDexEnabled = true
+        
+        // Оптимизация для старых устройств
+        ndk {
+            abiFilters("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            isMinifyEnabled = false
+            isDebuggable = true
         }
     }
 
@@ -90,5 +103,10 @@ dependencies {
 
     implementation ("com.google.code.gson:gson:2.10.1")
     implementation ("com.h6ah4i.android.widget.verticalseekbar:verticalseekbar:1.0.0")
+    
+    // Оптимизация для слабых устройств
+    implementation("androidx.multidex:multidex:2.0.1")
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("androidx.lifecycle:lifecycle-process:2.8.7")
 
 }
