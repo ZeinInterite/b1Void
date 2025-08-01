@@ -6,4 +6,30 @@
     <string name="nameEmployee">Имя</string>
     <string name="emailAdm">Задайте email</string>
     <string name="APP_KEY">elw6ey40dkbo1i0</string>
+    
+    <!-- File Manager -->
+    <string name="delete_title">Удалить?</string>
+    <string name="delete_message">Вы уверены, что хотите удалить %s?</string>
+    <string name="yes">Да</string>
+    <string name="no">Нет</string>
+    <string name="create_folder">Создать новую папку</string>
+    <string name="create">Создать</string>
+    <string name="cancel">Отмена</string>
+    <string name="folder_creation_error">Ошибка при создании папки</string>
+    <string name="file_not_found">Папка не найдена</string>
+    
+    <!-- Dropbox -->
+    <string name="dropbox_folder_created">Папка приложения создана</string>
+    <string name="dropbox_folder_error">Не удалось создать папку приложения</string>
+    <string name="dropbox_upload_error">Ошибка при загрузке файла</string>
+    <string name="dropbox_download_error">Ошибка при загрузке файла из Dropbox</string>
+    <string name="dropbox_delete_error">Ошибка при удалении файла</string>
+    <string name="dropbox_list_error">Ошибка загрузки списка файлов с Dropbox</string>
+    <string name="dropbox_create_folder_error">Ошибка при создании папки в Dropbox</string>
+    <string name="auth_failed">Авторизация не удалась</string>
+    
+    <!-- General -->
+    <string name="file_selected">Выбран файл: %s</string>
+    <string name="loading">Загрузка...</string>
+    <string name="error_occurred">Произошла ошибка</string>
 </resources>

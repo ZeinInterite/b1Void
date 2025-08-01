@@ -1,58 +1,75 @@
 package com.example.b1void.viewmodels
 
-import android.app.Application
-import android.content.Context
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dropbox.core.android.Auth
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import timber.log.Timber
+import javax.inject.Inject
 
-class AuthViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class AuthViewModel @Inject constructor(
+    private val authManager: AuthManager
+) : ViewModel() {
 
-    private val _authenticationState = MutableLiveData<AuthenticationState>(AuthenticationState.IDLE)
-    val authenticationState: LiveData<AuthenticationState> = _authenticationState
-    private val prefs = application.getSharedPreferences("prefs", Context.MODE_PRIVATE)
-    private val accessTokenKey = "access-token"
+    private val _authState = MutableLiveData<AuthState>(AuthState.Loading)
+    val authState: LiveData<AuthState> = _authState
 
-    enum class AuthenticationState {
-        AUTHENTICATED, UNAUTHENTICATED, LOADING, IDLE
+    sealed class AuthState {
+        object Loading : AuthState()
+        object NoToken : AuthState()
+        object HasToken : AuthState()
+        data class Error(val message: String) : AuthState()
     }
-
 
     fun checkAccessToken() {
         viewModelScope.launch {
-            _authenticationState.value = AuthenticationState.LOADING
-            val accessToken = prefs.getString(accessTokenKey, null)
-            if (accessToken == null) {
-                _authenticationState.value = AuthenticationState.UNAUTHENTICATED
-            } else {
-                _authenticationState.value = AuthenticationState.AUTHENTICATED
-            }
-        }
-
-    }
-
-
-    fun handleAuthResult(requestCode: Int) {
-        viewModelScope.launch {
-            if (requestCode == 1001) {
-                val accessToken = Auth.getOAuth2Token()
-                if (accessToken != null) {
-                    prefs.edit().putString(accessTokenKey, accessToken).apply()
-                    _authenticationState.value = AuthenticationState.AUTHENTICATED
-                } else {
-                    _authenticationState.value = AuthenticationState.UNAUTHENTICATED
+            try {
+                val hasToken = withContext(Dispatchers.IO) {
+                    authManager.hasValidToken()
                 }
+                
+                _authState.value = if (hasToken) {
+                    AuthState.HasToken
+                } else {
+                    AuthState.NoToken
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error checking access token")
+                _authState.value = AuthState.Error(e.message ?: "Unknown error")
             }
         }
     }
 
-    fun setLoading() {
-        _authenticationState.value = AuthenticationState.LOADING
+    fun saveAccessToken(token: String) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    authManager.saveAccessToken(token)
+                }
+                _authState.value = AuthState.HasToken
+            } catch (e: Exception) {
+                Timber.e(e, "Error saving access token")
+                _authState.value = AuthState.Error(e.message ?: "Failed to save token")
+            }
+        }
     }
-    fun setAuthenticated() {
-        _authenticationState.value = AuthenticationState.AUTHENTICATED
+
+    fun clearAccessToken() {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    authManager.clearAccessToken()
+                }
+                _authState.value = AuthState.NoToken
+            } catch (e: Exception) {
+                Timber.e(e, "Error clearing access token")
+                _authState.value = AuthState.Error(e.message ?: "Failed to clear token")
+            }
+        }
     }
 }
