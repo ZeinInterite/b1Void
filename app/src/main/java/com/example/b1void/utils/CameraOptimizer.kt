@@ -7,37 +7,40 @@ import android.util.Log
 import android.util.Size
 import com.example.b1void.B1VoidApplication
 import com.otaliastudios.cameraview.size.SizeSelector
+import com.otaliastudios.cameraview.size.SizeSelectors
 
 object CameraOptimizer {
-    
+
     private const val TAG = "CameraOptimizer"
-    
+
     /**
      * Получает оптимальное разрешение для слабых устройств
      */
     fun getOptimalResolution(context: Context): Size {
         val isLowEnd = MemoryManager.isLowEndDevice(context)
-        
+
         return if (isLowEnd) {
             Size(1280, 720) // 720p для слабых устройств
         } else {
             Size(1920, 1080) // 1080p для обычных устройств
         }
     }
-    
+
     /**
      * Создает оптимизированный селектор размера
      */
     fun createOptimizedSizeSelector(context: Context): SizeSelector {
         val isLowEnd = MemoryManager.isLowEndDevice(context)
         val maxSize = if (isLowEnd) 1280 else 1920
-        
-        return SizeSelector.builder()
-            .maxWidth(maxSize)
-            .maxHeight(maxSize)
-            .build()
+
+        // Используем правильные методы комбинирования селекторов из CameraView
+        // Объединяем через логическое "И" - размер должен удовлетворять обоим условиям
+        return SizeSelectors.and(
+            SizeSelectors.maxWidth(maxSize),
+            SizeSelectors.maxHeight(maxSize)
+        )
     }
-    
+
     /**
      * Получает оптимальные настройки качества изображения
      */
@@ -49,7 +52,7 @@ object CameraOptimizer {
             B1VoidApplication.IMAGE_COMPRESSION_QUALITY
         }
     }
-    
+
     /**
      * Проверяет поддержку камеры
      */
@@ -62,44 +65,44 @@ object CameraOptimizer {
             false
         }
     }
-    
+
     /**
      * Получает информацию о камере
      */
     fun getCameraInfo(context: Context): Map<String, Any> {
         val info = mutableMapOf<String, Any>()
-        
+
         try {
             val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
             val cameraIds = cameraManager.cameraIdList
-            
+
             info["camera_count"] = cameraIds.size
             info["supported_cameras"] = cameraIds.toList()
-            
+
             // Получаем характеристики основной камеры
             if (cameraIds.isNotEmpty()) {
                 val characteristics = cameraManager.getCameraCharacteristics(cameraIds[0])
-                
+
                 val sensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)
                 info["sensor_orientation"] = sensorOrientation ?: 0
-                
+
                 val facing = characteristics.get(CameraCharacteristics.LENS_FACING)
                 info["lens_facing"] = facing ?: CameraCharacteristics.LENS_FACING_BACK
             }
-            
+
         } catch (e: Exception) {
             Log.e(TAG, "Ошибка получения информации о камере", e)
         }
-        
+
         return info
     }
-    
+
     /**
      * Оптимизирует настройки камеры для слабых устройств
      */
     fun getOptimizedCameraSettings(context: Context): Map<String, Any> {
         val isLowEnd = MemoryManager.isLowEndDevice(context)
-        
+
         return mapOf(
             "resolution" to getOptimalResolution(context),
             "image_quality" to getOptimalImageQuality(context),
@@ -113,15 +116,15 @@ object CameraOptimizer {
             "enable_raw_capture" to false // Отключаем RAW для экономии памяти
         )
     }
-    
+
     /**
      * Проверяет, достаточно ли памяти для съемки
      */
     fun hasEnoughMemoryForCapture(context: Context): Boolean {
-        val requiredMemory = 50 * 1024 * 1024 // 50MB для съемки
+        val requiredMemory = 50 * 1024 * 1024L // 50MB для съемки
         return MemoryManager.hasEnoughMemory(context, requiredMemory)
     }
-    
+
     /**
      * Получает рекомендуемые настройки для слабых устройств
      */
@@ -136,13 +139,13 @@ object CameraOptimizer {
             "Ограничьте размер кэша изображений"
         )
     }
-    
+
     /**
      * Оптимизирует обработку изображений
      */
     fun optimizeImageProcessing(context: Context): Map<String, Any> {
         val isLowEnd = MemoryManager.isLowEndDevice(context)
-        
+
         return mapOf(
             "max_image_size" to if (isLowEnd) 800 else B1VoidApplication.MAX_IMAGE_SIZE,
             "compression_quality" to getOptimalImageQuality(context),
@@ -153,4 +156,4 @@ object CameraOptimizer {
             "enable_auto_enhancement" to !isLowEnd
         )
     }
-} 
+}

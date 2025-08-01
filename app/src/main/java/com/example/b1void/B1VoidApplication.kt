@@ -3,15 +3,15 @@ package com.example.b1void
 import android.app.Application
 import android.content.Context
 import androidx.multidex.MultiDex
-import androidx.work.Configuration
-import androidx.work.WorkManager
+import androidx.work.Configuration // Явный импорт для Configuration
+import androidx.work.Configuration.Provider as WorkConfigurationProvider // Явный импорт для Provider с псевдонимом
 import com.bumptech.glide.Glide
 import com.bumptech.glide.GlideBuilder
 import com.bumptech.glide.load.engine.cache.ExternalPreferredCacheDiskCacheFactory
 import com.bumptech.glide.load.engine.cache.LruResourceCache
 import com.bumptech.glide.load.engine.cache.MemorySizeCalculator
 
-class B1VoidApplication : Application(), Configuration.Provider {
+class B1VoidApplication : Application(), WorkConfigurationProvider { // Используем псевдоним
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
@@ -20,27 +20,16 @@ class B1VoidApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
-        
-        // Оптимизация Glide для слабых устройств
         setupGlideOptimization()
-        
-        // Инициализация WorkManager
-        WorkManager.initialize(this, workManagerConfiguration)
     }
 
     private fun setupGlideOptimization() {
         Glide.init(this, GlideBuilder().apply {
-            // Уменьшаем размер кэша в памяти для слабых устройств
             val calculator = MemorySizeCalculator.Builder(this@B1VoidApplication)
-                .setMemoryCacheScreens(2f) // Уменьшаем с 4 до 2 экранов
+                .setMemoryCacheScreens(2f)
                 .build()
-            
             setMemoryCache(LruResourceCache(calculator.memoryCacheSize.toLong()))
-            
-            // Настраиваем диск кэш
-            setDiskCache(ExternalPreferredCacheDiskCacheFactory(this@B1VoidApplication, "glide_cache", 50 * 1024 * 1024)) // 50MB
-            
-            // Отключаем анимации для экономии ресурсов
+            setDiskCache(ExternalPreferredCacheDiskCacheFactory(this@B1VoidApplication, "glide_cache", 50 * 1024 * 1024))
             setDefaultRequestOptions(
                 com.bumptech.glide.request.RequestOptions()
                     .dontAnimate()
@@ -48,17 +37,16 @@ class B1VoidApplication : Application(), Configuration.Provider {
         })
     }
 
-    override fun getWorkManagerConfiguration(): Configuration {
-        return Configuration.Builder()
+    // Изменено на свойство Kotlin
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder() // Используем импортированный Configuration
             .setMinimumLoggingLevel(android.util.Log.INFO)
-            .setMaxSchedulerLimit(3) // Ограничиваем количество одновременных задач
+            .setMaxSchedulerLimit(3)
             .build()
-    }
 
     companion object {
-        // Константы для оптимизации
-        const val LOW_MEMORY_THRESHOLD = 50 * 1024 * 1024 // 50MB
+        const val LOW_MEMORY_THRESHOLD = 50 * 1024 * 1024
         const val IMAGE_COMPRESSION_QUALITY = 80
-        const val MAX_IMAGE_SIZE = 1024 // Максимальный размер изображения
+        const val MAX_IMAGE_SIZE = 1024
     }
-} 
+}
