@@ -25,15 +25,7 @@
             android:focusable="false"
             android:focusableInTouchMode="false"/>
 
-        <ImageButton
-            android:id="@+id/more_option_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:src="@drawable/more_option_ic"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="More options"
-            android:layout_gravity="top|end"
-            android:padding="8dp"/>
+        <!-- Кнопка "три точки" удалена для контекстного меню -->
 
     </FrameLayout>
 

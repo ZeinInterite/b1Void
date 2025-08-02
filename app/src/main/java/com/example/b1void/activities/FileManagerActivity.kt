@@ -22,6 +22,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.b1void.R
 import com.example.b1void.adapters.FileAdapter
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import net.lingala.zip4j.ZipFile
 import net.lingala.zip4j.model.ZipParameters
 import net.lingala.zip4j.model.enums.CompressionLevel
@@ -32,6 +33,10 @@ import java.io.IOException
 import java.util.*
 import kotlin.concurrent.thread
 import android.view.GestureDetector
+import android.view.MotionEvent
+import android.view.animation.AnimationUtils
+import androidx.core.view.GravityCompat
+import androidx.drawerlayout.widget.DrawerLayout
 
 class FileManagerActivity : AppCompatActivity() {
 
@@ -48,7 +53,10 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var moveButton: Button
     private lateinit var titleTextView: TextView
     private lateinit var progressBar: SeekBar
-    private lateinit var buttonContainer : LinearLayout
+    private lateinit var buttonContainer: LinearLayout
+    private lateinit var selectionToolbar: LinearLayout
+    private lateinit var selectAllButton: Button
+    private lateinit var clearSelectionButton: Button
     private lateinit var sharedPreferences: SharedPreferences
     private var currentProgress = 0
 
@@ -66,16 +74,32 @@ class FileManagerActivity : AppCompatActivity() {
 
     private var sortAscending = false
 
+    // Новые переменные для улучшенного UX
+    private var isSwipeSelectionActive = false
+    private var lastTouchedPosition = -1
+    private var gestureDetector: GestureDetector? = null
+    private var longPressHandler = Handler(Looper.getMainLooper())
+    private var longPressRunnable: Runnable? = null
+
     companion object {
         private const val PREF_SEEK_BAR_PROGRESS = "seek_bar_progress"
+        private const val LONG_PRESS_DELAY = 500L
     }
-
-    private var gestureDetector: GestureDetector? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_file_manager)
 
+        initializeViews()
+        setupPreferences()
+        setupButtons()
+        setupRecyclerView()
+        setupGestureDetector()
+        setupDirectories()
+        loadDirectoryContent(appDirectory)
+    }
+
+    private fun initializeViews() {
         recyclerView = findViewById(R.id.recycler_view)
         createFolderButton = findViewById(R.id.create_folder_button)
         captureButton = findViewById(R.id.capture_button)
@@ -88,11 +112,21 @@ class FileManagerActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         val sortButton: ImageButton = findViewById(R.id.sort_button)
         buttonContainer = findViewById(R.id.button_container)
+        selectionToolbar = findViewById(R.id.selection_toolbar)
+        selectAllButton = findViewById(R.id.select_all_button)
+        clearSelectionButton = findViewById(R.id.clear_selection_button)
 
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
+    }
 
+    private fun setupPreferences() {
         currentProgress = sharedPreferences.getInt(PREF_SEEK_BAR_PROGRESS, 0)
         progressBar.progress = currentProgress
+    }
+
+    private fun setupButtons() {
+        val sortButton: ImageButton = findViewById(R.id.sort_button)
+        val uploadButton = findViewById<View>(R.id.upload_button)
 
         sortButton.setOnClickListener {
             toggleSortOrder()
@@ -101,7 +135,6 @@ class FileManagerActivity : AppCompatActivity() {
         if (intent.getStringExtra("imageUri") != null) {
             imgGalUriString = intent.getStringExtra("imageUri")
             imgGalUri = Uri.parse(imgGalUriString)
-
             showCreateFolderDialog { newDir ->
                 saveImageToDirectory(newDir)
             }
@@ -132,6 +165,28 @@ class FileManagerActivity : AppCompatActivity() {
             showMoveDialogForSelectedFiles()
         }
 
+        selectAllButton.setOnClickListener {
+            selectAllFiles()
+        }
+
+        clearSelectionButton.setOnClickListener {
+            clearSelection()
+        }
+    }
+
+    private fun selectAllFiles() {
+        selectedFiles.clear()
+        selectedFiles.addAll(fileAdapter.files)
+        fileAdapter.notifyDataSetChanged()
+        updateSelectionButtons()
+    }
+
+    private fun updateSelectionButtons() {
+        val allSelected = selectedFiles.size == fileAdapter.files.size
+        selectAllButton.text = if (allSelected) "Отменить все" else "Выделить все"
+        clearSelectionButton.text = "Отменить (${selectedFiles.size})"
+    }
+
         progressBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
@@ -145,9 +200,71 @@ class FileManagerActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
+        createFolderButton.setOnClickListener {
+            showCreateFolderDialog { newDir ->
+                loadDirectoryContent(getCurrentDirectory())
+            }
+        }
+
+        swipeRefreshLayout.setOnRefreshListener {
+            loadDirectoryContent(getCurrentDirectory())
+        }
+    }
+
+    private fun setupRecyclerView() {
         val gridLayoutManager = GridLayoutManager(this, 4)
         recyclerView.layoutManager = gridLayoutManager
+        
+        recyclerView.setOnTouchListener { _, event ->
+            if (isSelectionMode) {
+                gestureDetector?.onTouchEvent(event)
+            }
+            false
+        }
+    }
 
+    private fun setupGestureDetector() {
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onScroll(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                distanceX: Float,
+                distanceY: Float
+            ): Boolean {
+                if (isSwipeSelectionActive && e2 != null) {
+                    val childView = recyclerView.findChildViewUnder(e2.x, e2.y)
+                    if (childView != null) {
+                        val position = recyclerView.getChildAdapterPosition(childView)
+                        if (position != RecyclerView.NO_POSITION && position != lastTouchedPosition) {
+                            val file = fileAdapter.files[position]
+                            toggleFileSelection(file)
+                            lastTouchedPosition = position
+                        }
+                    }
+                    return true
+                }
+                return false
+            }
+
+            override fun onLongPress(e: MotionEvent?) {
+                if (!isSelectionMode) {
+                    startSelectionMode()
+                }
+            }
+        })
+    }
+
+    private fun startSwipeSelection() {
+        isSwipeSelectionActive = true
+        lastTouchedPosition = -1
+    }
+
+    private fun stopSwipeSelection() {
+        isSwipeSelectionActive = false
+        lastTouchedPosition = -1
+    }
+
+    private fun setupDirectories() {
         appDirectory = File(filesDir, "InspectorAppFolder")
         if (!appDirectory.exists()) {
             try {
@@ -180,52 +297,6 @@ class FileManagerActivity : AppCompatActivity() {
                 Log.e("FileManager", "IOException creating directory: ${e.message}")
                 Toast.makeText(this, "Ошибка ввода/вывода при создании папки zip-файлов", Toast.LENGTH_SHORT).show()
             }
-        }
-
-        loadDirectoryContent(appDirectory)
-
-        createFolderButton.setOnClickListener {
-            showCreateFolderDialog { newDir ->
-                loadDirectoryContent(getCurrentDirectory())
-            }
-        }
-
-        swipeRefreshLayout.setOnRefreshListener {
-            loadDirectoryContent(getCurrentDirectory())
-        }
-
-        recyclerView.setOnTouchListener(null)
-
-        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onScroll(
-                e1: MotionEvent?,
-                e2: MotionEvent,
-                distanceX: Float,
-                distanceY: Float
-            ): Boolean {
-                if (isSelectionMode && e2 != null) {
-                    val childView = recyclerView.findChildViewUnder(e2.x, e2.y)
-                    if (childView != null) {
-                        val position = recyclerView.getChildAdapterPosition(childView)
-                        if (position != RecyclerView.NO_POSITION) {
-                            val file = fileAdapter.files[position]
-                            if (!selectedFiles.contains(file)) {
-                                selectedFiles.add(file)
-                                fileAdapter.notifyItemChanged(position)
-                            }
-                        }
-                    }
-                    return true
-                }
-                return false
-            }
-        })
-
-        recyclerView.setOnTouchListener { _, event ->
-            if (isSelectionMode) {
-                gestureDetector?.onTouchEvent(event)
-            }
-            false
         }
     }
 
@@ -383,11 +454,7 @@ class FileManagerActivity : AppCompatActivity() {
                             { file -> onItemClick(file) },
                             { file -> onItemLongClick(file) },
                             isSelectionMode,
-                            selectedFiles,
-                            onMoreOptionsClickListener = { file ->
-                                currentFileForMenu = file
-                                showBottomSheetMenu(file)
-                            }
+                            selectedFiles
                         )
                         recyclerView.adapter = fileAdapter
                         fileAdapter.setProgress(currentProgress)
@@ -428,6 +495,17 @@ class FileManagerActivity : AppCompatActivity() {
             startSelectionMode()
         }
         toggleFileSelection(file)
+        startSwipeSelection()
+    }
+
+    private fun startSwipeSelection() {
+        isSwipeSelectionActive = true
+        lastTouchedPosition = -1
+    }
+
+    private fun stopSwipeSelection() {
+        isSwipeSelectionActive = false
+        lastTouchedPosition = -1
     }
 
     private fun openImagePreview(imageFile: File) {
@@ -582,24 +660,72 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
+    // Новое контекстное меню
+    private fun showContextMenu(file: File) {
+        val dialog = BottomSheetDialog(this)
+        val view = layoutInflater.inflate(R.layout.context_menu_layout, null)
+        dialog.setContentView(view)
+
+        val moveItem = view.findViewById<TextView>(R.id.context_move)
+        val shareItem = view.findViewById<TextView>(R.id.context_share)
+        val deleteItem = view.findViewById<TextView>(R.id.context_delete)
+        val renameItem = view.findViewById<TextView>(R.id.context_rename)
+
+        moveItem.setOnClickListener {
+            dialog.dismiss()
+            showMoveDialogForFile(file)
+        }
+
+        shareItem.setOnClickListener {
+            dialog.dismiss()
+            shareFile(file)
+        }
+
+        deleteItem.setOnClickListener {
+            dialog.dismiss()
+            AlertDialog.Builder(this)
+                .setTitle("Удалить файл?")
+                .setMessage("Вы уверены, что хотите удалить файл ${file.name}?")
+                .setPositiveButton("Да") { _, _ ->
+                    deleteFile(file)
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
+        }
+
+        renameItem.setOnClickListener {
+            dialog.dismiss()
+            showRenameDialog(file)
+        }
+
+        dialog.show()
+    }
+
     private fun startSelectionMode() {
         isSelectionMode = true
-
         buttonContainer.visibility = View.VISIBLE
-
+        selectionToolbar.visibility = View.VISIBLE
+        
         shareButton.visibility = View.VISIBLE
         deleteButton.visibility = View.VISIBLE
         moveButton.visibility = View.VISIBLE
 
         swipeRefreshLayout.isEnabled = false
 
+        // Анимация появления
+        val slideIn = AnimationUtils.loadAnimation(this, android.R.anim.slide_in_left)
+        buttonContainer.startAnimation(slideIn)
+        selectionToolbar.startAnimation(slideIn)
+
         loadDirectoryContent(getCurrentDirectory())
     }
 
     private fun clearSelection() {
         isSelectionMode = false
+        stopSwipeSelection()
 
         buttonContainer.visibility = View.GONE
+        selectionToolbar.visibility = View.GONE
         shareButton.visibility = View.GONE
         deleteButton.visibility = View.GONE
         moveButton.visibility = View.GONE
@@ -607,7 +733,19 @@ class FileManagerActivity : AppCompatActivity() {
 
         swipeRefreshLayout.isEnabled = true
 
+        // Анимация исчезновения
+        val slideOut = AnimationUtils.loadAnimation(this, android.R.anim.slide_out_right)
+        buttonContainer.startAnimation(slideOut)
+        selectionToolbar.startAnimation(slideOut)
+
         loadDirectoryContent(getCurrentDirectory())
+    }
+
+    private fun selectAllFiles() {
+        selectedFiles.clear()
+        selectedFiles.addAll(fileAdapter.files)
+        fileAdapter.notifyDataSetChanged()
+        updateSelectionButtons()
     }
 
     private fun toggleFileSelection(file: File) {
@@ -620,9 +758,17 @@ class FileManagerActivity : AppCompatActivity() {
         if (position != -1) {
             fileAdapter.notifyItemChanged(position)
         }
+        updateSelectionButtons()
+        
         if (selectedFiles.isEmpty()) {
             clearSelection()
         }
+    }
+
+    private fun updateSelectionButtons() {
+        val allSelected = selectedFiles.size == fileAdapter.files.size
+        selectAllButton.text = if (allSelected) "Отменить все" else "Выделить все"
+        clearSelectionButton.text = "Отменить (${selectedFiles.size})"
     }
 
     private fun deleteSelectedFiles() {
@@ -669,6 +815,47 @@ class FileManagerActivity : AppCompatActivity() {
         } else {
             Toast.makeText(this, "Не выбраны файлы для удаления", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    // Новое контекстное меню
+    private fun showContextMenu(file: File) {
+        val dialog = BottomSheetDialog(this)
+        val view = layoutInflater.inflate(R.layout.context_menu_layout, null)
+        dialog.setContentView(view)
+
+        val moveItem = view.findViewById<TextView>(R.id.context_move)
+        val shareItem = view.findViewById<TextView>(R.id.context_share)
+        val deleteItem = view.findViewById<TextView>(R.id.context_delete)
+        val renameItem = view.findViewById<TextView>(R.id.context_rename)
+
+        moveItem.setOnClickListener {
+            dialog.dismiss()
+            showMoveDialogForFile(file)
+        }
+
+        shareItem.setOnClickListener {
+            dialog.dismiss()
+            shareFile(file)
+        }
+
+        deleteItem.setOnClickListener {
+            dialog.dismiss()
+            AlertDialog.Builder(this)
+                .setTitle("Удалить файл?")
+                .setMessage("Вы уверены, что хотите удалить файл ${file.name}?")
+                .setPositiveButton("Да") { _, _ ->
+                    deleteFile(file)
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
+        }
+
+        renameItem.setOnClickListener {
+            dialog.dismiss()
+            showRenameDialog(file)
+        }
+
+        dialog.show()
     }
 
     // ----- НОВЫЙ КОД: ВСПЛЫВАЮЩЕЕ МЕНЮ С ПЕРЕМЕЩЕНИЕМ -----
@@ -934,5 +1121,10 @@ class FileManagerActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         loadDirectoryContent(getCurrentDirectory())
+    }
+
+    override fun onTouchEvent(event: MotionEvent?): Boolean {
+        gestureDetector?.onTouchEvent(event)
+        return super.onTouchEvent(event)
     }
 }

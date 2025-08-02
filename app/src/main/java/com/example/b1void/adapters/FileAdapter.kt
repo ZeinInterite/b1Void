@@ -23,8 +23,7 @@ class FileAdapter(
     private val onItemClickListener: (File) -> Unit,
     private val onItemLongClickListener: (File) -> Unit,
     var isSelectionMode: Boolean = false,
-    var selectedFiles: Set<File> = emptySet(),
-    private val onMoreOptionsClickListener: (File) -> Unit
+    var selectedFiles: Set<File> = emptySet()
 ) : RecyclerView.Adapter<FileAdapter.FileViewHolder>() {
 
     private var currentProgress = 0
@@ -102,10 +101,16 @@ class FileAdapter(
 
         holder.fileName.setTextSize(TypedValue.COMPLEX_UNIT_PX, holder.originalTextSize * scaleFactor)
 
-        val moreOptionsButton = holder.itemView.findViewById<ImageButton>(R.id.more_option_button)
-        moreOptionsButton.visibility = View.VISIBLE
-        moreOptionsButton.setOnClickListener {
-            onMoreOptionsClickListener(file)
+        // Улучшенная визуализация выделения
+        if (isSelectionMode) {
+            holder.itemView.alpha = if (selectedFiles.contains(file)) 0.7f else 1.0f
+            holder.itemView.setBackgroundResource(
+                if (selectedFiles.contains(file)) R.drawable.selected_item_background 
+                else android.R.color.transparent
+            )
+        } else {
+            holder.itemView.alpha = 1.0f
+            holder.itemView.setBackgroundResource(android.R.color.transparent)
         }
     }
 
