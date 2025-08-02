@@ -1,4 +1,3 @@
-
 package com.example.b1void.activities
 
 import android.app.Activity
@@ -172,20 +171,6 @@ class FileManagerActivity : AppCompatActivity() {
         clearSelectionButton.setOnClickListener {
             clearSelection()
         }
-    }
-
-    private fun selectAllFiles() {
-        selectedFiles.clear()
-        selectedFiles.addAll(fileAdapter.files)
-        fileAdapter.notifyDataSetChanged()
-        updateSelectionButtons()
-    }
-
-    private fun updateSelectionButtons() {
-        val allSelected = selectedFiles.size == fileAdapter.files.size
-        selectAllButton.text = if (allSelected) "Отменить все" else "Выделить все"
-        clearSelectionButton.text = "Отменить (${selectedFiles.size})"
-    }
 
         progressBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -231,7 +216,7 @@ class FileManagerActivity : AppCompatActivity() {
                 distanceX: Float,
                 distanceY: Float
             ): Boolean {
-                if (isSwipeSelectionActive && e2 != null) {
+                if (isSwipeSelectionActive) {
                     val childView = recyclerView.findChildViewUnder(e2.x, e2.y)
                     if (childView != null) {
                         val position = recyclerView.getChildAdapterPosition(childView)
@@ -246,7 +231,7 @@ class FileManagerActivity : AppCompatActivity() {
                 return false
             }
 
-            override fun onLongPress(e: MotionEvent?) {
+            override fun onLongPress(e: MotionEvent) {
                 if (!isSelectionMode) {
                     startSelectionMode()
                 }
@@ -453,6 +438,7 @@ class FileManagerActivity : AppCompatActivity() {
                             this,
                             { file -> onItemClick(file) },
                             { file -> onItemLongClick(file) },
+                            { file -> toggleFileSelection(file) },
                             isSelectionMode,
                             selectedFiles
                         )
@@ -496,16 +482,6 @@ class FileManagerActivity : AppCompatActivity() {
         }
         toggleFileSelection(file)
         startSwipeSelection()
-    }
-
-    private fun startSwipeSelection() {
-        isSwipeSelectionActive = true
-        lastTouchedPosition = -1
-    }
-
-    private fun stopSwipeSelection() {
-        isSwipeSelectionActive = false
-        lastTouchedPosition = -1
     }
 
     private fun openImagePreview(imageFile: File) {
@@ -703,6 +679,7 @@ class FileManagerActivity : AppCompatActivity() {
 
     private fun startSelectionMode() {
         isSelectionMode = true
+        fileAdapter.isSelectionMode = true
         buttonContainer.visibility = View.VISIBLE
         selectionToolbar.visibility = View.VISIBLE
         
@@ -730,6 +707,8 @@ class FileManagerActivity : AppCompatActivity() {
         deleteButton.visibility = View.GONE
         moveButton.visibility = View.GONE
         selectedFiles.clear()
+        fileAdapter.selectedFiles = selectedFiles
+        fileAdapter.isSelectionMode = false
 
         swipeRefreshLayout.isEnabled = true
 
@@ -744,6 +723,7 @@ class FileManagerActivity : AppCompatActivity() {
     private fun selectAllFiles() {
         selectedFiles.clear()
         selectedFiles.addAll(fileAdapter.files)
+        fileAdapter.selectedFiles = selectedFiles
         fileAdapter.notifyDataSetChanged()
         updateSelectionButtons()
     }
@@ -754,6 +734,7 @@ class FileManagerActivity : AppCompatActivity() {
         } else {
             selectedFiles.add(file)
         }
+        fileAdapter.selectedFiles = selectedFiles
         val position = fileAdapter.files.indexOf(file)
         if (position != -1) {
             fileAdapter.notifyItemChanged(position)
@@ -815,89 +796,6 @@ class FileManagerActivity : AppCompatActivity() {
         } else {
             Toast.makeText(this, "Не выбраны файлы для удаления", Toast.LENGTH_SHORT).show()
         }
-    }
-
-    // Новое контекстное меню
-    private fun showContextMenu(file: File) {
-        val dialog = BottomSheetDialog(this)
-        val view = layoutInflater.inflate(R.layout.context_menu_layout, null)
-        dialog.setContentView(view)
-
-        val moveItem = view.findViewById<TextView>(R.id.context_move)
-        val shareItem = view.findViewById<TextView>(R.id.context_share)
-        val deleteItem = view.findViewById<TextView>(R.id.context_delete)
-        val renameItem = view.findViewById<TextView>(R.id.context_rename)
-
-        moveItem.setOnClickListener {
-            dialog.dismiss()
-            showMoveDialogForFile(file)
-        }
-
-        shareItem.setOnClickListener {
-            dialog.dismiss()
-            shareFile(file)
-        }
-
-        deleteItem.setOnClickListener {
-            dialog.dismiss()
-            AlertDialog.Builder(this)
-                .setTitle("Удалить файл?")
-                .setMessage("Вы уверены, что хотите удалить файл ${file.name}?")
-                .setPositiveButton("Да") { _, _ ->
-                    deleteFile(file)
-                }
-                .setNegativeButton("Отмена", null)
-                .show()
-        }
-
-        renameItem.setOnClickListener {
-            dialog.dismiss()
-            showRenameDialog(file)
-        }
-
-        dialog.show()
-    }
-
-    // ----- НОВЫЙ КОД: ВСПЛЫВАЮЩЕЕ МЕНЮ С ПЕРЕМЕЩЕНИЕМ -----
-
-    private fun showBottomSheetMenu(file: File) {
-        val dialog = BottomSheetDialog(this)
-        val view = layoutInflater.inflate(R.layout.bottom_sheet_menu, null)
-        dialog.setContentView(view)
-
-        val rename = view.findViewById<TextView>(R.id.menu_rename)
-        val delete = view.findViewById<TextView>(R.id.menu_delete)
-        val share = view.findViewById<TextView>(R.id.menu_share)
-        val move = view.findViewById<TextView>(R.id.menu_move)
-
-        rename.setOnClickListener {
-            dialog.dismiss()
-            showRenameDialog(file)
-        }
-
-        delete.setOnClickListener {
-            dialog.dismiss()
-            AlertDialog.Builder(this)
-                .setTitle("Удалить файл?")
-                .setMessage("Вы уверены, что хотите удалить файл ${file.name}?")
-                .setPositiveButton("Да") { _, _ ->
-                    deleteFile(file)
-                }
-                .setNegativeButton("Отмена", null)
-                .show()
-        }
-
-        share.setOnClickListener {
-            dialog.dismiss()
-            shareFile(file)
-        }
-
-        move.setOnClickListener {
-            dialog.dismiss()
-            showMoveDialogForFile(file)
-        }
-
-        dialog.show()
     }
 
     private fun shareSelectedFiles() {
@@ -1124,7 +1022,7 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
-        gestureDetector?.onTouchEvent(event)
+        event?.let { gestureDetector?.onTouchEvent(it) }
         return super.onTouchEvent(event)
     }
-}
+} 

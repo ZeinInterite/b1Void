@@ -15,19 +15,24 @@ import com.bumptech.glide.Glide
 import com.example.b1void.R
 import java.io.File
 import android.preference.PreferenceManager
-import android.widget.ImageButton
+import android.view.MotionEvent
+import android.view.GestureDetector
+import android.view.GestureDetector.SimpleOnGestureListener
 
 class FileAdapter(
     var files: List<File>,
     private val context: Context,
     private val onItemClickListener: (File) -> Unit,
     private val onItemLongClickListener: (File) -> Unit,
+    private val onSwipeSelectionListener: (File) -> Unit,
     var isSelectionMode: Boolean = false,
-    var selectedFiles: Set<File> = emptySet()
+    var selectedFiles: MutableSet<File> = mutableSetOf()
 ) : RecyclerView.Adapter<FileAdapter.FileViewHolder>() {
 
     private var currentProgress = 0
     private val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+    private var isSwipeSelectionActive = false
+    private var lastTouchedPosition = -1
 
     companion object {
         private const val PREF_SCALE_FACTOR = "scale_factor"
@@ -38,6 +43,16 @@ class FileAdapter(
         val scaleFactor = 0.5f + (currentProgress / 100f) * 0.5f
         sharedPreferences.edit().putFloat(PREF_SCALE_FACTOR, scaleFactor).apply()
         notifyDataSetChanged()
+    }
+
+    fun startSwipeSelection() {
+        isSwipeSelectionActive = true
+        lastTouchedPosition = -1
+    }
+
+    fun stopSwipeSelection() {
+        isSwipeSelectionActive = false
+        lastTouchedPosition = -1
     }
 
     class FileViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -79,12 +94,19 @@ class FileAdapter(
         holder.checkBox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
         holder.checkBox.isChecked = selectedFiles.contains(file)
 
-        holder.itemView.setOnClickListener { onItemClickListener(file) }
-        holder.itemView.setOnLongClickListener {
-            onItemLongClickListener(file)
-            true
+        // Улучшенная визуализация выделения
+        if (isSelectionMode) {
+            holder.itemView.alpha = if (selectedFiles.contains(file)) 0.7f else 1.0f
+            holder.itemView.setBackgroundResource(
+                if (selectedFiles.contains(file)) R.drawable.selected_item_background 
+                else android.R.color.transparent
+            )
+        } else {
+            holder.itemView.alpha = 1.0f
+            holder.itemView.setBackgroundResource(android.R.color.transparent)
         }
 
+        // Настройка размеров
         if (!holder.isOriginalSizeSaved) {
             holder.originalImageWidth = holder.fileIcon.layoutParams.width
             holder.originalImageHeight = holder.fileIcon.layoutParams.height
@@ -101,16 +123,41 @@ class FileAdapter(
 
         holder.fileName.setTextSize(TypedValue.COMPLEX_UNIT_PX, holder.originalTextSize * scaleFactor)
 
-        // Улучшенная визуализация выделения
-        if (isSelectionMode) {
-            holder.itemView.alpha = if (selectedFiles.contains(file)) 0.7f else 1.0f
-            holder.itemView.setBackgroundResource(
-                if (selectedFiles.contains(file)) R.drawable.selected_item_background 
-                else android.R.color.transparent
-            )
-        } else {
-            holder.itemView.alpha = 1.0f
-            holder.itemView.setBackgroundResource(android.R.color.transparent)
+        // Настройка обработчиков событий
+        setupTouchHandlers(holder, file, position)
+    }
+
+    private fun setupTouchHandlers(holder: FileViewHolder, file: File, position: Int) {
+        val gestureDetector = GestureDetector(context, object : SimpleOnGestureListener() {
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                onItemClickListener(file)
+                return true
+            }
+
+            override fun onLongPress(e: MotionEvent) {
+                onItemLongClickListener(file)
+            }
+
+            override fun onScroll(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                distanceX: Float,
+                distanceY: Float
+            ): Boolean {
+                if (isSwipeSelectionActive) {
+                    if (position != lastTouchedPosition) {
+                        onSwipeSelectionListener(file)
+                        lastTouchedPosition = position
+                    }
+                    return true
+                }
+                return false
+            }
+        })
+
+        holder.itemView.setOnTouchListener { _, event ->
+            gestureDetector.onTouchEvent(event)
+            true
         }
     }
 
