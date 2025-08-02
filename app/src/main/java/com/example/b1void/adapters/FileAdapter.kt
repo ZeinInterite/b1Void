@@ -91,20 +91,8 @@ class FileAdapter(
             holder.fileName.text = ""
         }
 
-        holder.checkBox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
-        holder.checkBox.isChecked = selectedFiles.contains(file)
-
-        // Улучшенная визуализация выделения
-        if (isSelectionMode) {
-            holder.itemView.alpha = if (selectedFiles.contains(file)) 0.7f else 1.0f
-            holder.itemView.setBackgroundResource(
-                if (selectedFiles.contains(file)) R.drawable.selected_item_background 
-                else android.R.color.transparent
-            )
-        } else {
-            holder.itemView.alpha = 1.0f
-            holder.itemView.setBackgroundResource(android.R.color.transparent)
-        }
+        // Исправление бага с индикаторами выделения
+        updateSelectionState(holder, file)
 
         // Настройка размеров
         if (!holder.isOriginalSizeSaved) {
@@ -125,6 +113,26 @@ class FileAdapter(
 
         // Настройка обработчиков событий
         setupTouchHandlers(holder, file, position)
+    }
+
+    private fun updateSelectionState(holder: FileViewHolder, file: File) {
+        // Обновляем видимость чекбокса
+        holder.checkBox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
+        
+        // Обновляем состояние чекбокса
+        holder.checkBox.isChecked = selectedFiles.contains(file)
+        
+        // Обновляем визуальное состояние элемента
+        if (isSelectionMode) {
+            holder.itemView.alpha = if (selectedFiles.contains(file)) 0.7f else 1.0f
+            holder.itemView.setBackgroundResource(
+                if (selectedFiles.contains(file)) R.drawable.selected_item_background 
+                else android.R.color.transparent
+            )
+        } else {
+            holder.itemView.alpha = 1.0f
+            holder.itemView.setBackgroundResource(android.R.color.transparent)
+        }
     }
 
     private fun setupTouchHandlers(holder: FileViewHolder, file: File, position: Int) {

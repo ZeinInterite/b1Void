@@ -44,6 +44,17 @@
                 android:contentDescription="Изменить порядок сортировки"
                 android:layout_margin="10dp"
                 app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintEnd_toStartOf="@id/size_button"/>
+
+            <ImageButton
+                android:id="@+id/size_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_palette"
+                android:background="?android:attr/selectableItemBackground"
+                android:contentDescription="Изменить размер превью"
+                android:layout_margin="10dp"
+                app:layout_constraintTop_toTopOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"/>
 
 
@@ -97,7 +108,37 @@
             android:orientation="horizontal"
             android:gravity="center"
             android:visibility="gone"
-            android:padding="8dp"
+            android:padding="8dp">
+
+            <Button
+                android:id="@+id/select_all_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/rounded_background"
+                android:backgroundTint="@null"
+                android:text="Выделить все"
+                android:textSize="14sp"
+                android:layout_marginEnd="8dp"/>
+
+            <Button
+                android:id="@+id/clear_selection_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/rounded_background"
+                android:backgroundTint="@null"
+                android:text="Отменить (0)"
+                android:textSize="14sp"/>
+
+        </LinearLayout>
+
+        <!-- Динамический ползунок для размера фотографий -->
+        <include
+            android:id="@+id/dynamic_seekbar_wrapper"
+            layout="@layout/dynamic_seekbar_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:visibility="gone"
             android:background="@drawable/rounded_background">
 
             <Button
