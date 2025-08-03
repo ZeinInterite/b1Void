@@ -448,6 +448,8 @@ class FileManagerActivity : AppCompatActivity() {
                         fileAdapter.isSelectionMode = isSelectionMode
                         fileAdapter.selectedFiles = selectedFiles
                         fileAdapter.updateFiles(sortedFilesAndDirs)
+                        // Принудительно обновляем все элементы для корректного отображения состояния выделения
+                        fileAdapter.notifyDataSetChanged()
                     }
                     titleTextView.text = if (directory.name != appDirectory.name) directory.name else "DOCUMENT LLC"
                 }
@@ -694,6 +696,9 @@ class FileManagerActivity : AppCompatActivity() {
         buttonContainer.startAnimation(slideIn)
         selectionToolbar.startAnimation(slideIn)
 
+        // Принудительно обновляем все элементы для корректного отображения состояния выделения
+        fileAdapter.notifyDataSetChanged()
+        
         loadDirectoryContent(getCurrentDirectory())
     }
 
@@ -709,6 +714,9 @@ class FileManagerActivity : AppCompatActivity() {
         selectedFiles.clear()
         fileAdapter.selectedFiles = selectedFiles
         fileAdapter.isSelectionMode = false
+
+        // Принудительно обновляем все элементы для корректного отображения состояния выделения
+        fileAdapter.notifyDataSetChanged()
 
         swipeRefreshLayout.isEnabled = true
 

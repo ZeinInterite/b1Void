@@ -28,6 +28,9 @@ class SelectionManager(
         isSelectionMode = true
         fileAdapter.isSelectionMode = true
         
+        // Принудительно обновляем все элементы для корректного отображения состояния выделения
+        fileAdapter.notifyDataSetChanged()
+        
         showSelectionUI()
         enableSelectionMode()
         
@@ -42,6 +45,9 @@ class SelectionManager(
         selectedFiles.clear()
         fileAdapter.selectedFiles = selectedFiles
         fileAdapter.isSelectionMode = false
+        
+        // Принудительно обновляем все элементы для корректного отображения состояния выделения
+        fileAdapter.notifyDataSetChanged()
         
         hideSelectionUI()
         disableSelectionMode()
