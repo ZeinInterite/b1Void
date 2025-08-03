@@ -139,30 +139,9 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:visibility="gone"
-            android:background="@drawable/rounded_background">
+            android:background="@drawable/rounded_background" />
 
-            <Button
-                android:id="@+id/select_all_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/rounded_background"
-                android:backgroundTint="@null"
-                android:text="Выделить все"
-                android:textSize="14sp"
-                android:layout_marginEnd="8dp"
-                android:textColor="#FFFFFF" />
 
-            <Button
-                android:id="@+id/clear_selection_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/rounded_background"
-                android:backgroundTint="@null"
-                android:text="Отменить"
-                android:textSize="14sp"
-                android:textColor="#FFFFFF" />
-
-        </LinearLayout>
 
     </com.google.android.material.appbar.AppBarLayout>
 
