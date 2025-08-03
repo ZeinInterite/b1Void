@@ -7,9 +7,7 @@
     <FrameLayout
         android:id="@+id/camera_container"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_above="@+id/cam_ic"
-        android:layout_below="@+id/top_bar">
+        android:layout_height="match_parent">
 
         <com.otaliastudios.cameraview.CameraView
             android:id="@+id/camera"
@@ -26,7 +24,8 @@
         android:layout_margin="16dp"
         android:hint="Введите текст штампа"
         android:imeOptions="actionDone"
-        android:layout_below="@+id/top_bar"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="60dp"
         android:inputType="text"
         android:maxLines="1"
         android:visibility="gone"
@@ -44,19 +43,17 @@
         android:id="@+id/stamp_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@+id/top_bar"
-        android:layout_above="@+id/cam_ic"
         android:visibility="visible"/>
 
     <LinearLayout
         android:id="@+id/stamp_controls_layout"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/top_bar"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="120dp"
         android:orientation="horizontal"
         android:visibility="gone"
-        android:layout_centerHorizontal="true"
-        android:layout_marginBottom="16dp">
+        android:layout_centerHorizontal="true">
 
         <ImageButton
             android:id="@+id/stamp_color_button"
@@ -83,7 +80,8 @@
         android:background="#80000000"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:padding="8dp">
+        android:padding="8dp"
+        android:elevation="10dp">
 
         <TextView
             android:id="@+id/time_text_view"
@@ -130,13 +128,15 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="Flash"
         android:src="@drawable/flash_off"
+        android:elevation="10dp"
         app:tint="@android:color/white" />
 
     <LinearLayout
         android:id="@+id/exposure_controls_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@id/top_bar"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="60dp"
         android:background="#80000000"
         android:orientation="vertical"
         android:padding="8dp"
@@ -163,8 +163,6 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
-        android:layout_below="@+id/top_bar"
-        android:layout_above="@+id/cam_ic"
         android:orientation="vertical">
 
         <TextView
@@ -197,7 +195,8 @@
         android:id="@+id/settings_controls_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_above="@+id/cam_ic"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="80dp"
         android:background="#80000000"
         android:orientation="vertical"
         android:padding="8dp"
@@ -290,7 +289,8 @@
         android:layout_alignParentEnd="true"
         android:background="#80000000"
         android:gravity="center"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:elevation="10dp">
 
         <ImageButton
             android:id="@+id/video_capture"

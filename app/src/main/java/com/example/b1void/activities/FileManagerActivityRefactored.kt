@@ -37,7 +37,7 @@ class FileManagerActivityRefactored : AppCompatActivity() {
     private lateinit var captureButton: Button
     private lateinit var uploadButton: View
     private lateinit var sortButton: ImageButton
-    private lateinit var sizeButton: ImageButton
+    // private lateinit var sizeButton: ImageButton
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var titleTextView: TextView
     private lateinit var buttonContainer: LinearLayout
@@ -85,7 +85,7 @@ class FileManagerActivityRefactored : AppCompatActivity() {
         captureButton = findViewById(R.id.capture_button)
         uploadButton = findViewById(R.id.upload_button)
         sortButton = findViewById(R.id.sort_button)
-        sizeButton = findViewById(R.id.size_button)
+        // sizeButton = findViewById(R.id.size_button)
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout)
         titleTextView = findViewById(R.id.titleTextView)
         buttonContainer = findViewById(R.id.button_container)
@@ -148,7 +148,7 @@ class FileManagerActivityRefactored : AppCompatActivity() {
         captureButton.setOnClickListener { startCameraActivity() }
         uploadButton.setOnClickListener { selectFile() }
         sortButton.setOnClickListener { toggleSortOrder() }
-        sizeButton.setOnClickListener { showSizeSelectionDialog() }
+        // sizeButton.setOnClickListener { showSizeSelectionDialog() }
         
         shareButton.setOnClickListener { shareSelectedFiles() }
         deleteButton.setOnClickListener { deleteSelectedFiles() }
@@ -260,7 +260,79 @@ class FileManagerActivityRefactored : AppCompatActivity() {
     }
 
     private fun moveSelectedFiles() {
-        // Реализация перемещения файлов
+        val selectedFiles = selectionManager.getSelectedFiles()
+        if (selectedFiles.isEmpty()) {
+            Toast.makeText(this, "Не выбраны файлы для перемещения", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val currentDir = appDirectory
+        val appRootDirectory = File(getExternalFilesDir(null), "B1Void")
+        
+        // Проверяем, что родительская папка находится в пределах приложения
+        val parentDir = if (currentDir.parentFile != null && 
+                           currentDir.parentFile.absolutePath.startsWith(appRootDirectory.absolutePath)) {
+            currentDir.parentFile
+        } else {
+            null
+        }
+
+        val directories = currentDir.listFiles { f -> f.isDirectory }?.toMutableList() ?: mutableListOf()
+
+        val directoryNames = mutableListOf<String>()
+        if (parentDir != null) {
+            directoryNames.add(".. (переместить на уровень выше)")
+        }
+        directoryNames.addAll(directories.map { it.name })
+
+        AlertDialog.Builder(this)
+            .setTitle("Выберите папку назначения")
+            .setItems(directoryNames.toTypedArray()) { _, which ->
+                val destinationDirectory: File? = if (parentDir != null && which == 0) {
+                    parentDir
+                } else {
+                    val index = if (parentDir != null) which - 1 else which
+                    directories.getOrNull(index)
+                }
+
+                if (destinationDirectory == null) {
+                    Toast.makeText(this, "Неверная папка назначения", Toast.LENGTH_SHORT).show()
+                    return@setItems
+                }
+
+                // Перемещаем файлы
+                thread {
+                    var errorOccurred = false
+                    selectedFiles.forEach { file ->
+                        val newFile = File(destinationDirectory, file.name)
+                        try {
+                            if (!file.renameTo(newFile)) {
+                                errorOccurred = true
+                                runOnUiThread {
+                                    Toast.makeText(this@FileManagerActivityRefactored, 
+                                        "Ошибка при перемещении файла ${file.name}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            errorOccurred = true
+                            runOnUiThread {
+                                Toast.makeText(this@FileManagerActivityRefactored, 
+                                    "Ошибка при перемещении файла ${file.name}: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+
+                    runOnUiThread {
+                        if (!errorOccurred) {
+                            Toast.makeText(this@FileManagerActivityRefactored, "Файлы перемещены", Toast.LENGTH_SHORT).show()
+                        }
+                        selectionManager.clearSelection()
+                        loadDirectoryContent(appDirectory)
+                    }
+                }
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
     }
 
     private fun refreshContent() {

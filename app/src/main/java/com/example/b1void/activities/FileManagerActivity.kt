@@ -972,7 +972,15 @@ class FileManagerActivity : AppCompatActivity() {
         }
 
         val currentDir = getCurrentDirectory()
-        val parentDir = currentDir.parentFile
+        val appDirectory = File(getExternalFilesDir(null), "B1Void")
+        
+        // Проверяем, что родительская папка находится в пределах приложения
+        val parentDir = if (currentDir.parentFile != null && 
+                           currentDir.parentFile.absolutePath.startsWith(appDirectory.absolutePath)) {
+            currentDir.parentFile
+        } else {
+            null
+        }
 
         val directories = currentDir.listFiles { f -> f.isDirectory }?.toMutableList() ?: mutableListOf()
 
