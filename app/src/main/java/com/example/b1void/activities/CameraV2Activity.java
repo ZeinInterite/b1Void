@@ -164,6 +164,18 @@ public class CameraV2Activity extends AppCompatActivity {
         updateLastImagePreview(); // Обновляем превью последней фотки
         setupExposureControls(); // Настраиваем ползунок экспозиции
 
+        // Восстанавливаем состояние при повороте экрана
+        if (savedInstanceState != null) {
+            isRecordingVideo = savedInstanceState.getBoolean("is_recording_video", false);
+            isStampModeActive = savedInstanceState.getBoolean("is_stamp_mode_active", false);
+            isStampLocked = savedInstanceState.getBoolean("is_stamp_locked", false);
+            currentStampText = savedInstanceState.getString("current_stamp_text", "");
+            currentStampColor = savedInstanceState.getInt("current_stamp_color", Color.RED);
+            stampScaleFactor = savedInstanceState.getFloat("stamp_scale_factor", 1f);
+            isExposureControlsVisible = savedInstanceState.getBoolean("is_exposure_controls_visible", false);
+            isSettingsControlsVisible = savedInstanceState.getBoolean("is_settings_controls_visible", false);
+        }
+
         stampSizeProgressBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -1263,5 +1275,43 @@ public class CameraV2Activity extends AppCompatActivity {
     // Обновляем иконку кнопки записи видео (пауза/стоп)
     private void updateVideoCaptureButtonIcon() {
         videoCaptureButton.setImageResource(isRecordingVideo ? R.drawable.ic_stop_video : R.drawable.ic_videocam);
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        
+        // Сохраняем состояние камеры
+        outState.putBoolean("is_recording_video", isRecordingVideo);
+        outState.putBoolean("is_stamp_mode_active", isStampModeActive);
+        outState.putBoolean("is_stamp_locked", isStampLocked);
+        outState.putString("current_stamp_text", currentStampText);
+        outState.putInt("current_stamp_color", currentStampColor);
+        outState.putFloat("stamp_scale_factor", stampScaleFactor);
+        outState.putBoolean("is_exposure_controls_visible", isExposureControlsVisible);
+        outState.putBoolean("is_settings_controls_visible", isSettingsControlsVisible);
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        
+        // Обновляем размер CameraView при изменении ориентации
+        if (cameraView != null && supportedResolutions != null && !supportedResolutions.isEmpty()) {
+            // Получаем текущее выбранное разрешение
+            int currentWidth = sharedPreferences.getInt(KEY_RESOLUTION_WIDTH, 1920);
+            int currentHeight = sharedPreferences.getInt(KEY_RESOLUTION_HEIGHT, 1080);
+            
+            // Обновляем размер CameraView
+            updateCameraViewSize(currentWidth, currentHeight);
+        }
+        
+        // Обновляем размеры штампа при изменении ориентации
+        if (currentStampView != null) {
+            // Пересоздаем штамп с текущими настройками
+            if (!currentStampText.isEmpty()) {
+                createStamp(currentStampText);
+            }
+        }
     }
 }

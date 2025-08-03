@@ -95,7 +95,34 @@ class FileManagerActivity : AppCompatActivity() {
         setupRecyclerView()
         setupGestureDetector()
         setupDirectories()
-        loadDirectoryContent(appDirectory)
+        
+        // Восстанавливаем состояние при повороте экрана
+        if (savedInstanceState != null) {
+            val savedDirectoryStack = savedInstanceState.getStringArrayList("directory_stack")
+            if (savedDirectoryStack != null) {
+                directoryStack.clear()
+                savedDirectoryStack.forEach { path ->
+                    val file = File(path)
+                    if (file.exists()) {
+                        directoryStack.add(file)
+                    }
+                }
+            }
+            
+            isSelectionMode = savedInstanceState.getBoolean("is_selection_mode", false)
+            val savedSelectedFiles = savedInstanceState.getStringArrayList("selected_files")
+            if (savedSelectedFiles != null) {
+                selectedFiles.clear()
+                savedSelectedFiles.forEach { path ->
+                    val file = File(path)
+                    if (file.exists()) {
+                        selectedFiles.add(file)
+                    }
+                }
+            }
+        }
+        
+        loadDirectoryContent(getCurrentDirectory())
     }
 
     private fun initializeViews() {
@@ -1027,6 +1054,35 @@ class FileManagerActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         loadDirectoryContent(getCurrentDirectory())
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        
+        // Сохраняем стек директорий
+        val directoryPaths = directoryStack.map { it.absolutePath }
+        outState.putStringArrayList("directory_stack", ArrayList(directoryPaths))
+        
+        // Сохраняем состояние выделения
+        outState.putBoolean("is_selection_mode", isSelectionMode)
+        val selectedFilePaths = selectedFiles.map { it.absolutePath }
+        outState.putStringArrayList("selected_files", ArrayList(selectedFilePaths))
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        
+        // Обновляем количество колонок при изменении ориентации
+        if (::recyclerView.isInitialized && ::progressBar.isInitialized) {
+            val currentProgress = progressBar.progress
+            val noOfColumns = calculateNoOfColumns(currentProgress)
+            (recyclerView.layoutManager as GridLayoutManager).spanCount = noOfColumns
+            
+            // Обновляем адаптер для корректного отображения
+            if (::fileAdapter.isInitialized) {
+                fileAdapter.notifyDataSetChanged()
+            }
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
