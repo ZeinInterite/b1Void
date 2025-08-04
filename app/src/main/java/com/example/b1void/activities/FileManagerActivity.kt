@@ -478,7 +478,11 @@ class FileManagerActivity : AppCompatActivity() {
                         // Принудительно обновляем все элементы для корректного отображения состояния выделения
                         fileAdapter.notifyDataSetChanged()
                     }
-                    titleTextView.text = if (directory.name != appDirectory.name) directory.name else "DOCUMENT LLC"
+                    if (directory == appDirectory) {
+                        titleTextView.text = "Основная директория"
+                    } else {
+                        titleTextView.text = directory.name
+                    }
                 }
             } else {
                 runOnUiThread {

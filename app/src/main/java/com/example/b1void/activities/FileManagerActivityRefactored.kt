@@ -37,7 +37,6 @@ class FileManagerActivityRefactored : AppCompatActivity() {
     private lateinit var captureButton: Button
     private lateinit var uploadButton: View
     private lateinit var sortButton: ImageButton
-    private lateinit var sizeButton: ImageButton
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var titleTextView: TextView
     private lateinit var buttonContainer: LinearLayout
@@ -85,7 +84,6 @@ class FileManagerActivityRefactored : AppCompatActivity() {
         captureButton = findViewById(R.id.capture_button)
         uploadButton = findViewById(R.id.upload_button)
         sortButton = findViewById(R.id.sort_button)
-        sizeButton = findViewById(R.id.size_button)
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout)
         titleTextView = findViewById(R.id.titleTextView)
         buttonContainer = findViewById(R.id.button_container)
@@ -148,7 +146,6 @@ class FileManagerActivityRefactored : AppCompatActivity() {
         captureButton.setOnClickListener { startCameraActivity() }
         uploadButton.setOnClickListener { selectFile() }
         sortButton.setOnClickListener { toggleSortOrder() }
-        sizeButton.setOnClickListener { showSizeSelectionDialog() }
         
         shareButton.setOnClickListener { shareSelectedFiles() }
         deleteButton.setOnClickListener { deleteSelectedFiles() }
@@ -180,7 +177,11 @@ class FileManagerActivityRefactored : AppCompatActivity() {
     private fun loadDirectoryContent(directory: File) {
         val files = directory.listFiles()?.filter { it.isFile || it.isDirectory }?.sortedBy { it.name } ?: emptyList()
         fileAdapter.updateFiles(files)
-        titleTextView.text = directory.name
+        if (directory == appDirectory) {
+            titleTextView.text = "Основная директория"
+        } else {
+            titleTextView.text = directory.name
+        }
     }
 
     private fun onItemClick(file: File) {
