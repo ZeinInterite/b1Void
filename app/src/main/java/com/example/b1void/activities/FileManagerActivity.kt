@@ -921,7 +921,7 @@ class FileManagerActivity : AppCompatActivity() {
         val directories = currentDir.listFiles { f -> f.isDirectory }?.toMutableList() ?: mutableListOf()
 
         val directoryNames = mutableListOf<String>()
-        if (parentDir != null) {
+        if (parentDir != null && currentDir.absolutePath != appDirectory.absolutePath) {
             directoryNames.add(".. (переместить на уровень выше)")
         }
         directoryNames.addAll(directories.map { it.name })
@@ -929,10 +929,10 @@ class FileManagerActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Выберите папку назначения")
             .setItems(directoryNames.toTypedArray()) { _, which ->
-                val destinationDirectory: File? = if (parentDir != null && which == 0) {
+                val destinationDirectory: File? = if (parentDir != null && currentDir.absolutePath != appDirectory.absolutePath && which == 0) {
                     parentDir
                 } else {
-                    val index = if (parentDir != null) which - 1 else which
+                    val index = if (parentDir != null && currentDir.absolutePath != appDirectory.absolutePath) which - 1 else which
                     directories.getOrNull(index)
                 }
 
@@ -981,7 +981,7 @@ class FileManagerActivity : AppCompatActivity() {
         val directories = currentDir.listFiles { f -> f.isDirectory }?.toMutableList() ?: mutableListOf()
 
         val directoryNames = mutableListOf<String>()
-        if (parentDir != null) {
+        if (parentDir != null && currentDir.absolutePath != appDirectory.absolutePath) {
             directoryNames.add(".. (переместить на уровень выше)")
         }
         directoryNames.addAll(directories.map { it.name })
@@ -989,10 +989,10 @@ class FileManagerActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Выберите папку назначения")
             .setItems(directoryNames.toTypedArray()) { _, which ->
-                val destinationDirectory: File? = if (parentDir != null && which == 0) {
+                val destinationDirectory: File? = if (parentDir != null && currentDir.absolutePath != appDirectory.absolutePath && which == 0) {
                     parentDir
                 } else {
-                    val index = if (parentDir != null) which - 1 else which
+                    val index = if (parentDir != null && currentDir.absolutePath != appDirectory.absolutePath) which - 1 else which
                     directories.getOrNull(index)
                 }
 
