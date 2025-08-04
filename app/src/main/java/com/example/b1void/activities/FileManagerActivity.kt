@@ -146,13 +146,20 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     private fun setupPreferences() {
-        currentProgress = sharedPreferences.getInt(PREF_SEEK_BAR_PROGRESS, 0)
+        currentProgress = sharedPreferences.getInt(PREF_SEEK_BAR_PROGRESS, 75)
         progressBar.progress = currentProgress
     }
 
     private fun setupButtons() {
         val sortButton: ImageButton = findViewById(R.id.sort_button)
         val uploadButton = findViewById<View>(R.id.upload_button)
+
+        val sizeButton: ImageButton = findViewById(R.id.size_button)
+        val seekBarWrapper: View = findViewById(R.id.seekbar_wrapper)
+
+        sizeButton.setOnClickListener {
+            seekBarWrapper.visibility = if (seekBarWrapper.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        }
 
         sortButton.setOnClickListener {
             toggleSortOrder()
@@ -470,7 +477,7 @@ class FileManagerActivity : AppCompatActivity() {
                             selectedFiles
                         )
                         recyclerView.adapter = fileAdapter
-                        fileAdapter.setProgress(currentProgress)
+                        updateProgress(currentProgress)
                     } else {
                         fileAdapter.isSelectionMode = isSelectionMode
                         fileAdapter.selectedFiles = selectedFiles
