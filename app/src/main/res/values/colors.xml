@@ -10,5 +10,7 @@
     <color name="colorPrimary">#768ED1</color>
     <color name="colorPrimaryDark">#5A595B</color>
     <color name="colorAccent">#FF0038</color>
+    <color name="delete_red">#FF4C4C</color>
+    <color name="selection_toolbar_background">#3F51B5</color>
 
 </resources>

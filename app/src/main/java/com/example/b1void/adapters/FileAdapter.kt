@@ -26,7 +26,6 @@ class FileAdapter(
     private val context: Context,
     private val onItemClickListener: (File) -> Unit,
     private val onShowContextMenu: (File, View) -> Unit,
-    private val onSwipeSelectionListener: (File) -> Unit,
     var isSelectionMode: Boolean = false,
     var selectedFiles: MutableSet<File> = mutableSetOf()
 ) : RecyclerView.Adapter<FileAdapter.FileViewHolder>() {

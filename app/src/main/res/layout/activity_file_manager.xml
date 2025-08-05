@@ -69,73 +69,41 @@
         </androidx.constraintlayout.widget.ConstraintLayout>
 
         <LinearLayout
-            android:id="@+id/button_container"
+            android:id="@+id/selection_top_toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center"
+            android:gravity="center_vertical"
             android:visibility="gone"
-            android:padding="8dp">
+            android:padding="8dp"
+            android:background="@color/selection_toolbar_background">
+
+            <TextView
+                android:id="@+id/selection_count_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@android:color/white"
+                android:textSize="18sp"
+                android:text="Выбрано: 0"/>
 
             <Button
-                android:id="@+id/share_button"
+                android:id="@+id/select_all_toggle_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="@drawable/rounded_background"
-                android:backgroundTint="@null"
-                android:text=" 📤 "
-                android:textSize="20sp"
+                android:text="Все"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:textColor="@android:color/white"
                 android:layout_marginEnd="8dp"/>
 
             <Button
-                android:id="@+id/delete_button"
+                android:id="@+id/confirm_selection_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="@drawable/rounded_background"
-                android:backgroundTint="@null"
-                android:text=" 🗑 "
-                android:textSize="20sp"
-                android:layout_marginEnd="8dp"
-                android:textColor="#FFFFFF" />
-
-            <Button
-                android:id="@+id/move_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/rounded_background"
-                android:backgroundTint="@null"
-                android:textSize="20sp"
-                android:text=" 🗄️" />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/selection_toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:visibility="gone"
-            android:padding="8dp">
-
-            <Button
-                android:id="@+id/select_all_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/rounded_background"
-                android:backgroundTint="@null"
-                android:text="Выбрать все"
-                android:textSize="14sp"
-                android:layout_marginEnd="8dp"/>
-
-            <Button
-                android:id="@+id/clear_selection_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/rounded_background"
-                android:backgroundTint="@null"
-                android:text="Отменить (0)"
-                android:textSize="14sp"/>
+                android:text="Подтвердить"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:textColor="@android:color/white"
+                android:enabled="false"/>
 
         </LinearLayout>
 
