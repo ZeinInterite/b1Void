@@ -1,8 +1,6 @@
 package com.example.b1void.adapters
 
 import android.content.Context
-import android.content.SharedPreferences
-import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -14,12 +12,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.b1void.R
 import java.io.File
-import android.preference.PreferenceManager
-import android.view.MotionEvent
-import android.view.GestureDetector
-import android.view.GestureDetector.SimpleOnGestureListener
-
-import android.widget.PopupMenu
 
 class FileAdapter(
     var files: List<File>,
@@ -30,29 +22,10 @@ class FileAdapter(
     var selectedFiles: MutableSet<File> = mutableSetOf()
 ) : RecyclerView.Adapter<FileAdapter.FileViewHolder>() {
 
-    private var currentProgress = 0
-    private val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
-
-    companion object {
-        private const val PREF_SCALE_FACTOR = "scale_factor"
-    }
-
-    fun setProgress(progress: Int) {
-        currentProgress = progress
-        val scaleFactor = 0.5f + (currentProgress / 100f) * 0.5f
-        sharedPreferences.edit().putFloat(PREF_SCALE_FACTOR, scaleFactor).apply()
-        notifyDataSetChanged()
-    }
-
     class FileViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val fileName: TextView = itemView.findViewById(R.id.file_name)
         val fileIcon: ImageView = itemView.findViewById(R.id.file_icon)
         val checkBox: CheckBox = itemView.findViewById(R.id.checkbox)
-
-        var originalImageWidth: Int = 85
-        var originalImageHeight: Int = 85
-        var originalTextSize: Float = 0f
-        var isOriginalSizeSaved = false
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FileViewHolder {
@@ -63,42 +36,32 @@ class FileAdapter(
     override fun onBindViewHolder(holder: FileViewHolder, position: Int) {
         val file = files[position]
 
+        // Make image view square
+        holder.fileIcon.post {
+            val layoutParams = holder.fileIcon.layoutParams
+            layoutParams.height = holder.fileIcon.width
+            holder.fileIcon.layoutParams = layoutParams
+        }
+
         if (file.isDirectory) {
             holder.fileIcon.setImageResource(R.drawable.ic_folder)
             holder.fileName.text = file.name
+            holder.fileName.visibility = View.VISIBLE
         } else if (isImage(file)) {
             Glide.with(context)
                 .load(file)
-                .override(95, 95)
                 .centerCrop()
                 .placeholder(R.drawable.image_ic)
                 .error(R.drawable.image_ic)
                 .into(holder.fileIcon)
-            holder.fileName.text = ""
+            holder.fileName.visibility = View.GONE
         } else {
             holder.fileIcon.setImageResource(R.drawable.file_ic)
-            holder.fileName.text = ""
+            holder.fileName.text = file.name
+            holder.fileName.visibility = View.VISIBLE
         }
 
-        // Исправление бага с индикаторами выделения
         updateSelectionState(holder, file)
-
-        // Настройка размеров
-        if (!holder.isOriginalSizeSaved) {
-            holder.originalImageWidth = holder.fileIcon.layoutParams.width
-            holder.originalImageHeight = holder.fileIcon.layoutParams.height
-            holder.originalTextSize = holder.fileName.textSize
-            holder.isOriginalSizeSaved = true
-        }
-
-        val scaleFactor = sharedPreferences.getFloat(PREF_SCALE_FACTOR, 0.75f)
-
-        val imageParams = holder.fileIcon.layoutParams
-        imageParams.width = (holder.originalImageWidth * scaleFactor).toInt()
-        imageParams.height = (holder.originalImageHeight * scaleFactor).toInt()
-        holder.fileIcon.layoutParams = imageParams
-
-        holder.fileName.setTextSize(TypedValue.COMPLEX_UNIT_PX, holder.originalTextSize * scaleFactor)
 
         holder.itemView.setOnClickListener {
             onItemClickListener(file)
@@ -110,13 +73,9 @@ class FileAdapter(
     }
 
     private fun updateSelectionState(holder: FileViewHolder, file: File) {
-        // Обновляем видимость чекбокса
         holder.checkBox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
-        
-        // Обновляем состояние чекбокса
         holder.checkBox.isChecked = selectedFiles.contains(file)
         
-        // Обновляем визуальное состояние элемента
         if (isSelectionMode) {
             holder.itemView.alpha = if (selectedFiles.contains(file)) 0.7f else 1.0f
             holder.itemView.setBackgroundResource(

@@ -55,14 +55,7 @@
                     android:contentDescription="Изменить порядок сортировки"
                     android:src="@drawable/ic_sort" />
 
-                <ImageButton
-                    android:id="@+id/size_button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="?android:attr/selectableItemBackground"
-                    android:contentDescription="Изменить размер превью"
-                    android:padding="4dp"
-                    android:src="@drawable/ic_palette" />
+                
 
             </LinearLayout>
 
@@ -122,35 +115,11 @@
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recycler_view"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:paddingLeft="16dp"
-            android:paddingRight="16dp"
-            android:layout_marginTop="16dp"/>
+            android:layout_height="match_parent"/>
 
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-    <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper
-        android:id="@+id/seekbar_wrapper"
-        android:layout_width="wrap_content"
-        android:layout_height="0dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="16dp"
-        app:layout_constraintTop_toBottomOf="@id/appbar"
-        app:layout_constraintBottom_toTopOf="@id/buttons_menu"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:visibility="gone">
-
-        <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBar
-            android:id="@+id/progressBar"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:max="150"
-            android:progress="75"
-            style="@style/VerticalSeekBarStyle"
-            android:padding="10dp"
-            android:splitTrack="false"
-            app:seekBarRotation="CW270" />
-    </com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper>
+    
 
     <LinearLayout
         android:id="@+id/buttons_menu"

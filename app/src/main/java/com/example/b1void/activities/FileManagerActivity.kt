@@ -48,9 +48,7 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var captureButton: Button
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var titleTextView: TextView
-    private lateinit var progressBar: SeekBar
     private lateinit var sharedPreferences: SharedPreferences
-    private var currentProgress = 0
 
     // --- Новый UI для режима выделения ---
     private lateinit var selectionTopToolbar: LinearLayout
@@ -75,7 +73,6 @@ class FileManagerActivity : AppCompatActivity() {
     private var gestureDetector: GestureDetector? = null
 
     companion object {
-        private const val PREF_SEEK_BAR_PROGRESS = "seek_bar_progress"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,7 +80,6 @@ class FileManagerActivity : AppCompatActivity() {
         setContentView(R.layout.activity_file_manager)
 
         initializeViews()
-        setupPreferences()
         setupButtons()
         setupRecyclerView()
         setupGestureDetector()
@@ -116,7 +112,6 @@ class FileManagerActivity : AppCompatActivity() {
         captureButton = findViewById(R.id.capture_button)
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout)
         titleTextView = findViewById(R.id.titleTextView)
-        progressBar = findViewById(R.id.progressBar)
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
 
         // --- Инициализация нового UI ---
@@ -127,10 +122,7 @@ class FileManagerActivity : AppCompatActivity() {
         // ---------------------------------
     }
 
-    private fun setupPreferences() {
-        currentProgress = sharedPreferences.getInt(PREF_SEEK_BAR_PROGRESS, 75)
-        progressBar.progress = currentProgress
-    }
+    
 
     private fun setupButtons() {
         val sortButton: ImageButton = findViewById(R.id.sort_button)
@@ -169,21 +161,15 @@ class FileManagerActivity : AppCompatActivity() {
         confirmSelectionButton.setOnClickListener { showActionsMenu() }
         // -----------------------------------
 
-        progressBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    currentProgress = progress
-                    updateProgress(progress)
-                    sharedPreferences.edit().putInt(PREF_SEEK_BAR_PROGRESS, progress).apply()
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
     }
 
     private fun setupRecyclerView() {
-        recyclerView.layoutManager = GridLayoutManager(this, 4)
+        val displayMetrics = resources.displayMetrics
+        val screenWidthDp = displayMetrics.widthPixels / displayMetrics.density
+        val desiredItemWidthDp = 120 
+        val spanCount = (screenWidthDp / desiredItemWidthDp).toInt().coerceAtLeast(1)
+
+        recyclerView.layoutManager = GridLayoutManager(this, spanCount)
         recyclerView.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
             override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
                 if (isSelectionMode) {
@@ -340,7 +326,6 @@ class FileManagerActivity : AppCompatActivity() {
                         { file, view -> onItemLongClick(file, view) }
                     )
                     recyclerView.adapter = fileAdapter
-                    updateProgress(currentProgress)
                 } else {
                     fileAdapter.isSelectionMode = isSelectionMode
                     fileAdapter.selectedFiles = selectedFiles
@@ -656,20 +641,7 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
-    fun updateProgress(progress: Int) {
-        progressBar.progress = progress
-        fileAdapter.setProgress(progress)
-        (recyclerView.layoutManager as? GridLayoutManager)?.spanCount = calculateNoOfColumns(progress)
-    }
-
-    private fun calculateNoOfColumns(progress: Int): Int {
-        val scaleFactor = 0.5f + (progress / 100f) * 0.5f
-        return when {
-            scaleFactor <= 0.65 -> 5
-            scaleFactor >= 0.85 -> 3
-            else -> 4
-        }
-    }
+    
 
     override fun onResume() {
         super.onResume()
@@ -685,7 +657,7 @@ class FileManagerActivity : AppCompatActivity() {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        (recyclerView.layoutManager as? GridLayoutManager)?.spanCount = calculateNoOfColumns(progressBar.progress)
+        setupRecyclerView()
     }
 
     private fun moveFileUp(file: File) {
