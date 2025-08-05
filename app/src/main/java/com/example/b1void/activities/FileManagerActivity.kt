@@ -47,9 +47,6 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var zipDirectory: File
     private lateinit var captureButton: Button
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
-    private lateinit var shareButton: Button
-    private lateinit var deleteButton: Button
-    private lateinit var moveButton: Button
     private lateinit var titleTextView: TextView
     private lateinit var progressBar: SeekBar
     private lateinit var buttonContainer: LinearLayout
@@ -130,9 +127,6 @@ class FileManagerActivity : AppCompatActivity() {
         createFolderButton = findViewById(R.id.create_folder_button)
         captureButton = findViewById(R.id.capture_button)
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout)
-        shareButton = findViewById(R.id.share_button)
-        deleteButton = findViewById(R.id.delete_button)
-        moveButton = findViewById(R.id.move_button)
         titleTextView = findViewById(R.id.titleTextView)
         val uploadButton = findViewById<View>(R.id.upload_button)
         progressBar = findViewById(R.id.progressBar)
@@ -153,13 +147,6 @@ class FileManagerActivity : AppCompatActivity() {
     private fun setupButtons() {
         val sortButton: ImageButton = findViewById(R.id.sort_button)
         val uploadButton = findViewById<View>(R.id.upload_button)
-
-        val sizeButton: ImageButton = findViewById(R.id.size_button)
-        val seekBarWrapper: View = findViewById(R.id.seekbar_wrapper)
-
-        sizeButton.setOnClickListener {
-            seekBarWrapper.visibility = if (seekBarWrapper.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-        }
 
         sortButton.setOnClickListener {
             toggleSortOrder()
@@ -186,15 +173,15 @@ class FileManagerActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        shareButton.setOnClickListener {
+        findViewById<Button>(R.id.share_button).setOnClickListener {
             shareSelectedFiles()
         }
 
-        deleteButton.setOnClickListener {
+        findViewById<Button>(R.id.delete_button).setOnClickListener {
             deleteSelectedFiles()
         }
 
-        moveButton.setOnClickListener {
+        findViewById<Button>(R.id.move_button).setOnClickListener {
             showMoveDialogForSelectedFiles()
         }
 
@@ -233,13 +220,21 @@ class FileManagerActivity : AppCompatActivity() {
     private fun setupRecyclerView() {
         val gridLayoutManager = GridLayoutManager(this, 4)
         recyclerView.layoutManager = gridLayoutManager
-        
-        recyclerView.setOnTouchListener { _, event ->
-            if (isSelectionMode) {
-                gestureDetector?.onTouchEvent(event)
+
+        recyclerView.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
+            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                if (isSelectionMode) {
+                    gestureDetector?.onTouchEvent(e)
+                    if (e.action == MotionEvent.ACTION_UP && isSwipeSelectionActive) {
+                        stopSwipeSelection()
+                    }
+                }
+                return false
             }
-            false
-        }
+
+            override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
+            override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
+        })
     }
 
     private fun setupGestureDetector() {
@@ -256,7 +251,9 @@ class FileManagerActivity : AppCompatActivity() {
                         val position = recyclerView.getChildAdapterPosition(childView)
                         if (position != RecyclerView.NO_POSITION && position != lastTouchedPosition) {
                             val file = fileAdapter.files[position]
-                            toggleFileSelection(file)
+                            if (!selectedFiles.contains(file)) {
+                                toggleFileSelection(file)
+                            }
                             lastTouchedPosition = position
                         }
                     }
@@ -267,7 +264,15 @@ class FileManagerActivity : AppCompatActivity() {
 
             override fun onLongPress(e: MotionEvent) {
                 if (!isSelectionMode) {
-                    startSelectionMode()
+                    val childView = recyclerView.findChildViewUnder(e.x, e.y)
+                    if (childView != null) {
+                        val position = recyclerView.getChildAdapterPosition(childView)
+                        if (position != RecyclerView.NO_POSITION) {
+                            val file = fileAdapter.files[position]
+                            startSelectionMode(file)
+                            startSwipeSelection()
+                        }
+                    }
                 }
             }
         })
@@ -432,17 +437,30 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     override fun onContextItemSelected(item: MenuItem): Boolean {
+        if (currentFileForMenu == null) {
+            return super.onContextItemSelected(item)
+        }
+        val selectedFile = currentFileForMenu!!
+
         return when (item.itemId) {
-            R.id.action_rename -> {
-                showRenameDialog(currentFileForMenu!!)
+            R.id.action_move -> {
+                showMoveDialogForFile(selectedFile)
                 true
             }
             R.id.action_delete -> {
-                deleteFile(currentFileForMenu!!)
+                deleteFile(selectedFile)
                 true
             }
-            R.id.action_share_single -> {
-                shareFile(currentFileForMenu!!)
+            R.id.action_share -> {
+                shareFile(selectedFile)
+                true
+            }
+            R.id.action_move_up -> {
+                moveFileUp(selectedFile)
+                true
+            }
+            R.id.action_select_multiple -> {
+                startSelectionMode(selectedFile)
                 true
             }
             else -> super.onContextItemSelected(item)
@@ -471,7 +489,7 @@ class FileManagerActivity : AppCompatActivity() {
                             sortedFilesAndDirs,
                             this,
                             { file -> onItemClick(file) },
-                            { file -> onItemLongClick(file) },
+                            { file, view -> showPopupMenu(file, view) },
                             { file -> toggleFileSelection(file) },
                             isSelectionMode,
                             selectedFiles
@@ -516,12 +534,12 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
-    private fun onItemLongClick(file: File) {
-        if (!isSelectionMode) {
-            startSelectionMode()
+    private fun onItemLongClick(file: File, view: View) {
+        if (isSelectionMode) {
+            toggleFileSelection(file)
+        } else {
+            showPopupMenu(file, view)
         }
-        toggleFileSelection(file)
-        startSwipeSelection()
     }
 
     private fun openImagePreview(clickedImage: File) {
@@ -663,12 +681,12 @@ class FileManagerActivity : AppCompatActivity() {
 
                 ZipFile(zipFile).addFolder(file)
 
-                uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", zipFile)
+                uri = FileProvider.getUriForFile(this, "${packageName}.provider", zipFile)
                 mimeType = "application/zip"
 
                 zipFile.deleteOnExit()
             } else {
-                uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
+                uri = FileProvider.getUriForFile(this, "${packageName}.provider", file)
                 mimeType = "image/*"
             }
 
@@ -724,61 +742,37 @@ class FileManagerActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun startSelectionMode() {
+    
+
+    private fun startSelectionMode(initialFile: File) {
         isSelectionMode = true
+        selectedFiles.add(initialFile)
         fileAdapter.isSelectionMode = true
+        fileAdapter.selectedFiles = selectedFiles
+        fileAdapter.notifyDataSetChanged()
+
         buttonContainer.visibility = View.VISIBLE
         selectionToolbar.visibility = View.VISIBLE
-        
-        shareButton.visibility = View.VISIBLE
-        deleteButton.visibility = View.VISIBLE
-        moveButton.visibility = View.VISIBLE
 
-        swipeRefreshLayout.isEnabled = false
-
-        // Анимация появления
         val slideIn = AnimationUtils.loadAnimation(this, android.R.anim.slide_in_left)
         buttonContainer.startAnimation(slideIn)
         selectionToolbar.startAnimation(slideIn)
 
-        // Принудительно обновляем все элементы для корректного отображения состояния выделения
-        fileAdapter.notifyDataSetChanged()
-        
-        loadDirectoryContent(getCurrentDirectory())
-    }
-
-    private fun clearSelection() {
-        isSelectionMode = false
-        stopSwipeSelection()
-
-        buttonContainer.visibility = View.GONE
-        selectionToolbar.visibility = View.GONE
-        shareButton.visibility = View.GONE
-        deleteButton.visibility = View.GONE
-        moveButton.visibility = View.GONE
-        selectedFiles.clear()
-        fileAdapter.selectedFiles = selectedFiles
-        fileAdapter.isSelectionMode = false
-
-        // Принудительно обновляем все элементы для корректного отображения состояния выделения
-        fileAdapter.notifyDataSetChanged()
-
-        swipeRefreshLayout.isEnabled = true
-
-        // Анимация исчезновения
-        val slideOut = AnimationUtils.loadAnimation(this, android.R.anim.slide_out_right)
-        buttonContainer.startAnimation(slideOut)
-        selectionToolbar.startAnimation(slideOut)
-
-        loadDirectoryContent(getCurrentDirectory())
+        swipeRefreshLayout.isEnabled = false
+        updateSelectionButtons()
     }
 
     private fun selectAllFiles() {
-        selectedFiles.clear()
         selectedFiles.addAll(fileAdapter.files)
         fileAdapter.selectedFiles = selectedFiles
         fileAdapter.notifyDataSetChanged()
         updateSelectionButtons()
+    }
+
+    private fun updateSelectionButtons() {
+        val allSelected = selectedFiles.size == fileAdapter.files.size
+        selectAllButton.text = "Выбрать все"
+        clearSelectionButton.text = "Отмена (${selectedFiles.size})"
     }
 
     private fun toggleFileSelection(file: File) {
@@ -799,11 +793,25 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateSelectionButtons() {
-        val allSelected = selectedFiles.size == fileAdapter.files.size
-        selectAllButton.text = if (allSelected) "Отменить все" else "Выделить все"
-        clearSelectionButton.text = "Отменить (${selectedFiles.size})"
+    private fun clearSelection() {
+        isSelectionMode = false
+        stopSwipeSelection()
+
+        selectedFiles.clear()
+        fileAdapter.selectedFiles = selectedFiles
+        fileAdapter.isSelectionMode = false
+        fileAdapter.notifyDataSetChanged()
+
+        val slideOut = AnimationUtils.loadAnimation(this, android.R.anim.slide_out_right)
+        buttonContainer.startAnimation(slideOut)
+        selectionToolbar.startAnimation(slideOut)
+        buttonContainer.visibility = View.GONE
+        selectionToolbar.visibility = View.GONE
+
+        swipeRefreshLayout.isEnabled = true
     }
+
+    
 
     private fun deleteSelectedFiles() {
         if (selectedFiles.isNotEmpty()) {
@@ -867,7 +875,7 @@ class FileManagerActivity : AppCompatActivity() {
                             val zipFile = File(tempDir, "${file.name}.zip")
                             zipFolder(file, zipFile)
                             if (zipFile.exists()) {
-                                val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", zipFile)
+                                val uri = FileProvider.getUriForFile(this, "${packageName}.provider", zipFile)
                                 filesUris.add(uri)
                             } else {
                                 errorOccurred = true
@@ -876,7 +884,7 @@ class FileManagerActivity : AppCompatActivity() {
                                 }
                             }
                         } else {
-                            val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
+                            val uri = FileProvider.getUriForFile(this, "${packageName}.provider", file)
                             filesUris.add(uri)
                         }
                     }
@@ -1103,8 +1111,41 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
+    private fun moveFileUp(file: File) {
+        val currentDir = getCurrentDirectory()
+        val parentDir = currentDir.parentFile
+        if (parentDir != null && currentDir.absolutePath != appDirectory.absolutePath) {
+            moveFileToDirectory(file, parentDir)
+        } else {
+            Toast.makeText(this, "Невозможно переместить файл выше", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showPopupMenu(file: File, view: View) {
+        currentFileForMenu = file
+        val popupMenu = PopupMenu(this, view)
+        popupMenu.menuInflater.inflate(R.menu.file_actions_menu, popupMenu.menu)
+
+        val currentDir = getCurrentDirectory()
+        val parentDir = currentDir.parentFile
+        val moveUpItem = popupMenu.menu.findItem(R.id.action_move_up)
+        moveUpItem.isVisible = parentDir != null && currentDir.absolutePath != appDirectory.absolutePath
+
+        popupMenu.setOnMenuItemClickListener { item ->
+            onContextItemSelected(item)
+        }
+
+        popupMenu.show()
+    }
+
     override fun onTouchEvent(event: MotionEvent?): Boolean {
-        event?.let { gestureDetector?.onTouchEvent(it) }
+        if (isSelectionMode) {
+            gestureDetector?.onTouchEvent(event!!)
+            if (event?.action == MotionEvent.ACTION_UP && isSwipeSelectionActive) {
+                stopSwipeSelection()
+            }
+            return true
+        }
         return super.onTouchEvent(event)
     }
 } 

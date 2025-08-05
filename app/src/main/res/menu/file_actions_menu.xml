@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_move"
+        android:title="Переместить" />
+    <item
+        android:id="@+id/action_delete"
+        android:title="Удалить" />
+    <item
+        android:id="@+id/action_share"
+        android:title="Поделиться" />
+    <item
+        android:id="@+id/action_move_up"
+        android:title="Переместить на уровень выше" />
+    <item
+        android:id="@+id/action_select_multiple"
+        android:title="Выбрать несколько" />
+</menu>

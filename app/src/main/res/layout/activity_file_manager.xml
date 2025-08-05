@@ -66,7 +66,6 @@
 
             </LinearLayout>
 
-
         </androidx.constraintlayout.widget.ConstraintLayout>
 
         <LinearLayout
@@ -125,7 +124,7 @@
                 android:layout_height="wrap_content"
                 android:background="@drawable/rounded_background"
                 android:backgroundTint="@null"
-                android:text="Выделить все"
+                android:text="Выбрать все"
                 android:textSize="14sp"
                 android:layout_marginEnd="8dp"/>
 
@@ -139,18 +138,6 @@
                 android:textSize="14sp"/>
 
         </LinearLayout>
-
-        <!-- Динамический ползунок для размера фотографий -->
-        <include
-            android:id="@+id/dynamic_seekbar_wrapper"
-            layout="@layout/dynamic_seekbar_layout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:visibility="gone"
-            android:background="@drawable/rounded_background" />
-
-
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -243,7 +230,5 @@
             android:textSize="20sp"
             style="@style/BottomButtonStyle"/>
     </LinearLayout>
-
-
 
 </androidx.constraintlayout.widget.ConstraintLayout>
