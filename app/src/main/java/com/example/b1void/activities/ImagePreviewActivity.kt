@@ -1,44 +1,46 @@
 
 package com.example.b1void.activities
 
-import android.graphics.BitmapFactory
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
-import android.util.Log
-import android.view.MotionEvent
-import android.view.ScaleGestureDetector
+import android.os.Handler
+import android.os.Looper
+import android.view.View
 import android.widget.ImageButton
-import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
+import androidx.viewpager2.widget.ViewPager2
 import com.example.b1void.R
+import com.example.b1void.adapters.ImagePagerAdapter
 import java.io.File
 
 class ImagePreviewActivity : AppCompatActivity() {
 
-    private lateinit var imagePaths: ArrayList<String>
-    private var currentImageIndex: Int = 0
-    private lateinit var imageView: ImageView
-    private lateinit var prevButton: ImageButton
-    private lateinit var nextButton: ImageButton
-    private lateinit var scaleGestureDetector: ScaleGestureDetector
-    private var scaleFactor = 1.0f
-    private var lastTouchX: Float = 0f
-    private var lastTouchY: Float = 0f
-    private var translateX: Float = 0f
-    private var translateY: Float = 0f
-    private var focusX: Float = 0f // Focus X coordinate during scaling
-    private var focusY: Float = 0f // Focus Y coordinate during scaling
+    private lateinit var viewPager: ViewPager2
+    private lateinit var buttonsLayout: LinearLayout
+    private lateinit var deleteButton: ImageButton
+    private lateinit var shareButton: ImageButton
 
+    private lateinit var imagePaths: MutableList<String>
+    private var currentImageIndex: Int = 0
+    private lateinit var pagerAdapter: ImagePagerAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_image_preview)
 
-        imageView = findViewById(R.id.image_preview)
-        prevButton = findViewById(R.id.prev_button)
-        nextButton = findViewById(R.id.next_button)
+        viewPager = findViewById(R.id.view_pager)
+        buttonsLayout = findViewById(R.id.buttons_layout)
+        deleteButton = findViewById(R.id.delete_button)
+        shareButton = findViewById(R.id.share_button)
 
-        imagePaths = intent.getStringArrayListExtra("image_paths") ?: ArrayList()
+        imagePaths = intent.getStringArrayListExtra("image_paths")?.toMutableList() ?: mutableListOf()
         currentImageIndex = intent.getIntExtra("current_image_index", 0)
 
         if (imagePaths.isEmpty()) {
@@ -47,132 +49,68 @@ class ImagePreviewActivity : AppCompatActivity() {
             return
         }
 
-        if (imagePaths.size == 1) {
-            prevButton.isEnabled = false
-            nextButton.isEnabled = false
-        }
-
-        displayImage()
-
-        prevButton.setOnClickListener {
-            if (currentImageIndex > 0) {
-                currentImageIndex--
-                displayImage()
-            } else {
-                Toast.makeText(this, "No previous image.", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        nextButton.setOnClickListener {
-            if (currentImageIndex < imagePaths.size - 1) {
-                currentImageIndex++
-                displayImage()
-            } else {
-                Toast.makeText(this, "No next image.", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        // Initialize ScaleGestureDetector
-        scaleGestureDetector = ScaleGestureDetector(this, ScaleListener())
+        setupViewPager()
+        setupButtonListeners()
     }
 
-    private fun displayImage() {
+    private fun setupViewPager() {
+        pagerAdapter = ImagePagerAdapter(imagePaths)
+        viewPager.adapter = pagerAdapter
+        viewPager.setCurrentItem(currentImageIndex, false)
+
+        viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                currentImageIndex = position
+            }
+        })
+    }
+
+    private fun setupButtonListeners() {
+        deleteButton.setOnClickListener { confirmDelete() }
+        shareButton.setOnClickListener { shareImage() }
+    }
+
+    private fun confirmDelete() {
+        AlertDialog.Builder(this)
+            .setTitle("Delete Image")
+            .setMessage("Are you sure you want to delete this image?")
+            .setPositiveButton("Delete") { _, _ -> deleteImage() }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun deleteImage() {
+        val imagePath = imagePaths[currentImageIndex]
+        val file = File(imagePath)
+        if (file.exists() && file.delete()) {
+            imagePaths.removeAt(currentImageIndex)
+            pagerAdapter.notifyItemRemoved(currentImageIndex)
+
+            if (imagePaths.isEmpty()) {
+                Toast.makeText(this, "No more images.", Toast.LENGTH_SHORT).show()
+                finish()
+            } else {
+                // The ViewPager will automatically show the next/previous item.
+            }
+        } else {
+            Toast.makeText(this, "Failed to delete image.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun shareImage() {
         val imagePath = imagePaths[currentImageIndex]
         val imageFile = File(imagePath)
-
         if (imageFile.exists()) {
-            val bitmap = BitmapFactory.decodeFile(imageFile.absolutePath)
-            imageView.setImageBitmap(bitmap)
-            // Reset scale and translation when loading a new image
-            scaleFactor = 1.0f
-            translateX = 0f
-            translateY = 0f
-            imageView.scaleX = scaleFactor
-            imageView.scaleY = scaleFactor
-            imageView.translationX = translateX
-            imageView.translationY = translateY
+            val uri: Uri = FileProvider.getUriForFile(this, "${applicationContext.packageName}.provider", imageFile)
+            val shareIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                putExtra(Intent.EXTRA_STREAM, uri)
+                type = "image/jpeg"
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(shareIntent, "Share Image"))
         } else {
-            Log.e("ImagePreview", "Image not found: $imagePath")
-            imageView.setImageResource(R.drawable.def_insp_img) // Placeholder
             Toast.makeText(this, "Image not found.", Toast.LENGTH_SHORT).show()
         }
-    }
-
-    override fun onTouchEvent(motionEvent: MotionEvent): Boolean {
-        scaleGestureDetector.onTouchEvent(motionEvent)
-
-        when (motionEvent.action and MotionEvent.ACTION_MASK) {
-            MotionEvent.ACTION_DOWN -> {
-                lastTouchX = motionEvent.x
-                lastTouchY = motionEvent.y
-            }
-            MotionEvent.ACTION_MOVE -> {
-                val currentX = motionEvent.x
-                val currentY = motionEvent.y
-                val deltaX = (currentX - lastTouchX)
-                val deltaY = (currentY - lastTouchY)
-
-                translateX += deltaX
-                translateY += deltaY
-
-                // Apply limits to translation to prevent going too far
-                val maxX = (imageView.width * (scaleFactor - 1)) / 2
-                val maxY = (imageView.height * (scaleFactor - 1)) / 2
-
-                translateX = translateX.coerceIn(-maxX, maxX)
-                translateY = translateY.coerceIn(-maxY, maxY)
-
-                imageView.translationX = translateX
-                imageView.translationY = translateY
-
-                lastTouchX = currentX
-                lastTouchY = currentY
-            }
-        }
-
-        return true
-    }
-
-
-    private inner class ScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-            focusX = detector.focusX
-            focusY = detector.focusY
-            return true
-        }
-
-
-        override fun onScale(detector: ScaleGestureDetector): Boolean {
-            val scaleFactorPrev = scaleFactor
-            scaleFactor *= detector.scaleFactor
-            scaleFactor = Math.max(1.0f, Math.min(scaleFactor, 5.0f))
-
-
-            val focusX = detector.focusX
-            val focusY = detector.focusY
-
-            // Adjust translation to keep the focus point under the pinch point
-            translateX += (focusX - this@ImagePreviewActivity.focusX) * (scaleFactor - scaleFactorPrev)
-            translateY += (focusY - this@ImagePreviewActivity.focusY) * (scaleFactor - scaleFactorPrev)
-
-            // Apply limits to translation to prevent going too far
-            val maxX = (imageView.width * (scaleFactor - 1)) / 2
-            val maxY = (imageView.height * (scaleFactor - 1)) / 2
-
-            translateX = translateX.coerceIn(-maxX, maxX)
-            translateY = translateY.coerceIn(-maxY, maxY)
-
-            imageView.scaleX = scaleFactor
-            imageView.scaleY = scaleFactor
-            imageView.translationX = translateX
-            imageView.translationY = translateY
-
-            this@ImagePreviewActivity.focusX = focusX
-            this@ImagePreviewActivity.focusY = focusY
-
-
-            return true
-        }
-
     }
 }

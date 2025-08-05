@@ -524,12 +524,19 @@ class FileManagerActivity : AppCompatActivity() {
         startSwipeSelection()
     }
 
-    private fun openImagePreview(imageFile: File) {
-        val intent = Intent(this, ImagePreviewActivity::class.java)
-        val imagePaths = arrayListOf(imageFile.absolutePath)
-        intent.putStringArrayListExtra("image_paths", imagePaths)
-        intent.putExtra("current_image_index", 0)
-        startActivity(intent)
+    private fun openImagePreview(clickedImage: File) {
+        val allImageFiles = fileAdapter.files.filter { fileAdapter.isImage(it) }
+        val imagePaths = ArrayList(allImageFiles.map { it.absolutePath })
+        val clickedImageIndex = allImageFiles.indexOf(clickedImage)
+
+        if (imagePaths.isNotEmpty()) {
+            val intent = Intent(this, ImagePreviewActivity::class.java)
+            intent.putStringArrayListExtra("image_paths", imagePaths)
+            intent.putExtra("current_image_index", clickedImageIndex)
+            startActivity(intent)
+        } else {
+            Toast.makeText(this, "No images to preview.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun openDirectory(file: File) {
