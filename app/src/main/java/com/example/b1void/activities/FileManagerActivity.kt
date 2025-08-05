@@ -293,6 +293,21 @@ class FileManagerActivity : AppCompatActivity() {
         imgGalUri?.let { saveImagesToDirectory(directory, listOf(it)) }
     }
 
+    private fun showPopupMenu(file: File, view: View) {
+        currentFileForMenu = file
+        PopupMenu(this, view).apply {
+            menuInflater.inflate(R.menu.file_actions_menu, menu)
+            // Показываем "Переместить на уровень выше" только если это возможно
+            menu.findItem(R.id.action_move_up).isVisible =
+                getCurrentDirectory().parentFile != null && getCurrentDirectory().absolutePath != appDirectory.absolutePath
+
+            setOnMenuItemClickListener { item ->
+                onContextItemSelected(item)
+            }
+            show()
+        }
+    }
+
     override fun onContextItemSelected(item: MenuItem): Boolean {
         val file = currentFileForMenu ?: return super.onContextItemSelected(item)
         return when (item.itemId) {
@@ -349,9 +364,7 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     private fun onItemLongClick(file: File, view: View) {
-        if (!isSelectionMode) {
-            startSelectionMode(file)
-        }
+        showPopupMenu(file, view)
     }
 
     private fun openImagePreview(clickedImage: File) {
@@ -688,16 +701,7 @@ class FileManagerActivity : AppCompatActivity() {
         moveSelectedFiles(destination, setOf(file))
     }
 
-    private fun showPopupMenu(file: File, view: View) {
-        currentFileForMenu = file
-        PopupMenu(this, view).apply {
-            menuInflater.inflate(R.menu.file_actions_menu, menu)
-            menu.findItem(R.id.action_move_up).isVisible =
-                getCurrentDirectory().parentFile != null && getCurrentDirectory().absolutePath != appDirectory.absolutePath
-            setOnMenuItemClickListener { item -> onContextItemSelected(item) }
-            show()
-        }
-    }
+    
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (isSelectionMode && event != null) {
