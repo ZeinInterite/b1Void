@@ -33,6 +33,7 @@ import java.util.*
 import kotlin.concurrent.thread
 import android.view.GestureDetector
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.animation.AnimationUtils
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
@@ -55,7 +56,7 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var selectionCountTextView: TextView
     private lateinit var selectAllToggleButton: Button
     private lateinit var confirmSelectionButton: Button
-    // -----------------------------------------
+    // ----------------------------------------->
 
     private val OPEN_FILE = 1
     private var imageUri: Uri? = null
@@ -71,6 +72,10 @@ class FileManagerActivity : AppCompatActivity() {
     private var isSwipeSelectionActive = false
     private var lastTouchedPosition = -1
     private var gestureDetector: GestureDetector? = null
+    private lateinit var scaleGestureDetector: ScaleGestureDetector
+    private var spanCount = 4 // default value
+    private val MIN_SPAN_COUNT = 2
+    private val MAX_SPAN_COUNT = 6
 
     companion object {
     }
@@ -122,7 +127,7 @@ class FileManagerActivity : AppCompatActivity() {
         // ---------------------------------
     }
 
-    
+
 
     private fun setupButtons() {
         val sortButton: ImageButton = findViewById(R.id.sort_button)
@@ -163,15 +168,47 @@ class FileManagerActivity : AppCompatActivity() {
 
     }
 
+    private inner class ScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        private var scaleFactor = 1.0f
+
+        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            swipeRefreshLayout.isEnabled = false
+            return true
+        }
+
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            scaleFactor *= detector.scaleFactor
+            scaleFactor = Math.max(0.5f, Math.min(scaleFactor, 2.0f)) // Ограничение масштаба
+
+            if (scaleFactor > 1.2f && spanCount > MIN_SPAN_COUNT) {
+                spanCount--
+                updateGridLayout()
+                scaleFactor = 1.0f
+            } else if (scaleFactor < 0.8f && spanCount < MAX_SPAN_COUNT) {
+                spanCount++
+                updateGridLayout()
+                scaleFactor = 1.0f
+            }
+            return true
+        }
+
+        override fun onScaleEnd(detector: ScaleGestureDetector) {
+            swipeRefreshLayout.isEnabled = true
+        }
+    }
+
     private fun setupRecyclerView() {
         val displayMetrics = resources.displayMetrics
         val screenWidthDp = displayMetrics.widthPixels / displayMetrics.density
-        val desiredItemWidthDp = 120 
-        val spanCount = (screenWidthDp / desiredItemWidthDp).toInt().coerceAtLeast(1)
-
+        val desiredItemWidthDp = 120
+        spanCount = sharedPreferences.getInt("span_count", (screenWidthDp / desiredItemWidthDp).toInt().coerceAtLeast(1))
         recyclerView.layoutManager = GridLayoutManager(this, spanCount)
+
+        scaleGestureDetector = ScaleGestureDetector(this, ScaleListener())
+
         recyclerView.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
             override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                scaleGestureDetector.onTouchEvent(e)
                 if (isSelectionMode) {
                     gestureDetector?.onTouchEvent(e)
                     if (e.action == MotionEvent.ACTION_UP && isSwipeSelectionActive) {
@@ -218,6 +255,13 @@ class FileManagerActivity : AppCompatActivity() {
             }
         })
     }
+
+    private fun updateGridLayout() {
+        (recyclerView.layoutManager as GridLayoutManager).spanCount = spanCount
+        sharedPreferences.edit().putInt("span_count", spanCount).apply()
+        fileAdapter.notifyDataSetChanged()
+    }
+
 
     private fun startSwipeSelection() {
         isSwipeSelectionActive = true
@@ -641,7 +685,7 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
-    
+
 
     override fun onResume() {
         super.onResume()
@@ -673,16 +717,4 @@ class FileManagerActivity : AppCompatActivity() {
         moveSelectedFiles(destination, setOf(file))
     }
 
-    
-
-    override fun onTouchEvent(event: MotionEvent?): Boolean {
-        if (isSelectionMode && event != null) {
-            gestureDetector?.onTouchEvent(event)
-            if (event.action == MotionEvent.ACTION_UP && isSwipeSelectionActive) {
-                stopSwipeSelection()
-            }
-            return true
-        }
-        return super.onTouchEvent(event)
-    }
-} 
+}
