@@ -645,7 +645,7 @@ public class CameraV2Activity extends AppCompatActivity {
                         currentImageFile = saveImage(stampedBitmap);
                         if (currentImageFile != null) {
                             updateLastImagePreview();
-                            Toast.makeText(CameraV2Activity.this, "Image saved to: " + currentImageFile.getAbsolutePath(), Toast.LENGTH_LONG).show();
+                            
                         } else {
                             Log.e("CameraError", "Failed to save image.");
                             Toast.makeText(CameraV2Activity.this, "Наебнулось при создании снимка.", Toast.LENGTH_SHORT).show();

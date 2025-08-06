@@ -313,7 +313,7 @@ class FileManagerActivity : AppCompatActivity() {
                 }
             }
             runOnUiThread {
-                Toast.makeText(this, "Изображения сохранены", Toast.LENGTH_SHORT).show()
+                
                 loadDirectoryContent(directory)
             }
         }
