@@ -10,6 +10,7 @@ import com.bumptech.glide.GlideBuilder
 import com.bumptech.glide.load.engine.cache.ExternalPreferredCacheDiskCacheFactory
 import com.bumptech.glide.load.engine.cache.LruResourceCache
 import com.bumptech.glide.load.engine.cache.MemorySizeCalculator
+import com.example.b1void.utils.DropboxClientFactory
 
 class B1VoidApplication : Application(), WorkConfigurationProvider { // Используем псевдоним
 
@@ -21,6 +22,7 @@ class B1VoidApplication : Application(), WorkConfigurationProvider { // Испо
     override fun onCreate() {
         super.onCreate()
         setupGlideOptimization()
+        DropboxClientFactory.init("YOUR_ACCESS_TOKEN")
     }
 
     private fun setupGlideOptimization() {

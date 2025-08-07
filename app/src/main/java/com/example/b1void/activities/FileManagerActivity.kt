@@ -20,12 +20,14 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.b1void.R
 import com.example.b1void.adapters.FileAdapter
+import com.example.b1void.utils.FileManagerUtils
+import com.example.b1void.workers.DropboxUploadWorker
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import net.lingala.zip4j.ZipFile
-import net.lingala.zip4j.model.ZipParameters
-import net.lingala.zip4j.model.enums.CompressionLevel
-import net.lingala.zip4j.model.enums.CompressionMethod
+
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -274,8 +276,9 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     private fun setupDirectories() {
-        appDirectory = File(filesDir, "InspectorAppFolder").apply { mkdirs() }
-        zipDirectory = File(filesDir, "zipFolder").apply { mkdirs() }
+        val (appDir, zipDir) = FileManagerUtils.createAppDirectories(this)
+        appDirectory = appDir
+        zipDirectory = zipDir
     }
 
     private fun toggleSortOrder() {
@@ -475,12 +478,38 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     private fun shareFile(file: File) {
-        val uri = FileProvider.getUriForFile(this, "${packageName}.provider", file)
-        ShareCompat.IntentBuilder(this)
-            .setStream(uri)
-            .setType(if (file.isDirectory) "application/zip" else "image/*")
-            .setChooserTitle("Поделиться файлом")
-            .startChooser()
+        if (file.isDirectory) {
+            thread {
+                val sharedZipsDir = File(cacheDir, "shared_zips").apply { mkdirs() }
+                sharedZipsDir.listFiles()?.forEach { it.delete() } // Очищаем старые zip
+
+                val zipFile = File(sharedZipsDir, "${file.name}.zip")
+
+                try {
+                    FileManagerUtils.zipDirectory(file, zipFile)
+
+                    val uri = FileProvider.getUriForFile(this, "${packageName}.provider", zipFile)
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/zip"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    runOnUiThread {
+                        startActivity(Intent.createChooser(shareIntent, "Поделиться папкой как ZIP"))
+                    }
+                } catch (e: Exception) {
+                    Log.e("FileManager", "Ошибка при отправке папки как ZIP: ${e.message}", e)
+                    runOnUiThread { Toast.makeText(this, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show() }
+                }
+            }
+        } else {
+            val uri = FileProvider.getUriForFile(this, "${packageName}.provider", file)
+            ShareCompat.IntentBuilder(this)
+                .setStream(uri)
+                .setType("image/*")
+                .setChooserTitle("Поделиться файлом")
+                .startChooser()
+        }
     }
 
     // --- Новая логика режима выделения ---
@@ -562,6 +591,10 @@ class FileManagerActivity : AppCompatActivity() {
             dialog.dismiss()
             showMoveDialogForSelectedFiles()
         }
+        view.findViewById<TextView>(R.id.action_upload_to_dropbox).setOnClickListener {
+            dialog.dismiss()
+            uploadSelectedFilesToDropbox()
+        }
         dialog.show()
     }
 
@@ -593,46 +626,48 @@ class FileManagerActivity : AppCompatActivity() {
     private fun shareSelectedFiles() {
         if (selectedFiles.isEmpty()) return
         thread {
-            val filesUris = ArrayList<Uri>()
-            val tempDir = File(cacheDir, "temp_zip").apply { mkdirs() }
+            val sharedZipsDir = File(cacheDir, "shared_zips").apply { mkdirs() }
+            // Очищаем старые zip-файлы перед созданием нового
+            sharedZipsDir.listFiles()?.forEach { it.delete() }
+
+            val zipFile = File(sharedZipsDir, "archive-${System.currentTimeMillis()}.zip")
 
             try {
+                // Создаем временную директорию для копирования файлов перед архивацией
+                val tempDir = File(cacheDir, "temp_share").apply { mkdirs() }
                 selectedFiles.forEach { file ->
-                    val fileToShare = if (file.isDirectory) {
-                        File(tempDir, "${file.name}.zip").also { zipFolder(file, it) }
+                    if (file.isDirectory) {
+                        file.copyRecursively(File(tempDir, file.name), true)
                     } else {
-                        file
+                        file.copyTo(File(tempDir, file.name), true)
                     }
-                    filesUris.add(FileProvider.getUriForFile(this, "${packageName}.provider", fileToShare))
                 }
 
-                if (filesUris.isNotEmpty()) {
-                    val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                        type = "*/*"
-                        putParcelableArrayListExtra(Intent.EXTRA_STREAM, filesUris)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                    runOnUiThread {
-                        startActivity(Intent.createChooser(shareIntent, "Поделиться файлами"))
-                        exitSelectionMode()
-                    }
+                FileManagerUtils.zipDirectory(tempDir, zipFile)
+                tempDir.deleteRecursively() // Очищаем временную директорию
+
+                if (!zipFile.exists() || zipFile.length() == 0L) {
+                    throw IOException("Не удалось создать или был создан пустой ZIP-файл.")
+                }
+
+                val uri = FileProvider.getUriForFile(this, "${packageName}.provider", zipFile)
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/zip"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                runOnUiThread {
+                    startActivity(Intent.createChooser(shareIntent, "Поделиться файлами"))
+                    exitSelectionMode()
                 }
             } catch (e: Exception) {
-                Log.e("FileManager", "FileProvider error: ${e.message}")
-                runOnUiThread { Toast.makeText(this, "Ошибка при обмене файлами", Toast.LENGTH_SHORT).show() }
-            } finally {
-                tempDir.deleteRecursively()
+                Log.e("FileManager", "Ошибка при обмене файлами: ${e.message}", e)
+                runOnUiThread { Toast.makeText(this, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show() }
             }
         }
     }
 
-    private fun zipFolder(folderToZip: File, zipFile: File) {
-        try {
-            ZipFile(zipFile.absolutePath).addFolder(folderToZip)
-        } catch (e: Exception) {
-            Log.e("FileManager", "Ошибка архивации папки: ${e.message}", e)
-        }
-    }
+    
 
     private fun showMoveDialogForFile(file: File) {
         // This can be refactored or removed if single file move is not needed outside selection mode
@@ -717,4 +752,39 @@ class FileManagerActivity : AppCompatActivity() {
         moveSelectedFiles(destination, setOf(file))
     }
 
+    private fun uploadSelectedFilesToDropbox() {
+        if (selectedFiles.isEmpty()) return
+
+        thread {
+            val zipFile = File(zipDirectory, "archive-" + System.currentTimeMillis() + ".zip")
+            try {
+                val tempDir = File(cacheDir, "temp_upload").apply { mkdirs() }
+                selectedFiles.forEach { file ->
+                    file.copyTo(File(tempDir, file.name), true)
+                }
+                FileManagerUtils.zipDirectory(tempDir, zipFile)
+                tempDir.deleteRecursively()
+
+                val dropboxPath = "/" + zipFile.name
+                val data = workDataOf(
+                    DropboxUploadWorker.KEY_FILE_PATH to zipFile.absolutePath,
+                    DropboxUploadWorker.KEY_DROPBOX_PATH to dropboxPath
+                )
+
+                val uploadWorkRequest = OneTimeWorkRequestBuilder<DropboxUploadWorker>()
+                    .setInputData(data)
+                    .build()
+
+                WorkManager.getInstance(this).enqueue(uploadWorkRequest)
+
+                runOnUiThread {
+                    Toast.makeText(this, "Загрузка в Dropbox началась", Toast.LENGTH_SHORT).show()
+                    exitSelectionMode()
+                }
+            } catch (e: Exception) {
+                Log.e("FileManager", "Error preparing for Dropbox upload", e)
+                runOnUiThread { Toast.makeText(this, "Ошибка подготовки к загрузке", Toast.LENGTH_SHORT).show() }
+            }
+        }
+    }
 }

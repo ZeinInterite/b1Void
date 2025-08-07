@@ -109,7 +109,7 @@ dependencies {
 
     api("com.otaliastudios:cameraview:2.7.2")
 
-    implementation("net.lingala.zip4j:zip4j:2.9.0")
+    
 
     implementation ("com.google.code.gson:gson:2.10.1")
     implementation ("com.h6ah4i.android.widget.verticalseekbar:verticalseekbar:1.0.0")

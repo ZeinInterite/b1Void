@@ -6,6 +6,12 @@ import android.widget.Toast
 import java.io.File
 import java.io.IOException
 
+import java.io.BufferedInputStream
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+
 object FileManagerUtils {
     
     fun createAppDirectories(context: Context): Pair<File, File> {
@@ -69,6 +75,43 @@ object FileManagerUtils {
             files.sortedBy { it.lastModified() }
         } else {
             files.sortedByDescending { it.lastModified() }
+        }
+    }
+
+    fun zipDirectory(directory: File, zipFile: File) {
+        ZipOutputStream(FileOutputStream(zipFile)).use { zipOut ->
+            addFileToZip(directory, directory.name, zipOut)
+        }
+    }
+
+    private fun addFileToZip(fileToZip: File, fileName: String, zipOut: ZipOutputStream) {
+        if (fileToZip.isHidden) {
+            return
+        }
+        if (fileToZip.isDirectory) {
+            if (fileName.endsWith("/")) {
+                zipOut.putNextEntry(ZipEntry(fileName))
+                zipOut.closeEntry()
+            } else {
+                zipOut.putNextEntry(ZipEntry("$fileName/"))
+                zipOut.closeEntry()
+            }
+            val children = fileToZip.listFiles()
+            children?.let {
+                for (childFile in it) {
+                    addFileToZip(childFile, "$fileName/${childFile.name}", zipOut)
+                }
+            }
+            return
+        }
+        FileInputStream(fileToZip).use { fis ->
+            val zipEntry = ZipEntry(fileName)
+            zipOut.putNextEntry(zipEntry)
+            val bytes = ByteArray(1024)
+            var length: Int
+            while (fis.read(bytes).also { length = it } >= 0) {
+                zipOut.write(bytes, 0, length)
+            }
         }
     }
 } 
