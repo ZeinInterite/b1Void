@@ -24,7 +24,7 @@ class NavigationApp : AppCompatActivity() {
         takePhotoButton.setOnClickListener {
             val intent = Intent(
                 this@NavigationApp,
-                CameraV2Activity::class.java
+                CameraActivity::class.java
             )
             startActivity(intent)
         }

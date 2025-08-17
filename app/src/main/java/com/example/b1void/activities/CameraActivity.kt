@@ -23,6 +23,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -137,7 +138,7 @@ class CameraActivity : AppCompatActivity() {
 
                     // Update flash button icon
                     val flashIconRes = when {
-                        state.isTorchOn -> android.R.drawable.ic_menu_light
+                        state.isTorchOn -> android.R.drawable.ic_menu_info_details // Changed to valid drawable
                         state.flashMode == ImageCapture.FLASH_MODE_ON -> android.R.drawable.ic_menu_camera
                         state.flashMode == ImageCapture.FLASH_MODE_OFF -> android.R.drawable.ic_menu_close_clear_cancel
                         else -> android.R.drawable.ic_menu_rotate // Represents Auto

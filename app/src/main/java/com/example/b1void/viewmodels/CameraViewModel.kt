@@ -5,15 +5,19 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ImageFormat
 import android.graphics.Paint
+import android.hardware.camera2.CameraCharacteristics
 import android.net.Uri
 import android.util.Log
 import android.util.Size
+import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,7 +42,7 @@ data class CameraUiState(
     val isTorchOn: Boolean = false,
     val lastThumbnail: Bitmap? = null,
     val isBinding: Boolean = false,
-    val isQualityPriority: Boolean = true // Default to quality
+    val isQualityPriority: Boolean = true
 )
 
 sealed class CameraEvent {
@@ -172,8 +176,14 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
     fun onCameraBound(cameraInfo: CameraInfo) {
-        val resolutions = cameraInfo.querySupportedResolutions(ImageCapture::class.java)
+        val camera2CameraInfo = Camera2CameraInfo.from(cameraInfo)
+        val streamConfigurationMap = camera2CameraInfo.getCameraCharacteristic(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+        
+        val resolutions = streamConfigurationMap?.getOutputSizes(ImageFormat.JPEG)?.toList() ?: emptyList()
+
+        // TODO: Implement filterAndSortResolutions to make the list user-friendly (e.g., group by aspect ratio, remove very small sizes).
         _uiState.update { it.copy(availableResolutions = resolutions) }
     }
     

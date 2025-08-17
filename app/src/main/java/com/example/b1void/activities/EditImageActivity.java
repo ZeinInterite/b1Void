@@ -127,7 +127,7 @@ public class EditImageActivity extends AppCompatActivity {
 
             Toast.makeText(this, "Image saved with quality: " + imageQuality, Toast.LENGTH_SHORT).show();
 
-            Intent intent = new Intent(this, CameraV2Activity.class);
+            Intent intent = new Intent(this, CameraActivity.class);
             startActivity(intent);
             finish();
         } catch (Exception e) {

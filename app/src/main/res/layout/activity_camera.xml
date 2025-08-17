@@ -16,14 +16,14 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:scaleType="centerCrop" />
+        app:scaleType="fillCenter" />
 
     <!-- 2. Прогресс-бар для смены разрешения -->
     <ProgressBar
         android:id="@+id/resolutionChangeProgressBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:visibility="gone" <!-- Управляется из кода -->
+        android:visibility="gone"
         tools:visibility="visible"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -37,7 +37,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="16dp"
-        android:background="#40000000" <!-- Полупрозрачный фон -->
+        android:background="#40000000"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -47,7 +47,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_camera_alt"
+            android:src="@android:drawable/ic_menu_camera"
             android:contentDescription="Flash Mode" />
             
         <ImageButton
