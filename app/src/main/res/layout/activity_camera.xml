@@ -1,0 +1,137 @@
+<!-- activity_camera.xml -->
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black">
+
+    <!-- 1. Превью камеры. Занимает весь экран, обрезая излишки -->
+    <androidx.camera.view.PreviewView
+        android:id="@+id/previewView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:scaleType="centerCrop" />
+
+    <!-- 2. Прогресс-бар для смены разрешения -->
+    <ProgressBar
+        android:id="@+id/resolutionChangeProgressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone" <!-- Управляется из кода -->
+        tools:visibility="visible"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- 3. Верхняя панель управления (вспышка, штамп) -->
+    <LinearLayout
+        android:id="@+id/topControls"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:background="#40000000" <!-- Полупрозрачный фон -->
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+        
+        <ImageButton
+            android:id="@+id/flashButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_camera_alt"
+            android:contentDescription="Flash Mode" />
+            
+        <ImageButton
+            android:id="@+id/watermarkButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="16dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_myplaces"
+            android:contentDescription="Watermark" />
+
+        <ImageButton
+            android:id="@+id/qualityToggleButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="16dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_manage"
+            android:contentDescription="Toggle Quality/Speed Priority" />
+    </LinearLayout>
+
+    <!-- 4. Кнопка выбора разрешения -->
+    <ImageButton
+        android:id="@+id/resolutionSelectorButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_margin="16dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_sort_by_size"
+        android:contentDescription="Select Resolution"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/bottomControls" />
+
+    <!-- 5. Нижняя панель (съемка, миниатюра) -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/bottomControls"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:padding="24dp"
+        android:background="#40000000"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ImageButton
+            android:id="@+id/shutterButton"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_camera"
+            android:contentDescription="Take Picture"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <ImageView
+            android:id="@+id/thumbnailPreview"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:scaleType="centerCrop"
+            android:background="@android:color/darker_gray"
+            app:layout_constraintTop_toTopOf="@id/shutterButton"
+            app:layout_constraintBottom_toBottomOf="@id/shutterButton"
+            app:layout_constraintStart_toStartOf="parent"
+            tools:src="@tools:sample/avatars" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- 6. Всплывающее меню разрешений (изначально скрыто) -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/resolutionListContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        tools:visibility="visible"
+        app:cardCornerRadius="8dp"
+        app:layout_constraintBottom_toTopOf="@id/resolutionSelectorButton"
+        app:layout_constraintEnd_toEndOf="@id/resolutionSelectorButton">
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/resolutionRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            tools:listitem="@android:layout/simple_list_item_1"
+            tools:itemCount="3" />
+    </androidx.cardview.widget.CardView>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

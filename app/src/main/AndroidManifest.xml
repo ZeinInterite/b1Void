@@ -106,6 +106,11 @@
         android:name=".activities.MainActivity"
         android:exported="false">
     </activity>
+    <activity
+        android:name=".activities.CameraActivity"
+        android:configChanges="orientation|keyboard|screenSize"
+        android:exported="false"
+        android:theme="@style/Theme.AppCompat.NoActionBar" />
 </application>
 
     <queries>
