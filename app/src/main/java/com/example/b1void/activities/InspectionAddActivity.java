@@ -31,7 +31,7 @@ public class InspectionAddActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 Intent intent = new Intent(InspectionAddActivity.this, CameraActivity.class);
-                intent.putExtra("current_directory", currentDirectoryPath); // Передаем в CameraActivity
+                intent.putExtra("current_directory", currentDirectoryPath); // Передаем в CameraV2Activity
                 startActivity(intent);
             }
         });

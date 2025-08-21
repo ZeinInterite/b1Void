@@ -138,7 +138,7 @@ class CameraActivity : AppCompatActivity() {
 
                     // Update flash button icon
                     val flashIconRes = when {
-                        state.isTorchOn -> android.R.drawable.ic_menu_info_details // Changed to valid drawable
+                        state.isTorchOn -> android.R.drawable.ic_menu_info_details
                         state.flashMode == ImageCapture.FLASH_MODE_ON -> android.R.drawable.ic_menu_camera
                         state.flashMode == ImageCapture.FLASH_MODE_OFF -> android.R.drawable.ic_menu_close_clear_cancel
                         else -> android.R.drawable.ic_menu_rotate // Represents Auto
