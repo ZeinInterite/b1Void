@@ -30,7 +30,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- 3. Верхняя панель управления (вспышка, переключение камеры) -->
+    <!-- 3. Верхняя панель управления -->
     <LinearLayout
         android:id="@+id/topControls"
         android:layout_width="0dp"
@@ -43,15 +43,26 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Кнопка вспышки (выровнена по левому краю) -->
+        <!-- Кнопка настроек (меню) -->
         <ImageButton
-            android:id="@+id/flashButton"
+            android:id="@+id/settingsButton"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="@color/white"
-            android:src="@android:drawable/ic_menu_rotate"
-            android:contentDescription="Flash Mode" />
+            android:src="@android:drawable/ic_menu_manage"
+            android:contentDescription="Settings" />
+
+        <!-- Кнопка фонарика -->
+        <ImageButton
+            android:id="@+id/torchButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="16dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/white"
+            android:src="@android:drawable/ic_menu_mylocation"
+            android:contentDescription="Torch" />
 
         <!-- Заполнитель, чтобы раздвинуть кнопки по краям -->
         <Space

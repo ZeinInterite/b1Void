@@ -35,6 +35,8 @@ import com.example.b1void.viewmodels.CameraViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+import androidx.appcompat.widget.PopupMenu
+
 class CameraActivity : AppCompatActivity() {
 
     private lateinit var viewModel: CameraViewModel
@@ -42,20 +44,20 @@ class CameraActivity : AppCompatActivity() {
     
     // Views
     private lateinit var resolutionSelectorButton: ImageButton
-    private lateinit var watermarkButton: ImageButton
     private lateinit var shutterButton: ImageButton
-    private lateinit var flashButton: ImageButton
-    private lateinit var qualityToggleButton: ImageButton
     private lateinit var thumbnailPreview: ImageView
     private lateinit var resolutionListContainer: View
     private lateinit var progressBar: ProgressBar
     private lateinit var switchCameraButton: ImageButton
+    private lateinit var settingsButton: ImageButton
+    private lateinit var torchButton: ImageButton
 
     // CameraX components
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
     private var imageCapture: ImageCapture? = null
     private var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+    private var isTorchOn = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,9 +72,9 @@ class CameraActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.resolutionChangeProgressBar)
         shutterButton = findViewById(R.id.shutterButton)
         thumbnailPreview = findViewById(R.id.thumbnailPreview)
-        flashButton = findViewById(R.id.flashButton)
         switchCameraButton = findViewById(R.id.switchCameraButton)
-
+        settingsButton = findViewById(R.id.settingsButton)
+        torchButton = findViewById(R.id.torchButton)
 
         // Setup RecyclerView
         resolutionAdapter = ResolutionAdapter { size ->
@@ -93,10 +95,6 @@ class CameraActivity : AppCompatActivity() {
             val savePath = intent.getStringExtra(EXTRA_SAVE_PATH)
             viewModel.onTakePicture(imageCapture, savePath)
         }
-        flashButton.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            viewModel.cycleFlashMode()
-        }
         switchCameraButton.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
@@ -105,6 +103,16 @@ class CameraActivity : AppCompatActivity() {
                 CameraSelector.DEFAULT_BACK_CAMERA
             }
             rebindCameraUseCases()
+        }
+        torchButton.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            isTorchOn = !isTorchOn
+            camera?.cameraControl?.enableTorch(isTorchOn)
+            torchButton.alpha = if (isTorchOn) 1.0f else 0.5f
+        }
+        settingsButton.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            showSettingsMenu(it)
         }
 
         if (isCameraPermissionGranted()) {
@@ -115,6 +123,27 @@ class CameraActivity : AppCompatActivity() {
         
         observeUiState()
         observeCameraEvents()
+    }
+
+    private fun showSettingsMenu(anchor: View) {
+        val popup = PopupMenu(this, anchor)
+        val uiState = viewModel.uiState.value
+
+        // Add menu items programmatically
+        val flashTitle = if (uiState.flashMode == ImageCapture.FLASH_MODE_ON) "Вспышка: Вкл" else "Вспышка: Выкл"
+        val stampTitle = if (uiState.isWatermarkEnabled) "Штамп: Вкл" else "Штамп: Выкл"
+
+        popup.menu.add(flashTitle)
+        popup.menu.add(stampTitle)
+
+        popup.setOnMenuItemClickListener { item ->
+            when (item.title) {
+                flashTitle -> viewModel.cycleFlashMode() // Toggles between ON and OFF
+                stampTitle -> viewModel.onWatermarkToggled()
+            }
+            true
+        }
+        popup.show()
     }
     
     private fun observeUiState() {
@@ -131,17 +160,6 @@ class CameraActivity : AppCompatActivity() {
                     state.lastThumbnail?.let { thumbnail ->
                         thumbnailPreview.setImageBitmap(thumbnail)
                     }
-
-                    // Update flash button icon
-                    val flashIconRes = when (state.flashMode) {
-                        ImageCapture.FLASH_MODE_ON -> android.R.drawable.ic_menu_camera
-                        ImageCapture.FLASH_MODE_OFF -> android.R.drawable.ic_lock_power_off
-                        else -> android.R.drawable.ic_menu_rotate // Represents Auto
-                    }
-                    flashButton.setImageResource(flashIconRes)
-                    
-                    // Apply torch state to the camera
-                    camera?.cameraControl?.enableTorch(state.isTorchOn)
                 }
             }
         }
