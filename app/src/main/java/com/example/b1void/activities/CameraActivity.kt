@@ -49,11 +49,13 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var thumbnailPreview: ImageView
     private lateinit var resolutionListContainer: View
     private lateinit var progressBar: ProgressBar
+    private lateinit var switchCameraButton: ImageButton
 
     // CameraX components
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
     private var imageCapture: ImageCapture? = null
+    private var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,11 +68,11 @@ class CameraActivity : AppCompatActivity() {
         resolutionListContainer = findViewById(R.id.resolutionListContainer)
         val resolutionRecyclerView = findViewById<RecyclerView>(R.id.resolutionRecyclerView)
         progressBar = findViewById(R.id.resolutionChangeProgressBar)
-        watermarkButton = findViewById(R.id.watermarkButton)
         shutterButton = findViewById(R.id.shutterButton)
         thumbnailPreview = findViewById(R.id.thumbnailPreview)
         flashButton = findViewById(R.id.flashButton)
-        qualityToggleButton = findViewById(R.id.qualityToggleButton)
+        switchCameraButton = findViewById(R.id.switchCameraButton)
+
 
         // Setup RecyclerView
         resolutionAdapter = ResolutionAdapter { size ->
@@ -86,10 +88,6 @@ class CameraActivity : AppCompatActivity() {
             it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             resolutionListContainer.visibility = if (resolutionListContainer.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }
-        watermarkButton.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            viewModel.onWatermarkToggled()
-        }
         shutterButton.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             val savePath = intent.getStringExtra(EXTRA_SAVE_PATH)
@@ -99,10 +97,14 @@ class CameraActivity : AppCompatActivity() {
             it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             viewModel.cycleFlashMode()
         }
-        qualityToggleButton.setOnClickListener {
+        switchCameraButton.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            viewModel.toggleQualityPriority()
-            rebindCameraUseCases() // Rebind is necessary for this change
+            cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
+                CameraSelector.DEFAULT_FRONT_CAMERA
+            } else {
+                CameraSelector.DEFAULT_BACK_CAMERA
+            }
+            rebindCameraUseCases()
         }
 
         if (isCameraPermissionGranted()) {
@@ -125,22 +127,15 @@ class CameraActivity : AppCompatActivity() {
                     // Show/hide progress bar
                     progressBar.visibility = if (state.isBinding) View.VISIBLE else View.GONE
 
-                    // Update watermark button state
-                    watermarkButton.isSelected = state.isWatermarkEnabled
-
-                    // Update quality button state
-                    qualityToggleButton.isSelected = state.isQualityPriority
-
                     // Update thumbnail
                     state.lastThumbnail?.let { thumbnail ->
                         thumbnailPreview.setImageBitmap(thumbnail)
                     }
 
                     // Update flash button icon
-                    val flashIconRes = when {
-                        state.isTorchOn -> android.R.drawable.ic_menu_info_details
-                        state.flashMode == ImageCapture.FLASH_MODE_ON -> android.R.drawable.ic_menu_camera
-                        state.flashMode == ImageCapture.FLASH_MODE_OFF -> android.R.drawable.ic_menu_close_clear_cancel
+                    val flashIconRes = when (state.flashMode) {
+                        ImageCapture.FLASH_MODE_ON -> android.R.drawable.ic_menu_camera
+                        ImageCapture.FLASH_MODE_OFF -> android.R.drawable.ic_lock_power_off
                         else -> android.R.drawable.ic_menu_rotate // Represents Auto
                     }
                     flashButton.setImageResource(flashIconRes)
@@ -202,8 +197,6 @@ class CameraActivity : AppCompatActivity() {
             imageCaptureBuilder.setTargetResolution(it)
         }
         this.imageCapture = imageCaptureBuilder.build()
-
-        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
         try {
             cameraProvider.unbindAll()

@@ -30,7 +30,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- 3. Верхняя панель управления (вспышка, штамп) -->
+    <!-- 3. Верхняя панель управления (вспышка, переключение камеры) -->
     <LinearLayout
         android:id="@+id/topControls"
         android:layout_width="0dp"
@@ -38,35 +38,37 @@
         android:orientation="horizontal"
         android:padding="16dp"
         android:background="#40000000"
+        android:gravity="center_vertical"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
-        
+
+        <!-- Кнопка вспышки (выровнена по левому краю) -->
         <ImageButton
             android:id="@+id/flashButton"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_camera"
+            app:tint="@color/white"
+            android:src="@android:drawable/ic_menu_rotate"
             android:contentDescription="Flash Mode" />
-            
-        <ImageButton
-            android:id="@+id/watermarkButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="16dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_myplaces"
-            android:contentDescription="Watermark" />
 
+        <!-- Заполнитель, чтобы раздвинуть кнопки по краям -->
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- Кнопка переключения камеры (выровнена по правому краю) -->
         <ImageButton
-            android:id="@+id/qualityToggleButton"
+            android:id="@+id/switchCameraButton"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:layout_marginStart="16dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_manage"
-            android:contentDescription="Toggle Quality/Speed Priority" />
+            app:tint="@color/white"
+            android:src="@android:drawable/ic_menu_revert"
+            android:contentDescription="Switch Camera" />
+
     </LinearLayout>
 
     <!-- 4. Кнопка выбора разрешения -->
