@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.net.Uri
+import android.os.Environment
 import android.util.Log
 import android.util.Size
 import androidx.camera.core.CameraInfo
@@ -95,10 +96,17 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(isQualityPriority = !it.isQualityPriority) }
     }
 
-    fun onTakePicture(imageCapture: ImageCapture?, outputDirectory: File) {
+    fun onTakePicture(imageCapture: ImageCapture?, savePath: String?) {
         val imageCapture = imageCapture ?: run {
             viewModelScope.launch { _event.emit(CameraEvent.Error("Camera is not ready.")) }
             return
+        }
+
+        val outputDirectory = if (savePath != null) {
+            File(savePath)
+        } else {
+            val mediaDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+            File(mediaDir, "InspectorApp").apply { mkdirs() }
         }
 
         val photoFile = File(

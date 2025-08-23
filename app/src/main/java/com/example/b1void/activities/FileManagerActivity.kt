@@ -153,7 +153,7 @@ class FileManagerActivity : AppCompatActivity() {
 
         captureButton.setOnClickListener {
             val intent = Intent(this, CameraActivity::class.java)
-            intent.putExtra("save_path", getCurrentDirectory().absolutePath)
+            intent.putExtra(CameraActivity.EXTRA_SAVE_PATH, getCurrentDirectory().absolutePath)
             startActivity(intent)
         }
 

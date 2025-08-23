@@ -92,8 +92,8 @@ class CameraActivity : AppCompatActivity() {
         }
         shutterButton.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            val outputDirectory = externalCacheDir ?: filesDir
-            viewModel.onTakePicture(imageCapture, outputDirectory)
+            val savePath = intent.getStringExtra(EXTRA_SAVE_PATH)
+            viewModel.onTakePicture(imageCapture, savePath)
         }
         flashButton.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -279,5 +279,6 @@ class CameraActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "CameraActivity"
         private const val REQUEST_CODE_PERMISSIONS = 10
+        const val EXTRA_SAVE_PATH = "extra_save_path"
     }
 }
