@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.net.Uri
 import android.os.Environment
@@ -14,6 +15,7 @@ import androidx.camera.core.CameraInfo
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.core.content.ContextCompat
+import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +36,8 @@ import java.util.Locale
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCharacteristics
 import androidx.camera.camera2.interop.Camera2CameraInfo
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 
 data class CameraUiState(
     val currentResolution: Size? = null,
@@ -132,9 +136,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     Log.d("CameraViewModel", "Photo capture succeeded: $savedUri")
                     
                     viewModelScope.launch {
-                        if (_uiState.value.isWatermarkEnabled) {
-                            applyWatermark(savedUri)
-                        }
+                        applyWatermark(savedUri)
                         createThumbnail(savedUri)
                         _event.emit(CameraEvent.PictureSaved)
                     }
@@ -143,13 +145,46 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
+    private fun rotateBitmap(source: Bitmap, angle: Float): Bitmap {
+        val matrix = Matrix()
+        matrix.postRotate(angle)
+        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+    }
+
     private suspend fun applyWatermark(uri: Uri) {
         withContext(Dispatchers.IO) {
             try {
                 val context = getApplication<Application>().applicationContext
-                context.contentResolver.openFileDescriptor(uri, "rw")?.use { pfd ->
-                    val bmp = BitmapFactory.decodeFileDescriptor(pfd.fileDescriptor).copy(Bitmap.Config.ARGB_8888, true)
-                    val canvas = Canvas(bmp)
+                val fileBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (fileBytes == null) {
+                    Log.e("CameraViewModel", "Failed to read file bytes from Uri")
+                    return@withContext
+                }
+
+                var rotationAngle = 0f
+                ByteArrayInputStream(fileBytes).use { inputStream ->
+                    val exifInterface = ExifInterface(inputStream)
+                    val orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+                    rotationAngle = when (orientation) {
+                        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                        else -> 0f
+                    }
+                }
+
+                val originalBitmap = BitmapFactory.decodeStream(ByteArrayInputStream(fileBytes))
+                    ?: throw Exception("Failed to decode bitmap")
+
+                val rotatedBitmap = if (rotationAngle != 0f) {
+                    rotateBitmap(originalBitmap, rotationAngle)
+                } else {
+                    originalBitmap
+                }
+
+                val finalBitmap = if (_uiState.value.isWatermarkEnabled) {
+                    val watermarkedBitmap = rotatedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+                    val canvas = Canvas(watermarkedBitmap)
                     val paint = Paint().apply {
                         color = Color.WHITE
                         textSize = 64f
@@ -158,13 +193,30 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     }
                     val date = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
                     canvas.drawText(date, 50f, 100f, paint)
-
-                    FileOutputStream(pfd.fileDescriptor).use { out ->
-                        bmp.compress(Bitmap.CompressFormat.JPEG, 95, out)
-                    }
+                    watermarkedBitmap
+                } else {
+                    rotatedBitmap
                 }
+
+                val outputStream = ByteArrayOutputStream()
+                finalBitmap.compress(Bitmap.CompressFormat.JPEG, 95, outputStream)
+                val byteArray = outputStream.toByteArray()
+
+                context.contentResolver.openOutputStream(uri, "w")?.use { fileOutputStream ->
+                    fileOutputStream.write(byteArray)
+                }
+
+                context.contentResolver.openFileDescriptor(uri, "rw")?.use { pfd ->
+                    val exifInterface = ExifInterface(pfd.fileDescriptor)
+                    exifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+                    exifInterface.saveAttributes()
+                }
+
             } catch (e: Exception) {
-                Log.e("CameraViewModel", "Failed to apply watermark", e)
+                Log.e("CameraViewModel", "Failed to process image", e)
+                viewModelScope.launch {
+                    _event.emit(CameraEvent.Error("Failed to process image: ${e.message}"))
+                }
             }
         }
     }
@@ -173,11 +225,32 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         withContext(Dispatchers.IO) {
             try {
                 val context = getApplication<Application>().applicationContext
-                val inputStream = context.contentResolver.openInputStream(uri)
-                // Downsample to reduce memory usage and avoid OOM errors
+                val fileBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (fileBytes == null) {
+                    Log.e("CameraViewModel", "Failed to read file bytes from Uri for thumbnail")
+                    return@withContext
+                }
+
+                var rotationAngle = 0f
+                ByteArrayInputStream(fileBytes).use { inputStream ->
+                    val exifInterface = ExifInterface(inputStream)
+                    val orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED)
+                    rotationAngle = when (orientation) {
+                        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                        else -> 0f
+                    }
+                }
+
                 val options = BitmapFactory.Options().apply { inSampleSize = 8 }
-                val thumbnail = BitmapFactory.decodeStream(inputStream, null, options)
-                _uiState.update { it.copy(lastThumbnail = thumbnail) }
+                val thumbnail = BitmapFactory.decodeStream(ByteArrayInputStream(fileBytes), null, options)
+
+                thumbnail?.let {
+                    val rotatedThumbnail = rotateBitmap(it, rotationAngle)
+                    _uiState.update { state -> state.copy(lastThumbnail = rotatedThumbnail) }
+                }
+
             } catch (e: Exception) {
                 Log.e("CameraViewModel", "Failed to create thumbnail", e)
             }
