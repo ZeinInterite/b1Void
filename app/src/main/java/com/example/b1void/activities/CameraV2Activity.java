@@ -75,6 +75,8 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import androidx.exifinterface.media.ExifInterface;
+import java.io.ByteArrayInputStream;
 
 import yuku.ambilwarna.AmbilWarnaDialog;
 
@@ -639,22 +641,25 @@ public class CameraV2Activity extends AppCompatActivity {
         cameraView.addCameraListener(new CameraListener() {
             @Override
             public void onPictureTaken(@NonNull PictureResult result) {
-                result.toBitmap(bitmap -> {
-                    if (bitmap != null) {
-                        Bitmap stampedBitmap = combineCameraAndStamp(bitmap); // Используйте combineCameraAndStamp
-                        currentImageFile = saveImage(stampedBitmap);
-                        if (currentImageFile != null) {
-                            updateLastImagePreview();
-                            
-                        } else {
-                            Log.e("CameraError", "Failed to save image.");
-                            Toast.makeText(CameraV2Activity.this, "Наебнулось при создании снимка.", Toast.LENGTH_SHORT).show();
-                        }
+                byte[] pictureData = result.getData();
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inMutable = true;
+                Bitmap bitmap = BitmapFactory.decodeByteArray(pictureData, 0, pictureData.length, options);
+
+                if (bitmap != null) {
+                    Bitmap stampedBitmap = combineCameraAndStamp(bitmap);
+                    // Pass the original byte[] with Exif data to the save method
+                    currentImageFile = saveImage(stampedBitmap, pictureData);
+                    if (currentImageFile != null) {
+                        updateLastImagePreview();
                     } else {
-                        Log.e("CameraError", "Failed to decode Bitmap from PictureResult");
-                        Toast.makeText(CameraV2Activity.this, "Наебнулось при декодировани.", Toast.LENGTH_SHORT).show();
+                        Log.e("CameraError", "Failed to save image.");
+                        Toast.makeText(CameraV2Activity.this, "Наебнулось при создании снимка.", Toast.LENGTH_SHORT).show();
                     }
-                });
+                } else {
+                    Log.e("CameraError", "Failed to decode Bitmap from PictureResult");
+                    Toast.makeText(CameraV2Activity.this, "Наебнулось при декодировани.", Toast.LENGTH_SHORT).show();
+                }
             }
 
             @Override
@@ -1063,7 +1068,7 @@ public class CameraV2Activity extends AppCompatActivity {
     }
 
     // Сохраняем изображение на диск
-    private File saveImage(Bitmap finalBitmap) {
+    private File saveImage(Bitmap finalBitmap, byte[] sourceData) {
         File file = null; // Инициализируем file в null, а то IDE ругается
         try {
             if (customSavePath != null && !customSavePath.isEmpty()) {
@@ -1119,12 +1124,92 @@ public class CameraV2Activity extends AppCompatActivity {
             finalBitmap.compress(compressFormat, 100, out);
             out.flush();
             out.close();
+
+            if (compressFormat == Bitmap.CompressFormat.JPEG) {
+                copyExifData(sourceData, file.getAbsolutePath());
+            }
+
             return file;
 
         } catch (IOException e) {
             Log.e("CameraError", "Error saving image: " + e.getMessage() + " Path: " + (file != null ? file.getAbsolutePath() : "null"));
             Toast.makeText(this, "Error saving image: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             return null;
+        }
+    }
+
+    private void copyExifData(byte[] sourceData, String destPath) {
+        try {
+            ExifInterface oldExif = new ExifInterface(new ByteArrayInputStream(sourceData));
+            ExifInterface newExif = new ExifInterface(destPath);
+
+            List<String> attributes = Arrays.asList(
+                ExifInterface.TAG_APERTURE_VALUE, ExifInterface.TAG_ARTIST, ExifInterface.TAG_BITS_PER_SAMPLE,
+                ExifInterface.TAG_COMPRESSION, ExifInterface.TAG_COPYRIGHT, ExifInterface.TAG_DATETIME,
+                ExifInterface.TAG_DATETIME_DIGITIZED, ExifInterface.TAG_DATETIME_ORIGINAL, ExifInterface.TAG_DEVICE_SETTING_DESCRIPTION,
+                ExifInterface.TAG_DIGITAL_ZOOM_RATIO, ExifInterface.TAG_EXIF_VERSION, ExifInterface.TAG_EXPOSURE_BIAS_VALUE,
+                ExifInterface.TAG_EXPOSURE_INDEX, ExifInterface.TAG_EXPOSURE_MODE, ExifInterface.TAG_EXPOSURE_PROGRAM,
+                ExifInterface.TAG_EXPOSURE_TIME, ExifInterface.TAG_FILE_SOURCE, ExifInterface.TAG_FLASH,
+                ExifInterface.TAG_FLASH_ENERGY, ExifInterface.TAG_FOCAL_LENGTH, ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM,
+                ExifInterface.TAG_FOCAL_PLANE_RESOLUTION_UNIT, ExifInterface.TAG_FOCAL_PLANE_X_RESOLUTION,
+                ExifInterface.TAG_FOCAL_PLANE_Y_RESOLUTION, ExifInterface.TAG_F_NUMBER, ExifInterface.TAG_GAIN_CONTROL,
+                ExifInterface.TAG_GPS_ALTITUDE, ExifInterface.TAG_GPS_ALTITUDE_REF, ExifInterface.TAG_GPS_AREA_INFORMATION,
+                ExifInterface.TAG_GPS_DATESTAMP, ExifInterface.TAG_GPS_DEST_BEARING, ExifInterface.TAG_GPS_DEST_BEARING_REF,
+                ExifInterface.TAG_GPS_DEST_DISTANCE, ExifInterface.TAG_GPS_DEST_DISTANCE_REF, ExifInterface.TAG_GPS_DEST_LATITUDE,
+                ExifInterface.TAG_GPS_DEST_LATITUDE_REF, ExifInterface.TAG_GPS_DEST_LONGITUDE, ExifInterface.TAG_GPS_DEST_LONGITUDE_REF,
+                ExifInterface.TAG_GPS_DIFFERENTIAL, ExifInterface.TAG_GPS_DOP, ExifInterface.TAG_GPS_IMG_DIRECTION,
+                ExifInterface.TAG_GPS_IMG_DIRECTION_REF, ExifInterface.TAG_GPS_LATITUDE, ExifInterface.TAG_GPS_LATITUDE_REF,
+                ExifInterface.TAG_GPS_LONGITUDE, ExifInterface.TAG_GPS_LONGITUDE_REF, ExifInterface.TAG_GPS_MAP_DATUM,
+                ExifInterface.TAG_GPS_MEASURE_MODE, ExifInterface.TAG_GPS_PROCESSING_METHOD, ExifInterface.TAG_GPS_SATELLITES,
+                ExifInterface.TAG_GPS_SPEED, ExifInterface.TAG_GPS_SPEED_REF, ExifInterface.TAG_GPS_STATUS,
+                ExifInterface.TAG_GPS_TIMESTAMP, ExifInterface.TAG_GPS_TRACK, ExifInterface.TAG_GPS_TRACK_REF,
+                ExifInterface.TAG_IMAGE_DESCRIPTION, ExifInterface.TAG_IMAGE_LENGTH, ExifInterface.TAG_IMAGE_UNIQUE_ID,
+                ExifInterface.TAG_IMAGE_WIDTH, ExifInterface.TAG_INTEROPERABILITY_INDEX, ExifInterface.TAG_ISO_SPEED_RATINGS,
+                ExifInterface.TAG_JPEG_INTERCHANGE_FORMAT, ExifInterface.TAG_JPEG_INTERCHANGE_FORMAT_LENGTH,
+                ExifInterface.TAG_LIGHT_SOURCE, ExifInterface.TAG_MAKE, ExifInterface.TAG_MAKER_NOTE,
+                ExifInterface.TAG_MAX_APERTURE_VALUE, ExifInterface.TAG_METERING_MODE, ExifInterface.TAG_MODEL,
+                ExifInterface.TAG_OECF, ExifInterface.TAG_OFFSET_TIME, ExifInterface.TAG_OFFSET_TIME_DIGITIZED,
+                ExifInterface.TAG_OFFSET_TIME_ORIGINAL, ExifInterface.TAG_ORF_ASPECT_FRAME, ExifInterface.TAG_ORF_PREVIEW_IMAGE_LENGTH,
+                ExifInterface.TAG_ORF_PREVIEW_IMAGE_START, ExifInterface.TAG_ORF_THUMBNAIL_IMAGE,
+                ExifInterface.TAG_ORIENTATION, ExifInterface.TAG_PHOTOMETRIC_INTERPRETATION,
+                ExifInterface.TAG_PIXEL_X_DIMENSION, ExifInterface.TAG_PIXEL_Y_DIMENSION,
+                ExifInterface.TAG_PLANAR_CONFIGURATION, ExifInterface.TAG_PRIMARY_CHROMATICITIES,
+                ExifInterface.TAG_REFERENCE_BLACK_WHITE, ExifInterface.TAG_RESOLUTION_UNIT,
+                ExifInterface.TAG_ROWS_PER_STRIP, ExifInterface.TAG_SAMPLES_PER_PIXEL,
+                ExifInterface.TAG_SATURATION, ExifInterface.TAG_SCENE_CAPTURE_TYPE,
+                ExifInterface.TAG_SCENE_TYPE, ExifInterface.TAG_SENSING_METHOD,
+                ExifInterface.TAG_SHARPNESS, ExifInterface.TAG_SHUTTER_SPEED_VALUE,
+                ExifInterface.TAG_SOFTWARE, ExifInterface.TAG_SPATIAL_FREQUENCY_RESPONSE,
+                ExifInterface.TAG_SPECTRAL_SENSITIVITY, ExifInterface.TAG_STRIP_BYTE_COUNTS,
+                ExifInterface.TAG_STRIP_OFFSETS, ExifInterface.TAG_SUBFILE_TYPE,
+                ExifInterface.TAG_SUBJECT_AREA, ExifInterface.TAG_SUBJECT_DISTANCE,
+                ExifInterface.TAG_SUBJECT_DISTANCE_RANGE, ExifInterface.TAG_SUBJECT_LOCATION,
+                ExifInterface.TAG_SUBSEC_TIME, ExifInterface.TAG_SUBSEC_TIME_DIGITIZED,
+                ExifInterface.TAG_SUBSEC_TIME_ORIGINAL, ExifInterface.TAG_THUMBNAIL_IMAGE_LENGTH,
+                ExifInterface.TAG_THUMBNAIL_IMAGE_WIDTH, ExifInterface.TAG_TRANSFER_FUNCTION,
+                ExifInterface.TAG_USER_COMMENT, ExifInterface.TAG_WHITE_BALANCE,
+                ExifInterface.TAG_WHITE_POINT, ExifInterface.TAG_X_RESOLUTION,
+                ExifInterface.TAG_Y_CB_CR_COEFFICIENTS, ExifInterface.TAG_Y_CB_CR_POSITIONING,
+                ExifInterface.TAG_Y_CB_CR_SUB_SAMPLING, ExifInterface.TAG_Y_RESOLUTION
+            );
+
+            for (String tag : attributes) {
+                String value = oldExif.getAttribute(tag);
+                if (value != null) {
+                    newExif.setAttribute(tag, value);
+                }
+            }
+
+            String dateTime = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault()).format(new Date());
+            newExif.setAttribute(ExifInterface.TAG_DATETIME, dateTime);
+            newExif.setAttribute(ExifInterface.TAG_DATETIME_ORIGINAL, dateTime);
+            newExif.setAttribute(ExifInterface.TAG_DATETIME_DIGITIZED, dateTime);
+            newExif.setAttribute(ExifInterface.TAG_SUBSEC_TIME_ORIGINAL, String.valueOf(System.currentTimeMillis() % 1000));
+
+            newExif.saveAttributes();
+
+        } catch (IOException e) {
+            Log.e("ExifError", "Could not copy Exif data.", e);
         }
     }
 
