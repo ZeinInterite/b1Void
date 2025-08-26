@@ -150,8 +150,8 @@ class CameraActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
-                    // Update resolution list
-                    resolutionAdapter.submitList(state.availableResolutions)
+                    // Update resolution list and pass the current resolution
+                    resolutionAdapter.submitList(state.availableResolutions, state.currentResolution)
                     
                     // Show/hide progress bar
                     progressBar.visibility = if (state.isBinding) View.VISIBLE else View.GONE
@@ -259,26 +259,34 @@ class CameraActivity : AppCompatActivity() {
     class ResolutionAdapter(private val onSizeSelected: (Size) -> Unit) : RecyclerView.Adapter<ResolutionAdapter.ResolutionViewHolder>() {
 
         private var resolutions: List<Size> = emptyList()
+        private var selectedResolution: Size? = null
 
-        fun submitList(newList: List<Size>) {
+        fun submitList(newList: List<Size>, selected: Size?) {
             resolutions = newList
+            selectedResolution = selected
             notifyDataSetChanged()
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ResolutionViewHolder {
-            val view = LayoutInflater.from(parent.context).inflate(android.R.layout.simple_list_item_1, parent, false)
+            val view = LayoutInflater.from(parent.context).inflate(R.layout.list_item_resolution, parent, false)
             return ResolutionViewHolder(view)
         }
 
         override fun onBindViewHolder(holder: ResolutionViewHolder, position: Int) {
             val size = resolutions[position]
             holder.bind(size, onSizeSelected)
+            if (size == selectedResolution) {
+                holder.checkmark.visibility = View.VISIBLE
+            } else {
+                holder.checkmark.visibility = View.GONE
+            }
         }
 
         override fun getItemCount(): Int = resolutions.size
 
         class ResolutionViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-            private val textView: TextView = itemView.findViewById(android.R.id.text1)
+            private val textView: TextView = itemView.findViewById(R.id.resolution_text)
+            val checkmark: ImageView = itemView.findViewById(R.id.checkmark_image)
 
             fun bind(size: Size, onSizeSelected: (Size) -> Unit) {
                 textView.text = "${size.width} x ${size.height}"
