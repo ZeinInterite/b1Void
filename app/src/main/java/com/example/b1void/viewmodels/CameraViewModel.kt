@@ -171,13 +171,18 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     val watermarkedBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
                     val canvas = Canvas(watermarkedBitmap)
                     val paint = Paint().apply {
-                        color = Color.WHITE
-                        textSize = 64f
+                        color = Color.RED
+                        textSize = watermarkedBitmap.height / 20f // "Large" font size relative to image height
                         isAntiAlias = true
-                        setShadowLayer(5f, 2f, 2f, Color.BLACK)
+                        textAlign = Paint.Align.RIGHT // Align text to the right for easier positioning
                     }
                     val date = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-                    canvas.drawText(date, 50f, 100f, paint)
+                    
+                    // Position text in the bottom-right corner with padding
+                    val padding = watermarkedBitmap.height / 25f
+                    val x = watermarkedBitmap.width - padding
+                    val y = watermarkedBitmap.height - padding
+                    canvas.drawText(date, x, y, paint)
 
                     // Overwrite the original file with the watermarked version
                     context.contentResolver.openOutputStream(uri, "w")?.use { fileOutputStream ->
