@@ -174,7 +174,7 @@ class CameraActivity : AppCompatActivity() {
                             Toast.makeText(this@CameraActivity, "Error: ${event.message}", Toast.LENGTH_LONG).show()
                         }
                         is CameraEvent.PictureSaved -> {
-                            Toast.makeText(this@CameraActivity, "Photo saved!", Toast.LENGTH_SHORT).show()
+                            // Photo saved, do nothing (toast removed as per request)
                         }
                     }
                 }
