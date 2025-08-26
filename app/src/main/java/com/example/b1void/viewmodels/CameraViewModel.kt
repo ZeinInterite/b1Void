@@ -155,35 +155,20 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         withContext(Dispatchers.IO) {
             try {
                 val context = getApplication<Application>().applicationContext
-                val fileBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                if (fileBytes == null) {
-                    Log.e("CameraViewModel", "Failed to read file bytes from Uri")
-                    return@withContext
-                }
 
-                var rotationAngle = 0f
-                ByteArrayInputStream(fileBytes).use { inputStream ->
-                    val exifInterface = ExifInterface(inputStream)
-                    val orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-                    rotationAngle = when (orientation) {
-                        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-                        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-                        else -> 0f
+                // If watermarking is enabled, decode, modify, and overwrite the image.
+                // This is a resource-intensive operation.
+                if (_uiState.value.isWatermarkEnabled) {
+                    val fileBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    if (fileBytes == null) {
+                        Log.e("CameraViewModel", "Failed to read file bytes for watermarking.")
+                        return@withContext
                     }
-                }
 
-                val originalBitmap = BitmapFactory.decodeStream(ByteArrayInputStream(fileBytes))
-                    ?: throw Exception("Failed to decode bitmap")
+                    val originalBitmap = BitmapFactory.decodeStream(ByteArrayInputStream(fileBytes))
+                        ?: throw Exception("Failed to decode bitmap for watermarking")
 
-                val rotatedBitmap = if (rotationAngle != 0f) {
-                    rotateBitmap(originalBitmap, rotationAngle)
-                } else {
-                    originalBitmap
-                }
-
-                val finalBitmap = if (_uiState.value.isWatermarkEnabled) {
-                    val watermarkedBitmap = rotatedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+                    val watermarkedBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
                     val canvas = Canvas(watermarkedBitmap)
                     val paint = Paint().apply {
                         color = Color.WHITE
@@ -193,24 +178,19 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                     }
                     val date = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
                     canvas.drawText(date, 50f, 100f, paint)
-                    watermarkedBitmap
-                } else {
-                    rotatedBitmap
+
+                    // Overwrite the original file with the watermarked version
+                    context.contentResolver.openOutputStream(uri, "w")?.use { fileOutputStream ->
+                        watermarkedBitmap.compress(Bitmap.CompressFormat.JPEG, 95, fileOutputStream)
+                    }
+                    originalBitmap.recycle()
+                    watermarkedBitmap.recycle()
                 }
 
-                val outputStream = ByteArrayOutputStream()
-                finalBitmap.compress(Bitmap.CompressFormat.JPEG, 95, outputStream)
-                val byteArray = outputStream.toByteArray()
-
-                context.contentResolver.openOutputStream(uri, "w")?.use { fileOutputStream ->
-                    fileOutputStream.write(byteArray)
-                }
-
-                context.contentResolver.openFileDescriptor(uri, "rw")?.use { pfd ->
-                    val exifInterface = ExifInterface(pfd.fileDescriptor)
-                    exifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
-                    exifInterface.saveAttributes()
-                }
+                // --- Force EXIF Orientation to Landscape (Normal) ---
+                // This block runs regardless of whether the watermark is enabled.
+                // It directly modifies the EXIF data of the saved file.
+                setOrientationToNormal(context, uri)
 
             } catch (e: Exception) {
                 Log.e("CameraViewModel", "Failed to process image", e)
@@ -221,34 +201,43 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /**
+     * Modifies the EXIF metadata of an image to force a standard orientation.
+     * It sets the orientation tag to ORIENTATION_NORMAL (1), which is typically
+     * interpreted as a landscape image that requires no rotation.
+     *
+     * @param context The application context to access the content resolver.
+     * @param uri The URI of the JPEG file to modify.
+     */
+    private fun setOrientationToNormal(context: android.content.Context, uri: Uri) {
+        try {
+            context.contentResolver.openFileDescriptor(uri, "rw")?.use { pfd ->
+                val exifInterface = ExifInterface(pfd.fileDescriptor)
+                // Set orientation to NORMAL (landscape, no rotation needed)
+                exifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+                exifInterface.saveAttributes()
+                Log.d("CameraViewModel", "Successfully set orientation for $uri")
+            }
+        } catch (e: Exception) {
+            // Log error if we can't modify the EXIF data
+            Log.e("CameraViewModel", "Failed to set EXIF orientation for $uri", e)
+        }
+    }
+
     private suspend fun createThumbnail(uri: Uri) {
         withContext(Dispatchers.IO) {
             try {
                 val context = getApplication<Application>().applicationContext
-                val fileBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                if (fileBytes == null) {
-                    Log.e("CameraViewModel", "Failed to read file bytes from Uri for thumbnail")
-                    return@withContext
-                }
-
-                var rotationAngle = 0f
-                ByteArrayInputStream(fileBytes).use { inputStream ->
-                    val exifInterface = ExifInterface(inputStream)
-                    val orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED)
-                    rotationAngle = when (orientation) {
-                        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-                        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-                        else -> 0f
-                    }
-                }
-
                 val options = BitmapFactory.Options().apply { inSampleSize = 8 }
-                val thumbnail = BitmapFactory.decodeStream(ByteArrayInputStream(fileBytes), null, options)
+                
+                val thumbnail = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    BitmapFactory.decodeStream(inputStream, null, options)
+                }
 
                 thumbnail?.let {
-                    val rotatedThumbnail = rotateBitmap(it, rotationAngle)
-                    _uiState.update { state -> state.copy(lastThumbnail = rotatedThumbnail) }
+                    // The image orientation is now always NORMAL, so no rotation is needed.
+                    // The thumbnail will correctly appear as a landscape image.
+                    _uiState.update { state -> state.copy(lastThumbnail = it) }
                 }
 
             } catch (e: Exception) {
