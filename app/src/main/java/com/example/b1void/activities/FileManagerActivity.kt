@@ -1,6 +1,7 @@
 package com.example.b1void.activities
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
@@ -10,6 +11,7 @@ import android.os.Looper
 import android.preference.PreferenceManager
 import android.util.Log
 import android.view.*
+import android.webkit.MimeTypeMap
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -61,9 +63,6 @@ class FileManagerActivity : AppCompatActivity() {
     // ----------------------------------------->
 
     private val OPEN_FILE = 1
-    private var imageUri: Uri? = null
-    private var imgGalUriString: String? = null
-    private var imgGalUri: Uri? = null
 
     private var isSelectionMode = false
     private val selectedFiles = mutableSetOf<File>()
@@ -121,15 +120,11 @@ class FileManagerActivity : AppCompatActivity() {
         titleTextView = findViewById(R.id.titleTextView)
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
 
-        // --- Инициализация нового UI ---
         selectionTopToolbar = findViewById(R.id.selection_top_toolbar)
         selectionCountTextView = findViewById(R.id.selection_count_text)
         selectAllToggleButton = findViewById(R.id.select_all_toggle_button)
         confirmSelectionButton = findViewById(R.id.confirm_selection_button)
-        // ---------------------------------
     }
-
-
 
     private fun setupButtons() {
         val sortButton: ImageButton = findViewById(R.id.sort_button)
@@ -137,15 +132,10 @@ class FileManagerActivity : AppCompatActivity() {
 
         sortButton.setOnClickListener { toggleSortOrder() }
 
-        if (intent.getStringExtra("imageUri") != null) {
-            imgGalUriString = intent.getStringExtra("imageUri")
-            imgGalUri = Uri.parse(imgGalUriString)
-            showCreateFolderDialog { newDir -> saveImageToDirectory(newDir) }
-        }
-
         uploadButton.setOnClickListener {
-            val intent = Intent(Intent.ACTION_PICK).apply {
-                type = "image/*"
+            val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                type = "*/*" // General type
+                putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*")) // Specific types
                 putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
             }
             startActivityForResult(intent, OPEN_FILE)
@@ -163,11 +153,8 @@ class FileManagerActivity : AppCompatActivity() {
 
         swipeRefreshLayout.setOnRefreshListener { loadDirectoryContent(getCurrentDirectory()) }
 
-        // --- Новые обработчики кнопок ---
         selectAllToggleButton.setOnClickListener { toggleSelectAll() }
         confirmSelectionButton.setOnClickListener { showActionsMenu() }
-        // -----------------------------------
-
     }
 
     private inner class ScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -180,7 +167,7 @@ class FileManagerActivity : AppCompatActivity() {
 
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             scaleFactor *= detector.scaleFactor
-            scaleFactor = Math.max(0.5f, Math.min(scaleFactor, 2.0f)) // Ограничение масштаба
+            scaleFactor = Math.max(0.5f, Math.min(scaleFactor, 2.0f))
 
             if (scaleFactor > 1.2f && spanCount > MIN_SPAN_COUNT) {
                 spanCount--
@@ -295,15 +282,18 @@ class FileManagerActivity : AppCompatActivity() {
                 (0 until it.itemCount).map { i -> it.getItemAt(i).uri }
             } ?: listOfNotNull(data.data)
             if (uris.isNotEmpty()) {
-                saveImagesToDirectory(getCurrentDirectory(), uris)
+                saveMediaToDirectory(getCurrentDirectory(), uris)
             }
         }
     }
 
-    private fun saveImagesToDirectory(directory: File, uris: List<Uri>) {
+    private fun saveMediaToDirectory(directory: File, uris: List<Uri>) {
         thread {
             uris.forEach { uri ->
-                val fname = "Image-${System.currentTimeMillis()}.jpg"
+                val mimeType = contentResolver.getType(uri)
+                val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType) ?: "file"
+                val prefix = if (mimeType?.startsWith("video") == true) "Video" else "Image"
+                val fname = "$prefix-${System.currentTimeMillis()}.$extension"
                 val file = File(directory, fname)
                 try {
                     contentResolver.openInputStream(uri)?.use { input ->
@@ -316,21 +306,15 @@ class FileManagerActivity : AppCompatActivity() {
                 }
             }
             runOnUiThread {
-                
                 loadDirectoryContent(directory)
             }
         }
-    }
-
-    private fun saveImageToDirectory(directory: File) {
-        imgGalUri?.let { saveImagesToDirectory(directory, listOf(it)) }
     }
 
     private fun showPopupMenu(file: File, view: View) {
         currentFileForMenu = file
         PopupMenu(this, view).apply {
             menuInflater.inflate(R.menu.file_actions_menu, menu)
-            // Показываем "Переместить на уровень выше" только если это возможно
             menu.findItem(R.id.action_move_up).isVisible =
                 getCurrentDirectory().parentFile != null && getCurrentDirectory().absolutePath != appDirectory.absolutePath
 
@@ -392,6 +376,21 @@ class FileManagerActivity : AppCompatActivity() {
             openDirectory(file)
         } else if (fileAdapter.isImage(file)) {
             openImagePreview(file)
+        } else if (fileAdapter.isVideo(file)) {
+            playVideo(file)
+        }
+    }
+
+    private fun playVideo(file: File) {
+        val fileUri = FileProvider.getUriForFile(this, "${packageName}.provider", file)
+        val intent = Intent(Intent.ACTION_VIEW, fileUri).apply {
+            setDataAndType(fileUri, "video/*")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, "Не найдено приложение для воспроизведения видео", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -481,7 +480,7 @@ class FileManagerActivity : AppCompatActivity() {
         if (file.isDirectory) {
             thread {
                 val sharedZipsDir = File(cacheDir, "shared_zips").apply { mkdirs() }
-                sharedZipsDir.listFiles()?.forEach { it.delete() } // Очищаем старые zip
+                sharedZipsDir.listFiles()?.forEach { it.delete() }
 
                 val zipFile = File(sharedZipsDir, "${file.name}.zip")
 
@@ -504,9 +503,10 @@ class FileManagerActivity : AppCompatActivity() {
             }
         } else {
             val uri = FileProvider.getUriForFile(this, "${packageName}.provider", file)
+            val mimeType = contentResolver.getType(uri) ?: "*/*"
             ShareCompat.IntentBuilder(this)
                 .setStream(uri)
-                .setType("image/*")
+                .setType(mimeType)
                 .setChooserTitle("Поделиться файлом")
                 .startChooser()
         }
@@ -627,13 +627,11 @@ class FileManagerActivity : AppCompatActivity() {
         if (selectedFiles.isEmpty()) return
         thread {
             val sharedZipsDir = File(cacheDir, "shared_zips").apply { mkdirs() }
-            // Очищаем старые zip-файлы перед созданием нового
             sharedZipsDir.listFiles()?.forEach { it.delete() }
 
             val zipFile = File(sharedZipsDir, "archive-${System.currentTimeMillis()}.zip")
 
             try {
-                // Создаем временную директорию для копирования файлов перед архивацией
                 val tempDir = File(cacheDir, "temp_share").apply { mkdirs() }
                 selectedFiles.forEach { file ->
                     if (file.isDirectory) {
@@ -644,7 +642,7 @@ class FileManagerActivity : AppCompatActivity() {
                 }
 
                 FileManagerUtils.zipDirectory(tempDir, zipFile)
-                tempDir.deleteRecursively() // Очищаем временную директорию
+                tempDir.deleteRecursively()
 
                 if (!zipFile.exists() || zipFile.length() == 0L) {
                     throw IOException("Не удалось создать или был создан пустой ZIP-файл.")
@@ -667,10 +665,7 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
-    
-
     private fun showMoveDialogForFile(file: File) {
-        // This can be refactored or removed if single file move is not needed outside selection mode
         showMoveDialogForSelectedFiles(setOf(file))
     }
 
@@ -719,8 +714,6 @@ class FileManagerActivity : AppCompatActivity() {
             }
         }
     }
-
-
 
     override fun onResume() {
         super.onResume()

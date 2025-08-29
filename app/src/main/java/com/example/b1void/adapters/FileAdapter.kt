@@ -25,6 +25,7 @@ class FileAdapter(
     class FileViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val fileName: TextView = itemView.findViewById(R.id.file_name)
         val fileIcon: ImageView = itemView.findViewById(R.id.file_icon)
+        val playIcon: ImageView = itemView.findViewById(R.id.play_icon) // Added for video indication
         val checkBox: CheckBox = itemView.findViewById(R.id.checkbox)
     }
 
@@ -36,17 +37,18 @@ class FileAdapter(
     override fun onBindViewHolder(holder: FileViewHolder, position: Int) {
         val file = files[position]
 
-        // Make image view square
         holder.fileIcon.post {
             val layoutParams = holder.fileIcon.layoutParams
             layoutParams.height = holder.fileIcon.width
             holder.fileIcon.layoutParams = layoutParams
         }
 
+        holder.playIcon.visibility = View.GONE // Hide by default
+        holder.fileName.visibility = View.VISIBLE
+
         if (file.isDirectory) {
             holder.fileIcon.setImageResource(R.drawable.ic_folder)
             holder.fileName.text = file.name
-            holder.fileName.visibility = View.VISIBLE
         } else if (isImage(file)) {
             Glide.with(context)
                 .load(file)
@@ -55,10 +57,18 @@ class FileAdapter(
                 .error(R.drawable.image_ic)
                 .into(holder.fileIcon)
             holder.fileName.visibility = View.GONE
+        } else if (isVideo(file)) {
+            Glide.with(context)
+                .load(file) // Glide can load thumbnails from video files
+                .centerCrop()
+                .placeholder(R.drawable.ic_videocam) // Placeholder for video
+                .error(R.drawable.ic_videocam)
+                .into(holder.fileIcon)
+            holder.playIcon.visibility = View.VISIBLE // Show play icon for videos
+            holder.fileName.visibility = View.GONE
         } else {
             holder.fileIcon.setImageResource(R.drawable.file_ic)
             holder.fileName.text = file.name
-            holder.fileName.visibility = View.VISIBLE
         }
 
         updateSelectionState(holder, file)
@@ -96,9 +106,14 @@ class FileAdapter(
         diffResult.dispatchUpdatesTo(this)
     }
 
-    internal fun isImage(file: File): Boolean {
+    fun isImage(file: File): Boolean {
         val fileName = file.name.lowercase()
         return fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || fileName.endsWith(".png") || fileName.endsWith(".gif") || fileName.endsWith(".bmp")
+    }
+
+    fun isVideo(file: File): Boolean {
+        val fileName = file.name.lowercase()
+        return fileName.endsWith(".mp4") || fileName.endsWith(".mov") || fileName.endsWith(".avi")
     }
 
     class FileDiffCallback(
