@@ -300,7 +300,7 @@ class CameraActivity : AppCompatActivity() {
         val canvas = Canvas(newBitmap)
         val paint = Paint().apply {
             color = Color.RED
-            textSize = 64f // Large text
+            textSize = 96f // Large text
             isAntiAlias = true
         }
         val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
