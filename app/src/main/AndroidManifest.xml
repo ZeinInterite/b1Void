@@ -89,10 +89,7 @@
         </intent-filter>
     </activity>
 
-    <activity
-        android:name=".activities.CameraV2Activity"
-        android:exported="false"
-        android:configChanges="orientation|keyboard|screenSize" />
+    
     <activity
         android:name=".activities.ImagePreviewActivity"
         android:exported="false"
