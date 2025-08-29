@@ -134,8 +134,8 @@
             android:layout_height="48dp"
             android:scaleType="centerCrop"
             android:background="@android:color/darker_gray"
-            app:layout_constraintTop_toTopOf="@id/capture_button"
-            app:layout_constraintBottom_toBottomOf="@id/capture_button"
+            app:layout_constraintTop_toTopOf="@id/shutterButton"
+            app:layout_constraintBottom_toBottomOf="@id/shutterButton"
             app:layout_constraintStart_toStartOf="parent"
             tools:src="@tools:sample/avatars" />
 
@@ -146,9 +146,9 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_switch_to_video"
             app:tint="@color/white"
-            app:layout_constraintTop_toTopOf="@id/capture_button"
-            app:layout_constraintBottom_toBottomOf="@id/capture_button"
-            app:layout_constraintStart_toEndOf="@id/capture_button"
+            app:layout_constraintTop_toTopOf="@id/shutterButton"
+            app:layout_constraintBottom_toBottomOf="@id/shutterButton"
+            app:layout_constraintStart_toEndOf="@id/shutterButton"
             android:layout_marginStart="16dp"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>

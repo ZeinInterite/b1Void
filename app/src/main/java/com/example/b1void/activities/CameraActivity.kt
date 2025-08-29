@@ -1,15 +1,19 @@
 package com.example.b1void.activities
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import android.view.animation.AlphaAnimation
 import android.view.animation.Animation
+import android.webkit.MimeTypeMap
 import android.widget.Chronometer
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.Camera
@@ -17,11 +21,14 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
+import androidx.camera.core.TorchState
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import com.bumptech.glide.Glide
 import com.example.b1void.R
 import java.io.File
 import java.text.SimpleDateFormat
@@ -42,6 +49,10 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var modeSwitchButton: ImageButton
     private lateinit var flipCameraButton: ImageButton
     private lateinit var recordingTimer: Chronometer
+    private lateinit var thumbnailPreview: ImageView
+    private lateinit var settingsButton: ImageButton
+    private lateinit var torchButton: ImageButton
+    private lateinit var resolutionSelectorButton: ImageButton
 
     // CameraX components
     private var imageCapture: ImageCapture? = null
@@ -49,15 +60,17 @@ class CameraActivity : AppCompatActivity() {
     private var recording: Recording? = null
     private var cameraProvider: ProcessCameraProvider? = null
     private lateinit var cameraExecutor: ExecutorService
+    private var camera: Camera? = null
 
     // State variables
     private var currentMode = CaptureMode.PHOTO
     private var isRecording = false
     private var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+    private var lastSavedFile: File? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_camera) // Corrected layout file
+        setContentView(R.layout.activity_camera)
 
         initializeViews()
         setupListeners()
@@ -73,10 +86,14 @@ class CameraActivity : AppCompatActivity() {
 
     private fun initializeViews() {
         previewView = findViewById(R.id.previewView)
-        captureButton = findViewById(R.id.shutterButton) // Corrected ID
+        captureButton = findViewById(R.id.shutterButton)
         modeSwitchButton = findViewById(R.id.mode_switch_button)
-        flipCameraButton = findViewById(R.id.switchCameraButton) // Corrected ID
+        flipCameraButton = findViewById(R.id.switchCameraButton)
         recordingTimer = findViewById(R.id.recording_timer)
+        thumbnailPreview = findViewById(R.id.thumbnailPreview)
+        settingsButton = findViewById(R.id.settingsButton)
+        torchButton = findViewById(R.id.torchButton)
+        resolutionSelectorButton = findViewById(R.id.resolutionSelectorButton)
     }
 
     private fun setupListeners() {
@@ -99,7 +116,47 @@ class CameraActivity : AppCompatActivity() {
             } else {
                 CameraSelector.DEFAULT_BACK_CAMERA
             }
-            startCamera() // Re-bind use cases
+            startCamera()
+        }
+
+        thumbnailPreview.setOnClickListener {
+            lastSavedFile?.let {
+                if (it.exists()) {
+                    openMediaPreview(it)
+                }
+            }
+        }
+
+        settingsButton.setOnClickListener {
+            Toast.makeText(this, "Настройки (пока не реализовано)", Toast.LENGTH_SHORT).show()
+        }
+
+        resolutionSelectorButton.setOnClickListener {
+            Toast.makeText(this, "Выбор разрешения (пока не реализовано)", Toast.LENGTH_SHORT).show()
+        }
+
+        torchButton.setOnClickListener {
+            camera?.let {
+                if (it.cameraInfo.hasFlashUnit()) {
+                    val isTorchOn = it.cameraInfo.torchState.value == TorchState.ON
+                    it.cameraControl.enableTorch(!isTorchOn)
+                }
+            }
+        }
+    }
+
+    private fun openMediaPreview(file: File) {
+        val authority = "${applicationContext.packageName}.provider"
+        val uri = FileProvider.getUriForFile(this, authority, file)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension)
+            setDataAndType(uri, mimeType)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Не найдено приложение для открытия файла", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -137,9 +194,10 @@ class CameraActivity : AppCompatActivity() {
 
             try {
                 cameraProvider?.unbindAll()
-                cameraProvider?.bindToLifecycle(
+                camera = cameraProvider?.bindToLifecycle(
                     this, cameraSelector, preview, imageCapture, videoCapture
                 )
+                setupTorchObserver()
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
@@ -147,11 +205,22 @@ class CameraActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    private fun setupTorchObserver() {
+        camera?.cameraInfo?.torchState?.observe(this) { state ->
+            if (state == TorchState.ON) {
+                torchButton.setColorFilter(ContextCompat.getColor(this, R.color.yellow))
+            } else {
+                torchButton.clearColorFilter()
+            }
+        }
+    }
+
     private fun takePhoto() {
         val imageCapture = this.imageCapture ?: return
         val savePath = intent.getStringExtra(EXTRA_SAVE_PATH) ?: externalMediaDirs.firstOrNull()?.absolutePath ?: return
 
         val photoFile = File(savePath, "IMG_${System.currentTimeMillis()}.jpg")
+        lastSavedFile = photoFile
         val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
         imageCapture.takePicture(
@@ -164,7 +233,7 @@ class CameraActivity : AppCompatActivity() {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                     val msg = "Фото сохранено: ${output.savedUri}"
                     Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, msg)
+                    output.savedUri?.let { updateThumbnail(it) }
                 }
             })
     }
@@ -183,6 +252,7 @@ class CameraActivity : AppCompatActivity() {
 
         val savePath = intent.getStringExtra(EXTRA_SAVE_PATH) ?: externalMediaDirs.firstOrNull()?.absolutePath ?: return
         val videoFile = File(savePath, "VID_${System.currentTimeMillis()}.mp4")
+        lastSavedFile = videoFile
         val outputOptions = FileOutputOptions.Builder(videoFile).build()
 
         recording = videoCapture.output
@@ -190,15 +260,14 @@ class CameraActivity : AppCompatActivity() {
             .withAudioEnabled()
             .start(ContextCompat.getMainExecutor(this)) { recordEvent ->
                 when (recordEvent) {
-                    is VideoRecordEvent.Start -> {
-                        // Handled by startRecordingIndicator
-                    }
+                    is VideoRecordEvent.Start -> {}
                     is VideoRecordEvent.Finalize -> {
                         isRecording = false
                         stopRecordingIndicator()
                         if (!recordEvent.hasError()) {
                             val msg = "Видео сохранено: ${recordEvent.outputResults.outputUri}"
                             Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
+                            updateThumbnail(recordEvent.outputResults.outputUri)
                         } else {
                             Log.e(TAG, "Video capture error: ${recordEvent.error}")
                             videoFile.delete()
@@ -206,6 +275,15 @@ class CameraActivity : AppCompatActivity() {
                     }
                 }
             }
+    }
+
+    private fun updateThumbnail(uri: Uri) {
+        runOnUiThread {
+            Glide.with(this)
+                .load(uri)
+                .circleCrop()
+                .into(thumbnailPreview)
+        }
     }
 
     private fun startRecordingIndicator() {
@@ -228,7 +306,7 @@ class CameraActivity : AppCompatActivity() {
     private fun stopRecordingIndicator() {
         runOnUiThread {
             captureButton.clearAnimation()
-            captureButton.setBackgroundResource(R.drawable.bg_capture_button_recording) // Keep it red until mode switch
+            captureButton.setBackgroundResource(R.drawable.bg_capture_button_recording)
             recordingTimer.stop()
             recordingTimer.visibility = View.GONE
             modeSwitchButton.isEnabled = true
