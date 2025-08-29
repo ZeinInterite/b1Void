@@ -3,6 +3,12 @@ package com.example.b1void.activities
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Rect
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
@@ -20,6 +26,7 @@ import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.TorchState
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -28,11 +35,17 @@ import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.example.b1void.R
+import com.example.b1void.data.CameraSettingsManager
+import com.example.b1void.ui.CameraSettingsDialogFragment
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
-import java.util.Locale
+import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -62,6 +75,11 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var cameraExecutor: ExecutorService
     private var camera: Camera? = null
 
+    // Settings
+    private lateinit var settingsManager: CameraSettingsManager
+    private var flashMode = ImageCapture.FLASH_MODE_OFF
+    private var timestampEnabled = true
+
     // State variables
     private var currentMode = CaptureMode.PHOTO
     private var isRecording = false
@@ -72,8 +90,10 @@ class CameraActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_camera)
 
+        settingsManager = CameraSettingsManager(this)
         initializeViews()
         setupListeners()
+        observeSettings()
 
         if (allPermissionsGranted()) {
             startCamera()
@@ -94,6 +114,26 @@ class CameraActivity : AppCompatActivity() {
         settingsButton = findViewById(R.id.settingsButton)
         torchButton = findViewById(R.id.torchButton)
         resolutionSelectorButton = findViewById(R.id.resolutionSelectorButton)
+    }
+
+    private fun observeSettings() {
+        lifecycleScope.launch {
+            settingsManager.getFlashMode().collect { mode ->
+                flashMode = when(mode) {
+                    0 -> ImageCapture.FLASH_MODE_OFF
+                    1 -> ImageCapture.FLASH_MODE_ON
+                    2 -> ImageCapture.FLASH_MODE_AUTO
+                    else -> ImageCapture.FLASH_MODE_OFF
+                }
+                // Re-bind use cases to apply flash mode
+                startCamera()
+            }
+        }
+        lifecycleScope.launch {
+            settingsManager.isTimestampEnabled().collect { isEnabled ->
+                timestampEnabled = isEnabled
+            }
+        }
     }
 
     private fun setupListeners() {
@@ -128,7 +168,7 @@ class CameraActivity : AppCompatActivity() {
         }
 
         settingsButton.setOnClickListener {
-            Toast.makeText(this, "Настройки (пока не реализовано)", Toast.LENGTH_SHORT).show()
+            CameraSettingsDialogFragment().show(supportFragmentManager, "CameraSettingsDialog")
         }
 
         resolutionSelectorButton.setOnClickListener {
@@ -190,7 +230,9 @@ class CameraActivity : AppCompatActivity() {
                 .build()
             videoCapture = VideoCapture.withOutput(recorder)
 
-            imageCapture = ImageCapture.Builder().build()
+            imageCapture = ImageCapture.Builder()
+                .setFlashMode(flashMode)
+                .build()
 
             try {
                 cameraProvider?.unbindAll()
@@ -217,25 +259,69 @@ class CameraActivity : AppCompatActivity() {
 
     private fun takePhoto() {
         val imageCapture = this.imageCapture ?: return
-        val savePath = intent.getStringExtra(EXTRA_SAVE_PATH) ?: externalMediaDirs.firstOrNull()?.absolutePath ?: return
 
-        val photoFile = File(savePath, "IMG_${System.currentTimeMillis()}.jpg")
-        lastSavedFile = photoFile
-        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+        imageCapture.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
+            override fun onCaptureSuccess(image: ImageProxy) {
+                val bitmap = imageProxyToBitmap(image)
+                image.close()
 
-        imageCapture.takePicture(
-            outputOptions, ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
-                override fun onError(exc: ImageCaptureException) {
-                    Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
-                    Toast.makeText(baseContext, "Ошибка сохранения фото", Toast.LENGTH_SHORT).show()
+                val finalBitmap = if (timestampEnabled) {
+                    addTimestampToBitmap(bitmap)
+                } else {
+                    bitmap
                 }
 
-                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    val msg = "Фото сохранено: ${output.savedUri}"
+                val savedFile = saveBitmapToFile(finalBitmap)
+                lastSavedFile = savedFile
+
+                runOnUiThread {
+                    val msg = "Фото сохранено: ${Uri.fromFile(savedFile)}"
                     Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
-                    output.savedUri?.let { updateThumbnail(it) }
+                    updateThumbnail(Uri.fromFile(savedFile))
                 }
-            })
+            }
+
+            override fun onError(exception: ImageCaptureException) {
+                Log.e(TAG, "Photo capture failed: ${exception.message}", exception)
+            }
+        })
+    }
+
+    private fun imageProxyToBitmap(image: ImageProxy): Bitmap {
+        val planeProxy = image.planes[0]
+        val buffer = planeProxy.buffer
+        val bytes = ByteArray(buffer.remaining())
+        buffer.get(bytes)
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    }
+
+    private fun addTimestampToBitmap(originalBitmap: Bitmap): Bitmap {
+        val newBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(newBitmap)
+        val paint = Paint().apply {
+            color = Color.RED
+            textSize = 64f // Large text
+            isAntiAlias = true
+        }
+        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        val timestamp = sdf.format(Date())
+
+        val bounds = Rect()
+        paint.getTextBounds(timestamp, 0, timestamp.length, bounds)
+        val x = newBitmap.width - bounds.width() - 50f // Bottom-right corner with padding
+        val y = newBitmap.height - 50f
+
+        canvas.drawText(timestamp, x, y, paint)
+        return newBitmap
+    }
+
+    private fun saveBitmapToFile(bitmap: Bitmap): File {
+        val savePath = intent.getStringExtra(EXTRA_SAVE_PATH) ?: externalMediaDirs.firstOrNull()?.absolutePath ?: ""
+        val file = File(savePath, "IMG_${System.currentTimeMillis()}.jpg")
+        FileOutputStream(file).use {
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it)
+        }
+        return file
     }
 
     private fun toggleVideoRecording() {
