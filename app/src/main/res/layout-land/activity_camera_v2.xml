@@ -8,8 +8,6 @@
         android:id="@+id/camera_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_above="@+id/cam_ic"
-        android:layout_below="@+id/top_bar"
         android:layout_toStartOf="@+id/side_controls">
 
         <com.otaliastudios.cameraview.CameraView
@@ -20,176 +18,67 @@
 
     </FrameLayout>
 
-    <EditText
-        android:id="@+id/stamp_edit_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_margin="12dp"
-        android:hint="Введите текст штампа"
-        android:imeOptions="actionDone"
-        android:layout_below="@+id/top_bar"
-        android:inputType="text"
-        android:maxLines="1"
-        android:visibility="gone"
-        android:layout_above="@id/stamp_controls_layout"/>
-
-    <View
-        android:id="@+id/focus_indicator"
-        android:layout_width="5dp"
-        android:layout_height="match_parent"
-        android:layout_alignParentStart="true"
-        android:background="@android:color/white"
-        android:visibility="invisible" />
-
-    <FrameLayout
-        android:id="@+id/stamp_container"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@+id/top_bar"
-        android:layout_above="@+id/cam_ic"
-        android:layout_toStartOf="@+id/side_controls"
-        android:visibility="visible"/>
-
-    <LinearLayout
-        android:id="@+id/stamp_controls_layout"
+    <Chronometer
+        android:id="@+id/recording_timer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/top_bar"
-        android:orientation="horizontal"
-        android:visibility="gone"
+        android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
-        android:layout_marginBottom="12dp">
+        android:layout_marginTop="16dp"
+        android:background="@drawable/recording_timer_background"
+        android:padding="8dp"
+        android:textColor="@android:color/white"
+        android:visibility="gone" />
 
-        <ImageButton
-            android:id="@+id/stamp_color_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_palette"
-            android:background="?attr/selectableItemBackgroundBorderless"/>
-
-        <ImageButton
-            android:id="@+id/stamp_lock_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_unlock"
-            android:background="?attr/selectableItemBackgroundBorderless"/>
-
-    </LinearLayout>
-
-    <!-- Боковые элементы управления для альбомной ориентации -->
     <LinearLayout
         android:id="@+id/side_controls"
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:layout_alignParentEnd="true"
-        android:layout_below="@+id/top_bar"
-        android:orientation="vertical"
-        android:gravity="center"
         android:background="#80000000"
+        android:gravity="center"
+        android:orientation="vertical"
         android:padding="8dp">
 
         <ImageButton
-            android:id="@+id/exposure_button"
+            android:id="@+id/capture_button"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/bg_capture_button_photo"
+            android:src="@drawable/camera" />
+
+        <ImageButton
+            android:id="@+id/mode_switch_button"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:src="@drawable/ic_exposition"
+            android:layout_marginBottom="16dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:layout_marginBottom="8dp"/>
+            android:src="@drawable/ic_switch_to_video" />
 
         <ImageButton
             android:id="@+id/flash_button"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:src="@drawable/flash_auto"
+            android:layout_marginBottom="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:layout_marginBottom="8dp"/>
+            android:src="@drawable/flash_auto" />
 
         <ImageButton
             android:id="@+id/camera_switch_button"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:src="@drawable/ic_cameraswitch"
+            android:layout_marginBottom="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:layout_marginBottom="8dp"/>
+            android:src="@drawable/ic_cameraswitch" />
 
         <ImageButton
             android:id="@+id/settings_button"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:src="@drawable/setting_ic"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:layout_marginBottom="8dp"/>
+            android:src="@drawable/setting_ic" />
 
     </LinearLayout>
 
-    <LinearLayout
-        android:id="@+id/top_bar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:background="#80000000"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:padding="6dp">
-
-        <TextView
-            android:id="@+id/time_text_view"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:padding="6dp"
-            android:text="HH:mm:ss"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp" />
-
-        <View
-            android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:layout_weight="1" />
-
-        <ImageButton
-            android:id="@+id/close_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/close_ic"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:layout_marginEnd="8dp"/>
-
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/cam_ic"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_toStartOf="@+id/side_controls"
-        android:background="#80000000"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:padding="12dp">
-
-        <ImageButton
-            android:id="@+id/gallery_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/image_ic"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:layout_marginEnd="16dp"/>
-
-        <ImageButton
-            android:id="@+id/capture_button"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
-            android:src="@drawable/camera"
-            android:background="@drawable/circle_background"
-            android:layout_marginEnd="16dp"/>
-
-        <ImageButton
-            android:id="@+id/video_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_videocam"
-            android:background="?attr/selectableItemBackgroundBorderless"/>
-
-    </LinearLayout>
-
-</RelativeLayout> 
+</RelativeLayout>

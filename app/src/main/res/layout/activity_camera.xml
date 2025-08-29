@@ -7,7 +7,6 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
-    <!-- 1. Превью камеры. Занимает весь экран, обрезая излишки -->
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
         android:layout_width="0dp"
@@ -18,7 +17,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:scaleType="fillCenter" />
 
-    <!-- 2. Прогресс-бар для смены разрешения -->
     <ProgressBar
         android:id="@+id/resolutionChangeProgressBar"
         android:layout_width="wrap_content"
@@ -30,7 +28,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- 3. Верхняя панель управления -->
     <LinearLayout
         android:id="@+id/topControls"
         android:layout_width="0dp"
@@ -43,7 +40,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Кнопка настроек (меню) -->
         <ImageButton
             android:id="@+id/settingsButton"
             android:layout_width="48dp"
@@ -53,7 +49,6 @@
             android:src="@android:drawable/ic_menu_manage"
             android:contentDescription="Settings" />
 
-        <!-- Кнопка фонарика -->
         <ImageButton
             android:id="@+id/torchButton"
             android:layout_width="48dp"
@@ -64,13 +59,11 @@
             android:src="@android:drawable/ic_menu_mylocation"
             android:contentDescription="Torch" />
 
-        <!-- Заполнитель, чтобы раздвинуть кнопки по краям -->
         <Space
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_weight="1" />
 
-        <!-- Кнопка переключения камеры (выровнена по правому краю) -->
         <ImageButton
             android:id="@+id/switchCameraButton"
             android:layout_width="48dp"
@@ -82,7 +75,6 @@
 
     </LinearLayout>
 
-    <!-- 4. Кнопка выбора разрешения -->
     <ImageButton
         android:id="@+id/resolutionSelectorButton"
         android:layout_width="48dp"
@@ -94,42 +86,12 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toTopOf="@id/bottomControls" />
 
-    <!-- 4.5. Переключатель режима Фото/Видео -->
-    <com.google.android.material.button.MaterialButtonToggleGroup
-        android:id="@+id/modeSelector"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        app:layout_constraintBottom_toTopOf="@id/bottomControls"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:singleSelection="true"
-        app:selectionRequired="true">
-
-        <Button
-            android:id="@+id/photoModeButton"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Фото" />
-
-        <Button
-            android:id="@+id/videoModeButton"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Видео" />
-
-    </com.google.android.material.button.MaterialButtonToggleGroup>
-    
-    <!-- 4.6. Таймер записи видео -->
-    <TextView
-        android:id="@+id/recordingTimer"
+    <Chronometer
+        android:id="@+id/recording_timer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:background="@drawable/recording_timer_background"
-        android:drawablePadding="4dp"
         android:paddingStart="12dp"
         android:paddingTop="6dp"
         android:paddingEnd="12dp"
@@ -137,14 +99,11 @@
         android:textColor="@android:color/white"
         android:textSize="16sp"
         android:visibility="gone"
-        app:drawableStartCompat="@drawable/ic_recording_dot"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/topControls"
-        tools:text="00:15"
         tools:visibility="visible" />
 
-    <!-- 5. Нижняя панель (съемка, миниатюра) -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/bottomControls"
         android:layout_width="0dp"
@@ -156,12 +115,14 @@
         app:layout_constraintEnd_toEndOf="parent">
 
         <ImageButton
-            android:id="@+id/shutterButton"
+            android:id="@+id/shutterButton" 
             android:layout_width="72dp"
             android:layout_height="72dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_camera"
-            android:contentDescription="Take Picture"
+            android:background="@drawable/bg_capture_button_photo"
+            android:src="@drawable/camera"
+            android:scaleType="centerInside"
+            android:padding="16dp"
+            android:contentDescription="Take Picture or Record Video"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -173,13 +134,25 @@
             android:layout_height="48dp"
             android:scaleType="centerCrop"
             android:background="@android:color/darker_gray"
-            app:layout_constraintTop_toTopOf="@id/shutterButton"
-            app:layout_constraintBottom_toBottomOf="@id/shutterButton"
+            app:layout_constraintTop_toTopOf="@id/capture_button"
+            app:layout_constraintBottom_toBottomOf="@id/capture_button"
             app:layout_constraintStart_toStartOf="parent"
             tools:src="@tools:sample/avatars" />
+
+        <ImageButton
+            android:id="@+id/mode_switch_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_switch_to_video"
+            app:tint="@color/white"
+            app:layout_constraintTop_toTopOf="@id/capture_button"
+            app:layout_constraintBottom_toBottomOf="@id/capture_button"
+            app:layout_constraintStart_toEndOf="@id/capture_button"
+            android:layout_marginStart="16dp"/>
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- 6. Всплывающее меню разрешений (изначально скрыто) -->
     <androidx.cardview.widget.CardView
         android:id="@+id/resolutionListContainer"
         android:layout_width="wrap_content"

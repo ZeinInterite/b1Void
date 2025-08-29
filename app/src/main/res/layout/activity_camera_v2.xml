@@ -19,6 +19,18 @@
 
     </FrameLayout>
 
+    <Chronometer
+        android:id="@+id/recording_timer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/top_bar"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/recording_timer_background"
+        android:padding="8dp"
+        android:textColor="@android:color/white"
+        android:visibility="gone" />
+
     <EditText
         android:id="@+id/stamp_edit_text"
         android:layout_width="match_parent"
@@ -293,45 +305,41 @@
         android:orientation="horizontal">
 
         <ImageButton
-            android:id="@+id/video_capture"
+            android:id="@+id/last_image_preview"
             android:layout_width="48dp"
             android:layout_height="48dp"
+            android:layout_weight="1"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:padding="8dp"
-            android:src="@drawable/ic_videocam"
-            app:tint="@android:color/white" />
+            android:src="@drawable/def_insp_img" />
 
         <ImageButton
             android:id="@+id/capture_button"
             android:layout_width="80dp"
             android:layout_height="80dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_weight="1"
+            android:background="@drawable/bg_capture_button_photo"
             android:padding="8dp"
             android:scaleType="centerCrop"
-            android:src="@drawable/camera"
-            app:tint="@android:color/white" />
+            android:src="@drawable/camera" />
+
+        <ImageButton
+            android:id="@+id/mode_switch_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_switch_to_video" />
 
         <ImageButton
             android:id="@+id/flip_camera"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/flip_camera"
             app:tint="@android:color/white" />
 
-        <ImageButton
-            android:id="@+id/last_image_preview"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:padding="8dp"
-            android:src="@drawable/def_insp_img"
-            app:tint="@android:color/white" />
-        
     </LinearLayout>
-
-
-
-
 
 </RelativeLayout>
