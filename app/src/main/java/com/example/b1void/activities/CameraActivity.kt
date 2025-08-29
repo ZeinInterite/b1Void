@@ -162,7 +162,7 @@ class CameraActivity : AppCompatActivity() {
         thumbnailPreview.setOnClickListener {
             lastSavedFile?.let {
                 if (it.exists()) {
-                    openMediaPreview(it)
+                    onThumbnailClicked(it)
                 }
             }
         }
@@ -185,18 +185,31 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
-    private fun openMediaPreview(file: File) {
-        val authority = "${applicationContext.packageName}.provider"
-        val uri = FileProvider.getUriForFile(this, authority, file)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension)
-            setDataAndType(uri, mimeType)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        try {
+    private fun onThumbnailClicked(file: File) {
+        val isImage = file.extension.equals("jpg", ignoreCase = true) || file.extension.equals("jpeg", ignoreCase = true)
+
+        if (isImage) {
+            val imagePaths = ArrayList<String>()
+            imagePaths.add(file.absolutePath)
+            val intent = Intent(this, ImagePreviewActivity::class.java).apply {
+                putStringArrayListExtra("image_paths", imagePaths)
+                putExtra("current_image_index", 0)
+            }
             startActivity(intent)
-        } catch (e: Exception) {
-            Toast.makeText(this, "Не найдено приложение для открытия файла", Toast.LENGTH_SHORT).show()
+        } else {
+            // For video or other files, use the generic ACTION_VIEW
+            val authority = "${applicationContext.packageName}.provider"
+            val uri = FileProvider.getUriForFile(this, authority, file)
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension)
+                setDataAndType(uri, mimeType)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            try {
+                startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(this, "Не найдено приложение для открытия файла", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
