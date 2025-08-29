@@ -1,18 +1,24 @@
 package com.example.b1void.activities
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ImageFormat
 import android.graphics.Paint
 import android.graphics.Rect
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
+import android.util.Size
 import android.view.View
 import android.view.animation.AlphaAnimation
 import android.view.animation.Animation
@@ -22,6 +28,7 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -32,12 +39,16 @@ import androidx.camera.core.TorchState
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
 import androidx.camera.view.PreviewView
+import androidx.cardview.widget.CardView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.b1void.R
+import com.example.b1void.adapters.ResolutionAdapter
 import com.example.b1void.data.CameraSettingsManager
 import com.example.b1void.ui.CameraSettingsDialogFragment
 import kotlinx.coroutines.flow.collect
@@ -66,6 +77,8 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var settingsButton: ImageButton
     private lateinit var torchButton: ImageButton
     private lateinit var resolutionSelectorButton: ImageButton
+    private lateinit var resolutionListContainer: CardView
+    private lateinit var resolutionRecyclerView: RecyclerView
 
     // CameraX components
     private var imageCapture: ImageCapture? = null
@@ -79,6 +92,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var settingsManager: CameraSettingsManager
     private var flashMode = ImageCapture.FLASH_MODE_OFF
     private var timestampEnabled = true
+    private var selectedResolution: Size? = null
 
     // State variables
     private var currentMode = CaptureMode.PHOTO
@@ -114,24 +128,37 @@ class CameraActivity : AppCompatActivity() {
         settingsButton = findViewById(R.id.settingsButton)
         torchButton = findViewById(R.id.torchButton)
         resolutionSelectorButton = findViewById(R.id.resolutionSelectorButton)
+        resolutionListContainer = findViewById(R.id.resolutionListContainer)
+        resolutionRecyclerView = findViewById(R.id.resolutionRecyclerView)
     }
 
     private fun observeSettings() {
         lifecycleScope.launch {
             settingsManager.getFlashMode().collect { mode ->
-                flashMode = when(mode) {
+                val newFlashMode = when(mode) {
                     0 -> ImageCapture.FLASH_MODE_OFF
                     1 -> ImageCapture.FLASH_MODE_ON
                     2 -> ImageCapture.FLASH_MODE_AUTO
                     else -> ImageCapture.FLASH_MODE_OFF
                 }
-                // Re-bind use cases to apply flash mode
-                startCamera()
+                if (newFlashMode != flashMode) {
+                    flashMode = newFlashMode
+                    startCamera()
+                }
             }
         }
         lifecycleScope.launch {
             settingsManager.isTimestampEnabled().collect { isEnabled ->
                 timestampEnabled = isEnabled
+            }
+        }
+        lifecycleScope.launch {
+            settingsManager.getResolution().collect { resString ->
+                val newResolution = resString?.let { parseResolution(it) }
+                if (newResolution != selectedResolution) {
+                    selectedResolution = newResolution
+                    startCamera()
+                }
             }
         }
     }
@@ -172,7 +199,7 @@ class CameraActivity : AppCompatActivity() {
         }
 
         resolutionSelectorButton.setOnClickListener {
-            Toast.makeText(this, "Выбор разрешения (пока не реализовано)", Toast.LENGTH_SHORT).show()
+            resolutionListContainer.visibility = if (resolutionListContainer.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }
 
         torchButton.setOnClickListener {
@@ -197,7 +224,6 @@ class CameraActivity : AppCompatActivity() {
             }
             startActivity(intent)
         } else {
-            // For video or other files, use the generic ACTION_VIEW
             val authority = "${applicationContext.packageName}.provider"
             val uri = FileProvider.getUriForFile(this, authority, file)
             val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -229,6 +255,7 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
+    @SuppressLint("UnsafeOptInUsageError")
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
@@ -243,9 +270,14 @@ class CameraActivity : AppCompatActivity() {
                 .build()
             videoCapture = VideoCapture.withOutput(recorder)
 
-            imageCapture = ImageCapture.Builder()
+            val imageCaptureBuilder = ImageCapture.Builder()
                 .setFlashMode(flashMode)
-                .build()
+            
+            selectedResolution?.let {
+                imageCaptureBuilder.setTargetResolution(it)
+            }
+
+            imageCapture = imageCaptureBuilder.build()
 
             try {
                 cameraProvider?.unbindAll()
@@ -253,11 +285,30 @@ class CameraActivity : AppCompatActivity() {
                     this, cameraSelector, preview, imageCapture, videoCapture
                 )
                 setupTorchObserver()
+                setupResolutionList()
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
 
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    @SuppressLint("UnsafeOptInUsageError")
+    private fun setupResolutionList() {
+        camera?.let { cam ->
+            val cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val characteristics = cameraManager.getCameraCharacteristics(Camera2CameraInfo.from(cam.cameraInfo).cameraId)
+            val streamConfigurationMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            val resolutions = streamConfigurationMap?.getOutputSizes(ImageFormat.JPEG)?.toList() ?: emptyList()
+
+            resolutionRecyclerView.layoutManager = LinearLayoutManager(this)
+            resolutionRecyclerView.adapter = ResolutionAdapter(resolutions.reversed(), selectedResolution) { size ->
+                lifecycleScope.launch {
+                    settingsManager.setResolution("${size.width}x${size.height}")
+                }
+                resolutionListContainer.visibility = View.GONE
+            }
+        }
     }
 
     private fun setupTorchObserver() {
@@ -415,6 +466,15 @@ class CameraActivity : AppCompatActivity() {
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun parseResolution(resString: String): Size? {
+        return try {
+            val parts = resString.split("x")
+            Size(parts[0].toInt(), parts[1].toInt())
+        } catch (e: Exception) {
+            null
+        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
