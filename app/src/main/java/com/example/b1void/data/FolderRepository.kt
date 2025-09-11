@@ -15,9 +15,9 @@ class FolderRepository {
      * @return Список узлов FolderNode верхнего уровня.
      */
     suspend fun getFolderTree(rootDir: File): List<FolderNode> = withContext(Dispatchers.IO) {
-        val rootNode = FolderNode(file = rootDir, level = 0)
+        val rootNode = FolderNode(file = rootDir, level = 0, isExpanded = true) // По умолчанию раскроем корневую папку
         scanDirectory(rootNode)
-        rootNode.children
+        listOf(rootNode) // Возвращаем список, содержащий корневой узел
     }
 
     private fun scanDirectory(parentNode: FolderNode) {

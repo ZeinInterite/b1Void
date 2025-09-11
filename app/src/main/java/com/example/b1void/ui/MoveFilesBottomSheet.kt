@@ -35,14 +35,16 @@ class MoveFilesBottomSheet : BottomSheetDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         val sourceFolderPath = arguments?.getString(ARG_SOURCE_FOLDER_PATH) ?: ""
-        setupRecyclerView(sourceFolderPath)
+        val rootFolderPath = arguments?.getString(ARG_ROOT_FOLDER_PATH) ?: ""
+        setupRecyclerView(sourceFolderPath, rootFolderPath)
         setupListeners()
         observeViewModel()
     }
 
-    private fun setupRecyclerView(sourceFolderPath: String) {
+    private fun setupRecyclerView(sourceFolderPath: String, rootFolderPath: String) {
         folderAdapter = FolderTreeAdapter(
             currentSourcePath = sourceFolderPath,
+            rootFolderPath = rootFolderPath,
             onFolderClick = { folderNode -> viewModel.toggleFolderExpansion(folderNode) },
             onFolderSelect = { folderNode -> viewModel.selectFolder(folderNode) }
         )

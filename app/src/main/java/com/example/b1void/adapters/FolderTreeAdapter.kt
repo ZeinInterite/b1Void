@@ -15,6 +15,7 @@ import com.example.b1void.utils.dpToPx
 
 class FolderTreeAdapter(
     private val currentSourcePath: String,
+    private val rootFolderPath: String, // Добавляем путь к корневой папке
     private val onFolderClick: (FolderNode) -> Unit,
     private val onFolderSelect: (FolderNode) -> Unit
 ) : ListAdapter<FolderNode, FolderTreeAdapter.FolderViewHolder>(FolderDiffCallback()) {
@@ -30,7 +31,12 @@ class FolderTreeAdapter(
 
     inner class FolderViewHolder(private val binding: ItemFolderTreeBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(node: FolderNode) {
-            binding.folderName.text = node.file.name
+            // Если это корневая папка, отображаем специальное имя
+            binding.folderName.text = if (node.file.absolutePath == rootFolderPath) {
+                "Основная директория"
+            } else {
+                node.file.name
+            }
 
             // Отступ для имитации вложенности
             val indent = (node.level * 24).dpToPx(itemView.context) // Используем extension function
