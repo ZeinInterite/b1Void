@@ -1,18 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base colors -->
+    <!-- Основные цвета Material Design -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    
-    <!-- Theme colors -->
-    <color name="colorPrimary">#FF33B5E5</color>
-    <color name="back">#FFF5F5F5</color>
-    <color name="blue">#FF33B5E5</color>
-    <color name="gray">#808080</color>
-    
-    <!-- Specific UI colors -->
-    <color name="selection_toolbar_background">#FF2A99C9</color>
-    <color name="delete_red">#FFFF4444</color>
-    <color name="yellow">#FFFF00</color>
 
+    <!-- Восстановленные цвета, необходимые для сборки -->
+    <color name="back">#F5F5F5</color> <!-- Стандартный светлый фон -->
+    <color name="colorPrimary">@color/purple_500</color>
+    <color name="selection_toolbar_background">#E0E0E0</color> <!-- Светло-серый для тулбара -->
+    <color name="delete_red">#D32F2F</color> <!-- Насыщенный красный для удаления -->
+
+    <!-- Стандартные цвета -->
+    <color name="blue">#0000FF</color>
+    <color name="gray">#808080</color>
+    <color name="red">#FF0000</color>
+    <color name="yellow">#FFFF00</color>
+    <color name="green">#00FF00</color>
+
+    <!-- Новый цвет для подсветки выделения -->
+    <color name="selection_highlight">#200000FF</color> <!-- 12.5% alpha blue -->
 </resources>

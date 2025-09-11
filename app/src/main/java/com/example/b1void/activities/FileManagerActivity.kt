@@ -27,6 +27,7 @@ import com.example.b1void.workers.DropboxUploadWorker
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.example.b1void.ui.MoveFilesBottomSheet
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 
@@ -90,6 +91,7 @@ class FileManagerActivity : AppCompatActivity() {
         setupRecyclerView()
         setupGestureDetector()
         setupDirectories()
+        setupMoveResultListener() // Добавляем листенер
 
         if (savedInstanceState != null) {
             val savedDirectoryStack = savedInstanceState.getStringArrayList("directory_stack")
@@ -672,43 +674,19 @@ class FileManagerActivity : AppCompatActivity() {
     private fun showMoveDialogForSelectedFiles(filesToMove: Set<File> = selectedFiles) {
         if (filesToMove.isEmpty()) return
 
-        val currentDir = getCurrentDirectory()
-        val parentDir = currentDir.parentFile
-        val directories = currentDir.listFiles { f -> f.isDirectory }?.toMutableList() ?: mutableListOf()
-        val directoryNames = mutableListOf<String>()
+        val filePaths = filesToMove.map { it.absolutePath }
+        val sourceFolderPath = getCurrentDirectory().absolutePath
+        val rootFolderPath = appDirectory.absolutePath
 
-        if (parentDir != null && currentDir.absolutePath != appDirectory.absolutePath) {
-            directoryNames.add(".. (переместить на уровень выше)")
-        }
-        directoryNames.addAll(directories.map { it.name })
-
-        AlertDialog.Builder(this)
-            .setTitle("Выберите папку назначения")
-            .setItems(directoryNames.toTypedArray()) { _, which ->
-                val destinationDir = if (parentDir != null && currentDir.absolutePath != appDirectory.absolutePath && which == 0) {
-                    parentDir
-                } else {
-                    val index = if (parentDir != null && currentDir.absolutePath != appDirectory.absolutePath) which - 1 else which
-                    directories.getOrNull(index)
-                }
-                destinationDir?.let { moveSelectedFiles(it, filesToMove) }
-            }
-            .setNegativeButton("Отмена", null)
-            .show()
+        MoveFilesBottomSheet.newInstance(filePaths, sourceFolderPath, rootFolderPath)
+            .show(supportFragmentManager, MoveFilesBottomSheet.TAG)
     }
 
-    private fun moveSelectedFiles(destination: File, filesToMove: Set<File>) {
-        thread {
-            var movedCount = 0
-            filesToMove.forEach { file ->
-                try {
-                    if (file.renameTo(File(destination, file.name))) movedCount++
-                } catch (e: Exception) {
-                    Log.e("FileManager", "Error moving file ${file.name}: ${e.message}")
-                }
-            }
-            runOnUiThread {
-                Toast.makeText(this, "Перемещено файлов: $movedCount", Toast.LENGTH_SHORT).show()
+    private fun setupMoveResultListener() {
+        supportFragmentManager.setFragmentResultListener(MoveFilesBottomSheet.REQUEST_KEY, this) { _, bundle ->
+            val moved = bundle.getBoolean(MoveFilesBottomSheet.RESULT_MOVED)
+            if (moved) {
+                Toast.makeText(this, "Файлы успешно перемещены", Toast.LENGTH_SHORT).show()
                 exitSelectionMode()
                 loadDirectoryContent(getCurrentDirectory())
             }
@@ -735,14 +713,10 @@ class FileManagerActivity : AppCompatActivity() {
     private fun moveFileUp(file: File) {
         val parentDir = getCurrentDirectory().parentFile
         if (parentDir != null && getCurrentDirectory().absolutePath != appDirectory.absolutePath) {
-            moveFileToDirectory(file, parentDir)
+            showMoveDialogForSelectedFiles(setOf(file)) // Используем новый диалог
         } else {
             Toast.makeText(this, "Невозможно переместить файл выше", Toast.LENGTH_SHORT).show()
         }
-    }
-
-    private fun moveFileToDirectory(file: File, destination: File) {
-        moveSelectedFiles(destination, setOf(file))
     }
 
     private fun uploadSelectedFilesToDropbox() {

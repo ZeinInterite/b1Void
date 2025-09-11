@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingVertical="12dp"
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp"
+    android:background="?attr/selectableItemBackground">
+
+    <ImageView
+        android:id="@+id/expand_icon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_arrow_right_24" />
+
+    <ImageView
+        android:id="@+id/folder_icon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginStart="8dp"
+        android:src="@drawable/ic_folder_24" />
+
+    <TextView
+        android:id="@+id/folder_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="16dp"
+        android:textAppearance="?attr/textAppearanceBodyLarge"
+        tools:text="Название папки" />
+</LinearLayout>
