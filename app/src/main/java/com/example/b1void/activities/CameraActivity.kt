@@ -362,9 +362,11 @@ class CameraActivity : AppCompatActivity() {
     private fun addTimestampToBitmap(originalBitmap: Bitmap): Bitmap {
         val newBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(newBitmap)
+        val textSize = originalBitmap.width / 35f
+        val padding = originalBitmap.width / 45f
         val paint = Paint().apply {
             color = Color.RED
-            textSize = 96f // Large text
+            this.textSize = textSize
             isAntiAlias = true
         }
         val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
@@ -372,8 +374,8 @@ class CameraActivity : AppCompatActivity() {
 
         val bounds = Rect()
         paint.getTextBounds(timestamp, 0, timestamp.length, bounds)
-        val x = newBitmap.width - bounds.width() - 50f // Bottom-right corner with padding
-        val y = newBitmap.height - 50f
+        val x = newBitmap.width - bounds.width() - padding
+        val y = newBitmap.height - padding
 
         canvas.drawText(timestamp, x, y, paint)
         return newBitmap
