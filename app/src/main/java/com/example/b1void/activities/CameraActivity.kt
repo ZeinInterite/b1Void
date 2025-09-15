@@ -340,7 +340,6 @@ class CameraActivity : AppCompatActivity() {
 
                 runOnUiThread {
                     val msg = "Фото сохранено: ${Uri.fromFile(savedFile)}"
-                    Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
                     updateThumbnail(Uri.fromFile(savedFile))
                 }
             }
@@ -418,7 +417,6 @@ class CameraActivity : AppCompatActivity() {
                         stopRecordingIndicator()
                         if (!recordEvent.hasError()) {
                             val msg = "Видео сохранено: ${recordEvent.outputResults.outputUri}"
-                            Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
                             updateThumbnail(recordEvent.outputResults.outputUri)
                         } else {
                             Log.e(TAG, "Video capture error: ${recordEvent.error}")
