@@ -35,6 +35,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.Locale
 import java.util.*
 import kotlin.concurrent.thread
 import android.view.GestureDetector
@@ -222,9 +223,7 @@ class FileManagerActivity : AppCompatActivity() {
                         val position = recyclerView.getChildAdapterPosition(childView)
                         if (position != RecyclerView.NO_POSITION && position != lastTouchedPosition) {
                             val file = fileAdapter.files[position]
-                            if (!selectedFiles.contains(file)) {
-                                toggleFileSelection(file)
-                            }
+                            toggleFileSelection(file)
                             lastTouchedPosition = position
                         }
                     }
@@ -240,7 +239,6 @@ class FileManagerActivity : AppCompatActivity() {
                         if (position != RecyclerView.NO_POSITION) {
                             val file = fileAdapter.files[position]
                             startSelectionMode(file)
-                            startSwipeSelection()
                         }
                     }
                 }
@@ -346,11 +344,13 @@ class FileManagerActivity : AppCompatActivity() {
         swipeRefreshLayout.isRefreshing = true
         thread {
             val filesAndDirs = directory.listFiles()?.toList() ?: emptyList()
-            val sortedFilesAndDirs = if (sortAscending) {
-                filesAndDirs.sortedBy { it.lastModified() }
-            } else {
-                filesAndDirs.sortedByDescending { it.lastModified() }
-            }
+            val sortedFilesAndDirs = filesAndDirs.sortedWith(
+                if (sortAscending) {
+                    compareBy<File> { !it.isDirectory }.thenBy { it.name.lowercase(Locale.ROOT) }
+                } else {
+                    compareBy<File> { !it.isDirectory }.thenByDescending { it.name.lowercase(Locale.ROOT) }
+                }
+            )
             runOnUiThread {
                 if (!this::fileAdapter.isInitialized) {
                     fileAdapter = FileAdapter(
@@ -531,6 +531,7 @@ class FileManagerActivity : AppCompatActivity() {
 
         swipeRefreshLayout.isEnabled = false
         updateSelectionState()
+        startSwipeSelection()
     }
 
     private fun exitSelectionMode() {
