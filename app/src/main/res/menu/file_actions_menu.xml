@@ -9,9 +9,7 @@
     <item
         android:id="@+id/action_share"
         android:title="Поделиться" />
-    <item
-        android:id="@+id/action_move_up"
-        android:title="Переместить на уровень выше" />
+    
     <item
         android:id="@+id/action_select_multiple"
         android:title="Выбрать несколько" />

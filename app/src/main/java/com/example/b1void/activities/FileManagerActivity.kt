@@ -316,8 +316,7 @@ class FileManagerActivity : AppCompatActivity() {
         currentFileForMenu = file
         PopupMenu(this, view).apply {
             menuInflater.inflate(R.menu.file_actions_menu, menu)
-            menu.findItem(R.id.action_move_up).isVisible =
-                getCurrentDirectory().parentFile != null && getCurrentDirectory().absolutePath != appDirectory.absolutePath
+            
 
             setOnMenuItemClickListener { item ->
                 onContextItemSelected(item)
@@ -332,7 +331,7 @@ class FileManagerActivity : AppCompatActivity() {
             R.id.action_move -> { showMoveDialogForFile(file); true }
             R.id.action_delete -> { deleteFile(file); true }
             R.id.action_share -> { shareFile(file); true }
-            R.id.action_move_up -> { moveFileUp(file); true }
+            
             R.id.action_select_multiple -> { startSelectionMode(file); true }
             else -> super.onContextItemSelected(item)
         }
@@ -713,14 +712,7 @@ class FileManagerActivity : AppCompatActivity() {
         setupRecyclerView()
     }
 
-    private fun moveFileUp(file: File) {
-        val parentDir = getCurrentDirectory().parentFile
-        if (parentDir != null && getCurrentDirectory().absolutePath != appDirectory.absolutePath) {
-            showMoveDialogForSelectedFiles(setOf(file)) // Используем новый диалог
-        } else {
-            Toast.makeText(this, "Невозможно переместить файл выше", Toast.LENGTH_SHORT).show()
-        }
-    }
+    
 
     private fun uploadSelectedFilesToDropbox() {
         if (selectedFiles.isEmpty()) return
