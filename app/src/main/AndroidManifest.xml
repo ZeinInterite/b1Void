@@ -105,11 +105,12 @@
         android:name=".activities.MainActivity"
         android:exported="false">
     </activity>
-    <activity
-        android:name=".activities.CameraActivity"
-        android:configChanges="orientation|keyboard|screenSize"
-        android:exported="false"
-        android:theme="@style/Theme.AppCompat.NoActionBar" />
+            <activity
+            android:name=".activities.CameraActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.NoActionBar"
+            tools:ignore="LockedOrientationActivity" />
 </application>
 
     <queries>

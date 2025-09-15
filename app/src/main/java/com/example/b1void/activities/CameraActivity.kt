@@ -10,6 +10,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageFormat
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Rect
 import android.hardware.camera2.CameraCharacteristics
@@ -326,13 +327,20 @@ class CameraActivity : AppCompatActivity() {
 
         imageCapture.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(image: ImageProxy) {
+                val rotationDegrees = image.imageInfo.rotationDegrees
                 val bitmap = imageProxyToBitmap(image)
+                val rotatedBitmap = if (rotationDegrees != 0) {
+                    val matrix = android.graphics.Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+                    Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                } else {
+                    bitmap
+                }
                 image.close()
 
                 val finalBitmap = if (timestampEnabled) {
-                    addTimestampToBitmap(bitmap)
+                    addTimestampToBitmap(rotatedBitmap)
                 } else {
-                    bitmap
+                    rotatedBitmap
                 }
 
                 val savedFile = saveBitmapToFile(finalBitmap)
