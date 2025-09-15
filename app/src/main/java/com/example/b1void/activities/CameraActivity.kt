@@ -508,7 +508,7 @@ class CameraActivity : AppCompatActivity() {
         lastSavedFile?.let {
             if (!it.exists()) {
                 lastSavedFile = null
-                thumbnailPreview.setImageResource(R.drawable.ic_photo) // Or any other placeholder
+                thumbnailPreview.setImageResource(R.drawable.gray_square)
             }
         }
     }
