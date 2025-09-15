@@ -18,6 +18,7 @@ import androidx.core.content.FileProvider
 import androidx.viewpager2.widget.ViewPager2
 import com.example.b1void.R
 import com.example.b1void.adapters.ImagePagerAdapter
+import com.example.b1void.utils.ImageOptimizer
 import java.io.File
 
 class ImagePreviewActivity : AppCompatActivity() {
@@ -85,15 +86,13 @@ class ImagePreviewActivity : AppCompatActivity() {
         if (file.exists() && file.delete()) {
             imagePaths.removeAt(currentImageIndex)
             pagerAdapter.notifyItemRemoved(currentImageIndex)
+            ImageOptimizer.clearImageCache(this)
 
             if (imagePaths.isEmpty()) {
-                Toast.makeText(this, "No more images.", Toast.LENGTH_SHORT).show()
                 finish()
             } else {
                 // The ViewPager will automatically show the next/previous item.
             }
-        } else {
-            Toast.makeText(this, "Failed to delete image.", Toast.LENGTH_SHORT).show()
         }
     }
 

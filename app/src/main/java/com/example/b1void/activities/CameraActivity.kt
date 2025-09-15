@@ -503,6 +503,16 @@ class CameraActivity : AppCompatActivity() {
         recording = null
     }
 
+    override fun onResume() {
+        super.onResume()
+        lastSavedFile?.let {
+            if (!it.exists()) {
+                lastSavedFile = null
+                thumbnailPreview.setImageResource(R.drawable.ic_photo) // Or any other placeholder
+            }
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         cameraExecutor.shutdown()

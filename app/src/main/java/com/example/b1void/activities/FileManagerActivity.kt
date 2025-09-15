@@ -23,6 +23,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.b1void.R
 import com.example.b1void.adapters.FileAdapter
 import com.example.b1void.utils.FileManagerUtils
+import com.example.b1void.utils.ImageOptimizer
 import com.example.b1void.workers.DropboxUploadWorker
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -468,6 +469,7 @@ class FileManagerActivity : AppCompatActivity() {
     fun deleteFile(file: File) {
         try {
             if (file.isDirectory) deleteDirectory(file) else file.delete()
+            ImageOptimizer.clearImageCache(this)
             loadDirectoryContent(getCurrentDirectory())
         } catch (e: SecurityException) {
             Log.e("FileManager", "SecurityException deleting file: ${e.message}")
@@ -615,7 +617,7 @@ class FileManagerActivity : AppCompatActivity() {
                         }
                     }
                     runOnUiThread {
-                        Toast.makeText(this, "Выбранные файлы удалены", Toast.LENGTH_SHORT).show()
+                        ImageOptimizer.clearImageCache(this)
                         exitSelectionMode()
                         loadDirectoryContent(getCurrentDirectory())
                     }
