@@ -20,6 +20,8 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import android.util.Size
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.animation.AlphaAnimation
 import android.view.animation.Animation
@@ -89,6 +91,9 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var cameraExecutor: ExecutorService
     private var camera: Camera? = null
 
+    // Gesture detector
+    private lateinit var scaleGestureDetector: ScaleGestureDetector
+
     // Settings
     private lateinit var settingsManager: CameraSettingsManager
     private var flashMode = ImageCapture.FLASH_MODE_OFF
@@ -117,53 +122,21 @@ class CameraActivity : AppCompatActivity() {
         }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
+        scaleGestureDetector = ScaleGestureDetector(this, ScaleGestureListener())
     }
 
-    private fun initializeViews() {
-        previewView = findViewById(R.id.previewView)
-        captureButton = findViewById(R.id.shutterButton)
-        modeSwitchButton = findViewById(R.id.mode_switch_button)
-        flipCameraButton = findViewById(R.id.switchCameraButton)
-        recordingTimer = findViewById(R.id.recording_timer)
-        thumbnailPreview = findViewById(R.id.thumbnailPreview)
-        settingsButton = findViewById(R.id.settingsButton)
-        torchButton = findViewById(R.id.torchButton)
-        resolutionSelectorButton = findViewById(R.id.resolutionSelectorButton)
-        resolutionListContainer = findViewById(R.id.resolutionListContainer)
-        resolutionRecyclerView = findViewById(R.id.resolutionRecyclerView)
-    }
-
-    private fun observeSettings() {
-        lifecycleScope.launch {
-            settingsManager.getFlashMode().collect { mode ->
-                val newFlashMode = when(mode) {
-                    0 -> ImageCapture.FLASH_MODE_OFF
-                    1 -> ImageCapture.FLASH_MODE_ON
-                    2 -> ImageCapture.FLASH_MODE_AUTO
-                    else -> ImageCapture.FLASH_MODE_OFF
-                }
-                if (newFlashMode != flashMode) {
-                    flashMode = newFlashMode
-                    startCamera()
-                }
-            }
-        }
-        lifecycleScope.launch {
-            settingsManager.isTimestampEnabled().collect { isEnabled ->
-                timestampEnabled = isEnabled
-            }
-        }
-        lifecycleScope.launch {
-            settingsManager.getResolution().collect { resString ->
-                val newResolution = resString?.let { parseResolution(it) }
-                if (newResolution != selectedResolution) {
-                    selectedResolution = newResolution
-                    startCamera()
-                }
-            }
+    private inner class ScaleGestureListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            val camera = camera ?: return true
+            val zoomState = camera.cameraInfo.zoomState.value ?: return true
+            val currentZoomRatio = zoomState.zoomRatio
+            val newZoomRatio = currentZoomRatio * detector.scaleFactor
+            camera.cameraControl.setZoomRatio(newZoomRatio)
+            return true
         }
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun setupListeners() {
         captureButton.setOnClickListener {
             if (currentMode == CaptureMode.PHOTO) {
@@ -208,6 +181,56 @@ class CameraActivity : AppCompatActivity() {
                 if (it.cameraInfo.hasFlashUnit()) {
                     val isTorchOn = it.cameraInfo.torchState.value == TorchState.ON
                     it.cameraControl.enableTorch(!isTorchOn)
+                }
+            }
+        }
+
+        previewView.setOnTouchListener { _, event ->
+            scaleGestureDetector.onTouchEvent(event)
+            true
+        }
+    }
+
+    private fun initializeViews() {
+        previewView = findViewById(R.id.previewView)
+        captureButton = findViewById(R.id.shutterButton)
+        modeSwitchButton = findViewById(R.id.mode_switch_button)
+        flipCameraButton = findViewById(R.id.switchCameraButton)
+        recordingTimer = findViewById(R.id.recording_timer)
+        thumbnailPreview = findViewById(R.id.thumbnailPreview)
+        settingsButton = findViewById(R.id.settingsButton)
+        torchButton = findViewById(R.id.torchButton)
+        resolutionSelectorButton = findViewById(R.id.resolutionSelectorButton)
+        resolutionListContainer = findViewById(R.id.resolutionListContainer)
+        resolutionRecyclerView = findViewById(R.id.resolutionRecyclerView)
+    }
+
+    private fun observeSettings() {
+        lifecycleScope.launch {
+            settingsManager.getFlashMode().collect { mode ->
+                val newFlashMode = when(mode) {
+                    0 -> ImageCapture.FLASH_MODE_OFF
+                    1 -> ImageCapture.FLASH_MODE_ON
+                    2 -> ImageCapture.FLASH_MODE_AUTO
+                    else -> ImageCapture.FLASH_MODE_OFF
+                }
+                if (newFlashMode != flashMode) {
+                    flashMode = newFlashMode
+                    startCamera()
+                }
+            }
+        }
+        lifecycleScope.launch {
+            settingsManager.isTimestampEnabled().collect { isEnabled ->
+                timestampEnabled = isEnabled
+            }
+        }
+        lifecycleScope.launch {
+            settingsManager.getResolution().collect { resString ->
+                val newResolution = resString?.let { parseResolution(it) }
+                if (newResolution != selectedResolution) {
+                    selectedResolution = newResolution
+                    startCamera()
                 }
             }
         }

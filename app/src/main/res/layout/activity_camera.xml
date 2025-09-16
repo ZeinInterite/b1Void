@@ -86,6 +86,8 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toTopOf="@id/bottomControls" />
 
+    
+
     <Chronometer
         android:id="@+id/recording_timer"
         android:layout_width="wrap_content"

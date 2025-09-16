@@ -55,7 +55,7 @@ class ImagePreviewActivity : AppCompatActivity() {
     }
 
     private fun setupViewPager() {
-        pagerAdapter = ImagePagerAdapter(imagePaths)
+        pagerAdapter = ImagePagerAdapter(this, imagePaths)
         viewPager.adapter = pagerAdapter
         viewPager.setCurrentItem(currentImageIndex, false)
 

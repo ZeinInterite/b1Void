@@ -1,16 +1,18 @@
 package com.example.b1void.adapters
 
-import android.graphics.BitmapFactory
+import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.example.b1void.R
 import java.io.File
 
 class ImagePagerAdapter(
-    private val imagePaths: List<String>
+    private val context: Context,
+    private val imagePaths: MutableList<String>
 ) : RecyclerView.Adapter<ImagePagerAdapter.ImageViewHolder>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ImageViewHolder {
@@ -30,8 +32,11 @@ class ImagePagerAdapter(
         fun bind(imagePath: String) {
             val imageFile = File(imagePath)
             if (imageFile.exists()) {
-                val bitmap = BitmapFactory.decodeFile(imageFile.absolutePath)
-                imageView.setImageBitmap(bitmap)
+                Glide.with(context)
+                    .load(imageFile)
+                    .placeholder(R.drawable.image_ic)
+                    .error(R.drawable.def_insp_img)
+                    .into(imageView)
             } else {
                 imageView.setImageResource(R.drawable.def_insp_img) // Placeholder
             }
