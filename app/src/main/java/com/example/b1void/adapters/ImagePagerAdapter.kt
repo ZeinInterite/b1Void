@@ -4,7 +4,7 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
+import io.getstream.photoview.PhotoView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.b1void.R
@@ -27,7 +27,7 @@ class ImagePagerAdapter(
     override fun getItemCount(): Int = imagePaths.size
 
     inner class ImageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val imageView: ImageView = itemView.findViewById(R.id.image_view)
+        private val imageView: PhotoView = itemView.findViewById(R.id.image_view)
 
         fun bind(imagePath: String) {
             val imageFile = File(imagePath)
