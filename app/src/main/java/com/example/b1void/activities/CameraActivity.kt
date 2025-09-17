@@ -12,15 +12,17 @@ import android.graphics.Color
 import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.Rect
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import android.util.Size
 import android.view.MotionEvent
+import android.view.OrientationEventListener
+import android.view.Surface
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.animation.AlphaAnimation
@@ -90,6 +92,9 @@ class CameraActivity : AppCompatActivity() {
     private var cameraProvider: ProcessCameraProvider? = null
     private lateinit var cameraExecutor: ExecutorService
     private var camera: Camera? = null
+    private var previewUseCase: Preview? = null
+    private var orientationEventListener: OrientationEventListener? = null
+    private var currentTargetRotation = Surface.ROTATION_0
 
     // Gesture detector
     private lateinit var scaleGestureDetector: ScaleGestureDetector
@@ -117,12 +122,15 @@ class CameraActivity : AppCompatActivity() {
 
         if (allPermissionsGranted()) {
             startCamera()
+            loadLatestPhotoThumbnail()
         } else {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
         scaleGestureDetector = ScaleGestureDetector(this, ScaleGestureListener())
+        currentTargetRotation = getDisplayRotation()
+        initializeOrientationListener()
     }
 
     private inner class ScaleGestureListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -237,14 +245,14 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun onThumbnailClicked(file: File) {
-        val isImage = file.extension.equals("jpg", ignoreCase = true) || file.extension.equals("jpeg", ignoreCase = true)
-
-        if (isImage) {
-            val imagePaths = ArrayList<String>()
-            imagePaths.add(file.absolutePath)
+        if (isImageFile(file)) {
+            val images = getSavedImages()
+            if (images.isEmpty()) return
+            val imagePaths = ArrayList(images.map { it.absolutePath })
+            val currentIndex = images.indexOfFirst { it.absolutePath == file.absolutePath }.let { if (it >= 0) it else 0 }
             val intent = Intent(this, ImagePreviewActivity::class.java).apply {
                 putStringArrayListExtra("image_paths", imagePaths)
-                putExtra("current_image_index", 0)
+                putExtra("current_image_index", currentIndex)
             }
             startActivity(intent)
         } else {
@@ -258,7 +266,7 @@ class CameraActivity : AppCompatActivity() {
             try {
                 startActivity(intent)
             } catch (e: Exception) {
-                Toast.makeText(this, "Не найдено приложение для открытия файла", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "???? ????????????? ??????>???\u0014?????? ???>?? ???'????<?'??? ?\"?????>??", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -285,28 +293,38 @@ class CameraActivity : AppCompatActivity() {
         cameraProviderFuture.addListener({
             cameraProvider = cameraProviderFuture.get()
 
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
-            }
+            val preview = Preview.Builder()
+                .setTargetRotation(currentTargetRotation)
+                .build()
+                .also {
+                    it.setSurfaceProvider(previewView.surfaceProvider)
+                }
+            previewUseCase = preview
 
             val recorder = Recorder.Builder()
                 .setQualitySelector(QualitySelector.from(Quality.HD))
                 .build()
-            videoCapture = VideoCapture.withOutput(recorder)
+            val newVideoCapture = VideoCapture.withOutput(recorder).apply {
+                targetRotation = currentTargetRotation
+            }
+            videoCapture = newVideoCapture
 
             val imageCaptureBuilder = ImageCapture.Builder()
                 .setFlashMode(flashMode)
+                .setTargetRotation(currentTargetRotation)
             
             selectedResolution?.let {
                 imageCaptureBuilder.setTargetResolution(it)
             }
 
-            imageCapture = imageCaptureBuilder.build()
+            val newImageCapture = imageCaptureBuilder.build()
+            imageCapture = newImageCapture
+            applyTargetRotations(currentTargetRotation)
 
             try {
                 cameraProvider?.unbindAll()
                 camera = cameraProvider?.bindToLifecycle(
-                    this, cameraSelector, preview, imageCapture, videoCapture
+                    this, cameraSelector, preview, newImageCapture, newVideoCapture
                 )
                 setupTorchObserver()
                 setupResolutionList()
@@ -342,6 +360,76 @@ class CameraActivity : AppCompatActivity() {
             } else {
                 torchButton.clearColorFilter()
             }
+        }
+    }
+
+    private fun initializeOrientationListener() {
+        orientationEventListener = object : OrientationEventListener(this) {
+            override fun onOrientationChanged(orientationDegrees: Int) {
+                if (orientationDegrees == ORIENTATION_UNKNOWN) return
+                val rotation = when {
+                    orientationDegrees in 45..134 -> Surface.ROTATION_270
+                    orientationDegrees in 135..224 -> Surface.ROTATION_180
+                    orientationDegrees in 225..314 -> Surface.ROTATION_90
+                    else -> Surface.ROTATION_0
+                }
+
+                if (rotation != currentTargetRotation) {
+                    currentTargetRotation = rotation
+                    applyTargetRotations(rotation)
+                }
+            }
+        }
+
+        orientationEventListener?.let { listener ->
+            if (listener.canDetectOrientation()) {
+                listener.enable()
+            } else {
+                listener.disable()
+            }
+        }
+    }
+
+    private fun applyTargetRotations(rotation: Int) {
+        previewUseCase?.targetRotation = rotation
+        imageCapture?.targetRotation = rotation
+        videoCapture?.targetRotation = rotation
+    }
+
+    private fun getDisplayRotation(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display?.rotation ?: Surface.ROTATION_0
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.rotation
+        }
+    }
+
+    private fun getSaveDirectory(): File? {
+        val path = intent.getStringExtra(EXTRA_SAVE_PATH) ?: externalMediaDirs.firstOrNull()?.absolutePath
+        if (path.isNullOrBlank()) return null
+        val dir = File(path)
+        return if (dir.exists() || dir.mkdirs()) dir else null
+    }
+
+    private fun getSavedImages(): List<File> {
+        val directory = getSaveDirectory() ?: return emptyList()
+        return directory.listFiles { file -> file.isFile && isImageFile(file) }?.sortedByDescending { it.lastModified() } ?: emptyList()
+    }
+
+    private fun isImageFile(file: File): Boolean {
+        val extension = file.extension.lowercase(Locale.ROOT)
+        return extension == "jpg" || extension == "jpeg" || extension == "png"
+    }
+
+    private fun loadLatestPhotoThumbnail() {
+        val latestImage = getSavedImages().firstOrNull()
+        if (latestImage != null) {
+            lastSavedFile = latestImage
+            updateThumbnail(Uri.fromFile(latestImage))
+        } else {
+            lastSavedFile = null
+            runOnUiThread { thumbnailPreview.setImageResource(R.drawable.gray_square) }
         }
     }
 
@@ -402,10 +490,10 @@ class CameraActivity : AppCompatActivity() {
         val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         val timestamp = sdf.format(Date())
 
-        val bounds = Rect()
-        paint.getTextBounds(timestamp, 0, timestamp.length, bounds)
-        val x = newBitmap.width - bounds.width() - padding
-        val y = newBitmap.height - padding
+        val fontMetrics = paint.fontMetrics
+        paint.textAlign = Paint.Align.RIGHT
+        val x = newBitmap.width - padding
+        val y = newBitmap.height - padding - fontMetrics.bottom
 
         canvas.drawText(timestamp, x, y, paint)
         return newBitmap
@@ -513,6 +601,7 @@ class CameraActivity : AppCompatActivity() {
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (allPermissionsGranted()) {
                 startCamera()
+                loadLatestPhotoThumbnail()
             } else {
                 Toast.makeText(this, "Разрешения не предоставлены.", Toast.LENGTH_SHORT).show()
                 finish()
@@ -524,20 +613,19 @@ class CameraActivity : AppCompatActivity() {
         super.onPause()
         recording?.stop()
         recording = null
+        orientationEventListener?.disable()
     }
 
     override fun onResume() {
         super.onResume()
-        lastSavedFile?.let {
-            if (!it.exists()) {
-                lastSavedFile = null
-                thumbnailPreview.setImageResource(R.drawable.gray_square)
-            }
-        }
+        orientationEventListener?.enable()
+        loadLatestPhotoThumbnail()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        orientationEventListener?.disable()
+        orientationEventListener = null
         cameraExecutor.shutdown()
     }
 
