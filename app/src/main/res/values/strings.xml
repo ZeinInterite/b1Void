@@ -8,6 +8,12 @@
     <string name="APP_KEY">elw6ey40dkbo1i0</string>
     <string name="select_images_from_gallery">Выберите фото из галереи</string>
     <string name="gallery_app_not_found">Галерея недоступна на устройстве</string>
+    <string name="clear_trash">Очистить корзину</string>
+    <string name="confirm_clear_trash_title">Очистить корзину?</string>
+    <string name="confirm_clear_trash_message">Все файлы из корзины будут удалены без возможности восстановления. Продолжить?</string>
+    <string name="trash_cleared">Корзина очищена</string>
+    <string name="trash_clear_failed">Не удалось очистить корзину</string>
+
     <string-array name="image_formats">
         <item>JPEG</item>
         <item>PNG</item>

@@ -55,6 +55,7 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var appDirectory: File
     private lateinit var zipDirectory: File
     private lateinit var trashDirectory: File
+    private lateinit var clearTrashButton: ImageButton
     private lateinit var captureButton: Button
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var titleTextView: TextView
@@ -124,6 +125,7 @@ class FileManagerActivity : AppCompatActivity() {
         captureButton = findViewById(R.id.capture_button)
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout)
         titleTextView = findViewById(R.id.titleTextView)
+        clearTrashButton = findViewById(R.id.clear_trash_button)
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
 
         selectionTopToolbar = findViewById(R.id.selection_top_toolbar)
@@ -137,6 +139,7 @@ class FileManagerActivity : AppCompatActivity() {
         val uploadButton = findViewById<View>(R.id.upload_button)
 
         sortButton.setOnClickListener { toggleSortOrder() }
+        clearTrashButton.setOnClickListener { showClearTrashConfirmation() }
 
         uploadButton.setOnClickListener {
             val galleryIntent = Intent(
@@ -391,6 +394,7 @@ class FileManagerActivity : AppCompatActivity() {
                     fileAdapter.updateFiles(sortedFilesAndDirs)
                     fileAdapter.notifyDataSetChanged()
                 }
+                clearTrashButton.visibility = if (directory == trashDirectory) View.VISIBLE else View.GONE
                 titleTextView.text = if (directory == appDirectory) "Основная директория" else directory.name
                 swipeRefreshLayout.isRefreshing = false
             }
@@ -501,6 +505,30 @@ class FileManagerActivity : AppCompatActivity() {
             loadDirectoryContent(getCurrentDirectory())
         } catch (e: SecurityException) {
             Log.e("FileManager", "SecurityException deleting file: ${e.message}")
+        }
+    }
+
+    private fun showClearTrashConfirmation() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.confirm_clear_trash_title)
+            .setMessage(R.string.confirm_clear_trash_message)
+            .setPositiveButton("Да") { _, _ -> clearTrashDirectory() }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun clearTrashDirectory() {
+        thread {
+            val cleared = FileManagerUtils.clearTrash(trashDirectory)
+            runOnUiThread {
+                if (cleared) {
+                    Toast.makeText(this, R.string.trash_cleared, Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, R.string.trash_clear_failed, Toast.LENGTH_SHORT).show()
+                }
+                ImageOptimizer.clearImageCache(this)
+                loadDirectoryContent(getCurrentDirectory())
+            }
         }
     }
 

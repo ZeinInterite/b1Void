@@ -105,6 +105,36 @@ object FileManagerUtils {
         }
     }
 
+    fun clearTrash(trashDirectory: File): Boolean {
+        return try {
+            if (!trashDirectory.exists()) {
+                val created = trashDirectory.mkdirs()
+                if (!created) {
+                    Log.e("FileManager", "Failed to recreate trash directory at ${trashDirectory.absolutePath}")
+                }
+                return created
+            }
+
+            var success = true
+            val children = trashDirectory.listFiles() ?: return true
+            for (child in children) {
+                val deleted = if (child.isDirectory) {
+                    deleteDirectory(child)
+                } else {
+                    child.delete()
+                }
+                if (!deleted) {
+                    Log.e("FileManager", "Failed to remove ${child.absolutePath} from trash")
+                    success = false
+                }
+            }
+            success
+        } catch (e: Exception) {
+            Log.e("FileManager", "Failed to clear trash: ${e.message}", e)
+            false
+        }
+    }
+
     fun deleteDirectory(directory: File): Boolean {
         val files = directory.listFiles()
         if (files != null) {

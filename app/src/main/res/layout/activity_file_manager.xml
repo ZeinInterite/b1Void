@@ -22,6 +22,19 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
            >
+            <ImageButton
+                android:id="@+id/clear_trash_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?android:attr/selectableItemBackground"
+                android:contentDescription="@string/clear_trash"
+                android:src="@drawable/ic_delete"
+                android:tint="@color/delete_red"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
             <TextView
                 android:id="@+id/titleTextView"
                 android:layout_width="0dp"
@@ -35,7 +48,7 @@
                 android:textSize="24sp"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toStartOf="@+id/icon_group"
-                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintStart_toEndOf="@id/clear_trash_button"
                 app:layout_constraintTop_toTopOf="parent" />
 
             <LinearLayout
