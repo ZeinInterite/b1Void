@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.preference.PreferenceManager
+import android.provider.MediaStore
 import android.util.Log
 import android.view.*
 import android.webkit.MimeTypeMap
@@ -137,12 +138,35 @@ class FileManagerActivity : AppCompatActivity() {
         sortButton.setOnClickListener { toggleSortOrder() }
 
         uploadButton.setOnClickListener {
-            val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                type = "*/*" // General type
-                putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*")) // Specific types
+            val galleryIntent = Intent(
+                Intent.ACTION_PICK,
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            ).apply {
+                type = "image/*"
                 putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
             }
-            startActivityForResult(intent, OPEN_FILE)
+
+            try {
+                val chooserTitle = getString(R.string.select_images_from_gallery)
+                startActivityForResult(
+                    Intent.createChooser(galleryIntent, chooserTitle),
+                    OPEN_FILE
+                )
+            } catch (e: ActivityNotFoundException) {
+                val fallbackIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    type = "image/*"
+                    putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                }
+                try {
+                    startActivityForResult(fallbackIntent, OPEN_FILE)
+                } catch (fallbackError: ActivityNotFoundException) {
+                    Toast.makeText(
+                        this,
+                        R.string.gallery_app_not_found,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
         }
 
         captureButton.setOnClickListener {

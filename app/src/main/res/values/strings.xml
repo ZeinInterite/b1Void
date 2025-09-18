@@ -6,6 +6,8 @@
     <string name="nameEmployee">Имя</string>
     <string name="emailAdm">Задайте email</string>
     <string name="APP_KEY">elw6ey40dkbo1i0</string>
+    <string name="select_images_from_gallery">Выберите фото из галереи</string>
+    <string name="gallery_app_not_found">Галерея недоступна на устройстве</string>
     <string-array name="image_formats">
         <item>JPEG</item>
         <item>PNG</item>
