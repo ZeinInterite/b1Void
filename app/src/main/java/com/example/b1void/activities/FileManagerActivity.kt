@@ -54,6 +54,7 @@ class FileManagerActivity : AppCompatActivity() {
     private val directoryStack: LinkedList<File> = LinkedList()
     private lateinit var appDirectory: File
     private lateinit var zipDirectory: File
+    private lateinit var trashDirectory: File
     private lateinit var captureButton: Button
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var titleTextView: TextView
@@ -288,9 +289,10 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     private fun setupDirectories() {
-        val (appDir, zipDir) = FileManagerUtils.createAppDirectories(this)
+        val (appDir, zipDir, trashDir) = FileManagerUtils.createAppDirectories(this)
         appDirectory = appDir
         zipDirectory = zipDir
+        trashDirectory = trashDir
     }
 
     private fun toggleSortOrder() {
@@ -491,16 +493,15 @@ class FileManagerActivity : AppCompatActivity() {
 
     fun deleteFile(file: File) {
         try {
-            if (file.isDirectory) deleteDirectory(file) else file.delete()
+            val movedToTrash = FileManagerUtils.moveToTrash(file, trashDirectory)
+            if (!movedToTrash) {
+                Toast.makeText(this, "Не удалось переместить в корзину", Toast.LENGTH_SHORT).show()
+            }
             ImageOptimizer.clearImageCache(this)
             loadDirectoryContent(getCurrentDirectory())
         } catch (e: SecurityException) {
             Log.e("FileManager", "SecurityException deleting file: ${e.message}")
         }
-    }
-
-    private fun deleteDirectory(directory: File) {
-        directory.walkBottomUp().forEach { it.delete() }
     }
 
     private fun shareFile(file: File) {
@@ -632,15 +633,23 @@ class FileManagerActivity : AppCompatActivity() {
             .setTitle("Удалить выбранные элементы?")
             .setMessage("Вы уверены, что хотите удалить ${selectedFiles.size} элемент(ов)?")
             .setPositiveButton("Да") { _, _ ->
+                val filesToRemove = selectedFiles.toList()
                 thread {
-                    selectedFiles.forEach { file ->
+                    val failed = mutableListOf<File>()
+                    filesToRemove.forEach { file ->
                         try {
-                            if (file.isDirectory) deleteDirectory(file) else file.delete()
+                            if (!FileManagerUtils.moveToTrash(file, trashDirectory)) {
+                                failed.add(file)
+                            }
                         } catch (e: SecurityException) {
                             Log.e("FileManager", "SecurityException on delete: ${e.message}")
+                            failed.add(file)
                         }
                     }
                     runOnUiThread {
+                        if (failed.isNotEmpty()) {
+                            Toast.makeText(this, "Не удалось переместить ${failed.size} элементов в корзину", Toast.LENGTH_SHORT).show()
+                        }
                         ImageOptimizer.clearImageCache(this)
                         exitSelectionMode()
                         loadDirectoryContent(getCurrentDirectory())

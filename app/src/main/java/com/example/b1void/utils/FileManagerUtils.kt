@@ -13,16 +13,25 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 object FileManagerUtils {
+
+    data class AppDirectories(
+        val appDirectory: File,
+        val zipDirectory: File,
+        val trashDirectory: File
+    )
+
     
-    fun createAppDirectories(context: Context): Pair<File, File> {
+    fun createAppDirectories(context: Context): AppDirectories {
         val filesDir = context.filesDir
         val appDirectory = File(filesDir, "InspectorAppFolder")
         val zipDirectory = File(filesDir, "zipFolder")
+        val trashDirectory = File(appDirectory, "Trash")
         
         createDirectoryIfNotExists(appDirectory, "папка приложения", context)
         createDirectoryIfNotExists(zipDirectory, "папка zip-файлов", context)
+        createDirectoryIfNotExists(trashDirectory, "Trash", context)
         
-        return Pair(appDirectory, zipDirectory)
+        return AppDirectories(appDirectory, zipDirectory, trashDirectory)
     }
     
     private fun createDirectoryIfNotExists(directory: File, directoryName: String, context: Context) {
@@ -42,7 +51,60 @@ object FileManagerUtils {
             }
         }
     }
-    
+
+    fun moveToTrash(target: File, trashDirectory: File): Boolean {
+        return try {
+            if (!trashDirectory.exists() && !trashDirectory.mkdirs()) {
+                Log.e("FileManager", "Failed to create trash directory at ${trashDirectory.absolutePath}")
+                return false
+            }
+
+            val trashPath = try {
+                trashDirectory.canonicalPath
+            } catch (e: IOException) {
+                Log.w("FileManager", "Unable to resolve trash canonical path: ${e.message}")
+                trashDirectory.absolutePath
+            }
+
+            val targetPath = try {
+                target.canonicalPath
+            } catch (e: IOException) {
+                Log.w("FileManager", "Unable to resolve target canonical path: ${e.message}")
+                target.absolutePath
+            }
+
+            if (targetPath == trashPath || targetPath.startsWith("$trashPath${File.separator}")) {
+                return if (target.isDirectory) {
+                    deleteDirectory(target)
+                } else {
+                    target.delete()
+                }
+            }
+
+            var destination = File(trashDirectory, target.name)
+            if (destination.exists()) {
+                val baseName = if (target.isFile) target.nameWithoutExtension else target.name
+                val extension = if (target.isFile && target.extension.isNotEmpty()) ".${target.extension}" else ""
+                destination = File(trashDirectory, "${baseName}_${System.currentTimeMillis()}$extension")
+            }
+
+            if (target.renameTo(destination)) {
+                true
+            } else {
+                if (target.isDirectory) {
+                    val copied = target.copyRecursively(destination, overwrite = true)
+                    copied && deleteDirectory(target)
+                } else {
+                    target.copyTo(destination, overwrite = true)
+                    target.delete()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("FileManager", "Failed to move ${target.absolutePath} to trash: ${e.message}", e)
+            false
+        }
+    }
+
     fun deleteDirectory(directory: File): Boolean {
         val files = directory.listFiles()
         if (files != null) {
