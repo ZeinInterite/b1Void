@@ -615,12 +615,16 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     private fun toggleSelectAll() {
-        if (selectedFiles.size == fileAdapter.files.size) {
+        val selectableFiles = fileAdapter.files.filterNot { it.isDirectory }
+        val hasAllSelectable = selectableFiles.isNotEmpty() && selectableFiles.all { it in selectedFiles }
+
+        if (hasAllSelectable) {
             selectedFiles.clear()
         } else {
-            selectedFiles.clear()
-            selectedFiles.addAll(fileAdapter.files)
+            selectedFiles.removeAll { it.isDirectory }
+            selectedFiles.addAll(selectableFiles)
         }
+
         fileAdapter.notifyDataSetChanged()
         updateSelectionState()
     }
