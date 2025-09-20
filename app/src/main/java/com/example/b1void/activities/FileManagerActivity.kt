@@ -722,6 +722,28 @@ class FileManagerActivity : AppCompatActivity() {
 
     private fun shareSelectedFiles() {
         if (selectedFiles.isEmpty()) return
+
+        val filesToShare = selectedFiles.toList()
+        val shareAsImages = filesToShare.isNotEmpty() && filesToShare.all { it.isFile && FileManagerUtils.isImageFile(it) }
+
+        if (shareAsImages) {
+            val imageUris = ArrayList<Uri>(filesToShare.size)
+            filesToShare.forEach { file ->
+                val uri = FileProvider.getUriForFile(this, "${packageName}.provider", file)
+                imageUris.add(uri)
+            }
+
+            val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                type = "image/*"
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, imageUris)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            startActivity(Intent.createChooser(shareIntent, getString(R.string.share_photos)))
+            exitSelectionMode()
+            return
+        }
+
         thread {
             val sharedZipsDir = File(cacheDir, "shared_zips").apply { mkdirs() }
             sharedZipsDir.listFiles()?.forEach { it.delete() }
@@ -730,11 +752,12 @@ class FileManagerActivity : AppCompatActivity() {
 
             try {
                 val tempDir = File(cacheDir, "temp_share").apply { mkdirs() }
-                selectedFiles.forEach { file ->
+                filesToShare.forEach { file ->
+                    val destination = File(tempDir, file.name)
                     if (file.isDirectory) {
-                        file.copyRecursively(File(tempDir, file.name), true)
+                        file.copyRecursively(destination, true)
                     } else {
-                        file.copyTo(File(tempDir, file.name), true)
+                        file.copyTo(destination, true)
                     }
                 }
 
@@ -752,7 +775,7 @@ class FileManagerActivity : AppCompatActivity() {
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
                 runOnUiThread {
-                    startActivity(Intent.createChooser(shareIntent, "Поделиться файлами"))
+                    startActivity(Intent.createChooser(shareIntent, getString(R.string.share_archive)))
                     exitSelectionMode()
                 }
             } catch (e: Exception) {
