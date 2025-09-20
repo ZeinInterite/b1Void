@@ -55,6 +55,7 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var appDirectory: File
     private lateinit var zipDirectory: File
     private lateinit var trashDirectory: File
+    private lateinit var openTrashButton: ImageButton
     private lateinit var clearTrashButton: ImageButton
     private lateinit var captureButton: Button
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
@@ -125,6 +126,7 @@ class FileManagerActivity : AppCompatActivity() {
         captureButton = findViewById(R.id.capture_button)
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout)
         titleTextView = findViewById(R.id.titleTextView)
+        openTrashButton = findViewById(R.id.open_trash_button)
         clearTrashButton = findViewById(R.id.clear_trash_button)
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
 
@@ -139,6 +141,7 @@ class FileManagerActivity : AppCompatActivity() {
         val uploadButton = findViewById<View>(R.id.upload_button)
 
         sortButton.setOnClickListener { toggleSortOrder() }
+        openTrashButton.setOnClickListener { openTrashDirectory() }
         clearTrashButton.setOnClickListener { showClearTrashConfirmation() }
 
         uploadButton.setOnClickListener {
@@ -304,6 +307,22 @@ class FileManagerActivity : AppCompatActivity() {
         loadDirectoryContent(getCurrentDirectory())
     }
 
+    private fun openTrashDirectory() {
+        if (getCurrentDirectory() == trashDirectory) {
+            return
+        }
+
+        if (isSelectionMode) {
+            exitSelectionMode()
+        }
+
+        if (!trashDirectory.exists()) {
+            trashDirectory.mkdirs()
+        }
+
+        openDirectory(trashDirectory)
+    }
+
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -372,7 +391,12 @@ class FileManagerActivity : AppCompatActivity() {
         swipeRefreshLayout.isRefreshing = true
         thread {
             val filesAndDirs = directory.listFiles()?.toList() ?: emptyList()
-            val sortedFilesAndDirs = filesAndDirs.sortedWith(
+            val visibleFiles = if (directory == appDirectory) {
+                filesAndDirs.filterNot { it == trashDirectory }
+            } else {
+                filesAndDirs
+            }
+            val sortedVisibleFiles = visibleFiles.sortedWith(
                 if (sortAscending) {
                     compareBy<File> { !it.isDirectory }.thenBy { it.name.lowercase(Locale.ROOT) }
                 } else {
@@ -382,7 +406,7 @@ class FileManagerActivity : AppCompatActivity() {
             runOnUiThread {
                 if (!this::fileAdapter.isInitialized) {
                     fileAdapter = FileAdapter(
-                        sortedFilesAndDirs,
+                        sortedVisibleFiles,
                         this,
                         { file -> onItemClick(file) },
                         { file, view -> onItemLongClick(file, view) }
@@ -391,10 +415,14 @@ class FileManagerActivity : AppCompatActivity() {
                 } else {
                     fileAdapter.isSelectionMode = isSelectionMode
                     fileAdapter.selectedFiles = selectedFiles
-                    fileAdapter.updateFiles(sortedFilesAndDirs)
+                    fileAdapter.updateFiles(sortedVisibleFiles)
                     fileAdapter.notifyDataSetChanged()
                 }
-                clearTrashButton.visibility = if (directory == trashDirectory) View.VISIBLE else View.GONE
+                val isTrashDirectory = directory == trashDirectory
+                clearTrashButton.visibility = if (isTrashDirectory) View.VISIBLE else View.GONE
+                clearTrashButton.isEnabled = isTrashDirectory
+                openTrashButton.isEnabled = !isTrashDirectory
+                openTrashButton.alpha = if (openTrashButton.isEnabled) 1f else 0.5f
                 titleTextView.text = if (directory == appDirectory) "Основная директория" else directory.name
                 swipeRefreshLayout.isRefreshing = false
             }
