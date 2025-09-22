@@ -16,6 +16,7 @@
     <string name="confirm_clear_trash_message">Все файлы из корзины будут удалены без возможности восстановления. Продолжить?</string>
     <string name="trash_cleared">Корзина очищена</string>
     <string name="trash_clear_failed">Не удалось очистить корзину</string>
+    <string name="zoom_control">Масштаб</string>
 
     <string-array name="image_formats">
         <item>JPEG</item>

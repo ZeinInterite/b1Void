@@ -31,6 +31,7 @@ import android.webkit.MimeTypeMap
 import android.widget.Chronometer
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.camera2.interop.Camera2CameraInfo
@@ -56,6 +57,8 @@ import com.example.b1void.R
 import com.example.b1void.adapters.ResolutionAdapter
 import com.example.b1void.data.CameraSettingsManager
 import com.example.b1void.ui.CameraSettingsDialogFragment
+import com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBar
+import com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.io.File
@@ -64,6 +67,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.roundToInt
 
 class CameraActivity : AppCompatActivity() {
 
@@ -84,6 +88,8 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var resolutionSelectorButton: ImageButton
     private lateinit var resolutionListContainer: CardView
     private lateinit var resolutionRecyclerView: RecyclerView
+    private lateinit var zoomSeekBarWrapper: VerticalSeekBarWrapper
+    private lateinit var zoomSeekBar: VerticalSeekBar
 
     // CameraX components
     private var imageCapture: ImageCapture? = null
@@ -110,6 +116,8 @@ class CameraActivity : AppCompatActivity() {
     private var isRecording = false
     private var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
     private var lastSavedFile: File? = null
+    private var minZoomRatio = 1f
+    private var maxZoomRatio = 1f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -197,6 +205,27 @@ class CameraActivity : AppCompatActivity() {
             scaleGestureDetector.onTouchEvent(event)
             true
         }
+
+        zoomSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (!fromUser) return
+                val cam = camera ?: return
+                if (zoomSeekBar.max == 0) return
+                val zoomRange = maxZoomRatio - minZoomRatio
+                if (zoomRange <= 0f) return
+                val fraction = progress.toFloat() / zoomSeekBar.max
+                val newZoomRatio = minZoomRatio + fraction * zoomRange
+                cam.cameraControl.setZoomRatio(newZoomRatio)
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                // no-op
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                // no-op
+            }
+        })
     }
 
     private fun initializeViews() {
@@ -211,6 +240,10 @@ class CameraActivity : AppCompatActivity() {
         resolutionSelectorButton = findViewById(R.id.resolutionSelectorButton)
         resolutionListContainer = findViewById(R.id.resolutionListContainer)
         resolutionRecyclerView = findViewById(R.id.resolutionRecyclerView)
+        zoomSeekBarWrapper = findViewById(R.id.zoomSeekBarWrapper)
+        zoomSeekBar = findViewById(R.id.zoomSeekBar)
+        zoomSeekBarWrapper.visibility = View.GONE
+        zoomSeekBar.isEnabled = false
     }
 
     private fun observeSettings() {
@@ -328,6 +361,7 @@ class CameraActivity : AppCompatActivity() {
                 )
                 setupTorchObserver()
                 setupResolutionList()
+                setupZoomObserver()
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
@@ -359,6 +393,34 @@ class CameraActivity : AppCompatActivity() {
                 torchButton.setColorFilter(ContextCompat.getColor(this, R.color.yellow))
             } else {
                 torchButton.clearColorFilter()
+            }
+        }
+    }
+
+    private fun setupZoomObserver() {
+        val cam = camera ?: run {
+            zoomSeekBarWrapper.visibility = View.GONE
+            zoomSeekBar.isEnabled = false
+            return
+        }
+        val zoomStateLiveData = cam.cameraInfo.zoomState
+        zoomStateLiveData.removeObservers(this)
+        zoomStateLiveData.observe(this) { state ->
+            minZoomRatio = state.minZoomRatio
+            maxZoomRatio = state.maxZoomRatio
+            val zoomRange = maxZoomRatio - minZoomRatio
+            val shouldShowZoom = zoomRange > 0.01f
+            zoomSeekBarWrapper.visibility = if (shouldShowZoom) View.VISIBLE else View.GONE
+            zoomSeekBar.isEnabled = shouldShowZoom
+            if (!shouldShowZoom) {
+                zoomSeekBar.progress = 0
+                return@observe
+            }
+
+            val fraction = if (zoomRange <= 0f) 0f else (state.zoomRatio - minZoomRatio) / zoomRange
+            val newProgress = (fraction.coerceIn(0f, 1f) * zoomSeekBar.max).roundToInt()
+            if (zoomSeekBar.progress != newProgress) {
+                zoomSeekBar.progress = newProgress
             }
         }
     }

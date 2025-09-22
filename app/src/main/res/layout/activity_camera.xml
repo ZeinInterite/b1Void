@@ -155,6 +155,31 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper
+        android:id="@+id/zoomSeekBarWrapper"
+        android:layout_width="wrap_content"
+        android:layout_height="200dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginBottom="-24dp"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/bottomControls"
+        tools:visibility="visible">
+
+        <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBar
+            android:id="@+id/zoomSeekBar"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:max="100"
+            android:progress="0"
+            android:padding="8dp"
+            android:splitTrack="false"
+            android:contentDescription="@string/zoom_control"
+            style="@style/VerticalSeekBarStyle"
+            app:seekBarRotation="CW90" />
+
+    </com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper>
+
     <androidx.cardview.widget.CardView
         android:id="@+id/resolutionListContainer"
         android:layout_width="wrap_content"
