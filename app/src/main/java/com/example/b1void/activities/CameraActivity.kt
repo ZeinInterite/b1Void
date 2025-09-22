@@ -37,6 +37,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
@@ -67,6 +68,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
 class CameraActivity : AppCompatActivity() {
@@ -90,6 +92,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var resolutionRecyclerView: RecyclerView
     private lateinit var zoomSeekBarWrapper: VerticalSeekBarWrapper
     private lateinit var zoomSeekBar: VerticalSeekBar
+    private lateinit var focusIndicator: View
 
     // CameraX components
     private var imageCapture: ImageCapture? = null
@@ -118,6 +121,12 @@ class CameraActivity : AppCompatActivity() {
     private var lastSavedFile: File? = null
     private var minZoomRatio = 1f
     private var maxZoomRatio = 1f
+    private var isZoomGesture = false
+
+    private val hideFocusIndicatorRunnable = Runnable {
+        focusIndicator.animate().cancel()
+        focusIndicator.visibility = View.GONE
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -201,8 +210,19 @@ class CameraActivity : AppCompatActivity() {
             }
         }
 
-        previewView.setOnTouchListener { _, event ->
+        previewView.setOnTouchListener { view, event ->
             scaleGestureDetector.onTouchEvent(event)
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> isZoomGesture = false
+                MotionEvent.ACTION_POINTER_DOWN -> isZoomGesture = true
+                MotionEvent.ACTION_CANCEL -> isZoomGesture = false
+                MotionEvent.ACTION_UP -> {
+                    view.performClick()
+                    if (!isZoomGesture && !scaleGestureDetector.isInProgress && event.pointerCount == 1) {
+                        focusAtPoint(event.x, event.y)
+                    }
+                }
+            }
             true
         }
 
@@ -242,6 +262,7 @@ class CameraActivity : AppCompatActivity() {
         resolutionRecyclerView = findViewById(R.id.resolutionRecyclerView)
         zoomSeekBarWrapper = findViewById(R.id.zoomSeekBarWrapper)
         zoomSeekBar = findViewById(R.id.zoomSeekBar)
+        focusIndicator = findViewById(R.id.focusIndicator)
         zoomSeekBarWrapper.visibility = View.GONE
         zoomSeekBar.isEnabled = false
     }
@@ -422,6 +443,75 @@ class CameraActivity : AppCompatActivity() {
             if (zoomSeekBar.progress != newProgress) {
                 zoomSeekBar.progress = newProgress
             }
+        }
+    }
+
+    private fun focusAtPoint(x: Float, y: Float) {
+        val cam = camera ?: return
+        val factory = previewView.meteringPointFactory
+        val afPoint = factory.createPoint(x, y)
+        val aePoint = factory.createPoint(x, y)
+
+        val action = FocusMeteringAction.Builder(afPoint, FocusMeteringAction.FLAG_AF)
+            .addPoint(aePoint, FocusMeteringAction.FLAG_AE)
+            .setAutoCancelDuration(3, TimeUnit.SECONDS)
+            .build()
+
+        showFocusIndicator(x, y)
+
+        if (!cam.cameraInfo.isFocusMeteringSupported(action)) {
+            focusIndicator.postDelayed(hideFocusIndicatorRunnable, 600)
+            return
+        }
+
+        val future = cam.cameraControl.startFocusAndMetering(action)
+        future.addListener({
+            try {
+                val result = future.get()
+                val delay = if (result.isFocusSuccessful) 600L else 200L
+                focusIndicator.postDelayed(hideFocusIndicatorRunnable, delay)
+            } catch (e: Exception) {
+                focusIndicator.post(hideFocusIndicatorRunnable)
+            }
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun showFocusIndicator(x: Float, y: Float) {
+        val indicatorWidth = focusIndicator.width.takeIf { it > 0 }
+            ?: focusIndicator.layoutParams.width.takeIf { it > 0 }
+            ?: 0
+        val indicatorHeight = focusIndicator.height.takeIf { it > 0 }
+            ?: focusIndicator.layoutParams.height.takeIf { it > 0 }
+            ?: 0
+
+        val parentLeft = previewView.left.toFloat()
+        val parentTop = previewView.top.toFloat()
+        val parentRight = previewView.right.toFloat()
+        val parentBottom = previewView.bottom.toFloat()
+
+        val centeredX = parentLeft + x - indicatorWidth / 2f
+        val centeredY = parentTop + y - indicatorHeight / 2f
+
+        val clampedX = centeredX.coerceIn(parentLeft, parentRight - indicatorWidth)
+        val clampedY = centeredY.coerceIn(parentTop, parentBottom - indicatorHeight)
+
+        focusIndicator.apply {
+            removeCallbacks(hideFocusIndicatorRunnable)
+            visibility = View.VISIBLE
+            alpha = 1f
+            scaleX = 1f
+            scaleY = 1f
+            translationX = clampedX
+            translationY = clampedY
+            animate().cancel()
+            animate()
+                .scaleX(0.85f)
+                .scaleY(0.85f)
+                .setDuration(120)
+                .withEndAction {
+                    animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+                }
+                .start()
         }
     }
 
@@ -688,6 +778,7 @@ class CameraActivity : AppCompatActivity() {
         super.onDestroy()
         orientationEventListener?.disable()
         orientationEventListener = null
+        focusIndicator.removeCallbacks(hideFocusIndicatorRunnable)
         cameraExecutor.shutdown()
     }
 
