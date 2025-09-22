@@ -25,10 +25,6 @@ import com.example.b1void.R
 import com.example.b1void.adapters.FileAdapter
 import com.example.b1void.utils.FileManagerUtils
 import com.example.b1void.utils.ImageOptimizer
-import com.example.b1void.workers.DropboxUploadWorker
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.workDataOf
 import com.example.b1void.ui.MoveFilesBottomSheet
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -53,7 +49,6 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var fileAdapter: FileAdapter
     private val directoryStack: LinkedList<File> = LinkedList()
     private lateinit var appDirectory: File
-    private lateinit var zipDirectory: File
     private lateinit var trashDirectory: File
     private lateinit var openTrashButton: ImageButton
     private lateinit var clearTrashButton: ImageButton
@@ -295,9 +290,8 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     private fun setupDirectories() {
-        val (appDir, zipDir, trashDir) = FileManagerUtils.createAppDirectories(this)
+        val (appDir, _, trashDir) = FileManagerUtils.createAppDirectories(this)
         appDirectory = appDir
-        zipDirectory = zipDir
         trashDirectory = trashDir
     }
 
@@ -680,10 +674,6 @@ class FileManagerActivity : AppCompatActivity() {
             dialog.dismiss()
             showMoveDialogForSelectedFiles()
         }
-        view.findViewById<TextView>(R.id.action_upload_to_dropbox).setOnClickListener {
-            dialog.dismiss()
-            uploadSelectedFilesToDropbox()
-        }
         dialog.show()
     }
 
@@ -828,41 +818,4 @@ class FileManagerActivity : AppCompatActivity() {
         setupRecyclerView()
     }
 
-    
-
-    private fun uploadSelectedFilesToDropbox() {
-        if (selectedFiles.isEmpty()) return
-
-        thread {
-            val zipFile = File(zipDirectory, "archive-" + System.currentTimeMillis() + ".zip")
-            try {
-                val tempDir = File(cacheDir, "temp_upload").apply { mkdirs() }
-                selectedFiles.forEach { file ->
-                    file.copyTo(File(tempDir, file.name), true)
-                }
-                FileManagerUtils.zipDirectory(tempDir, zipFile)
-                tempDir.deleteRecursively()
-
-                val dropboxPath = "/" + zipFile.name
-                val data = workDataOf(
-                    DropboxUploadWorker.KEY_FILE_PATH to zipFile.absolutePath,
-                    DropboxUploadWorker.KEY_DROPBOX_PATH to dropboxPath
-                )
-
-                val uploadWorkRequest = OneTimeWorkRequestBuilder<DropboxUploadWorker>()
-                    .setInputData(data)
-                    .build()
-
-                WorkManager.getInstance(this).enqueue(uploadWorkRequest)
-
-                runOnUiThread {
-                    Toast.makeText(this, "Загрузка в Dropbox началась", Toast.LENGTH_SHORT).show()
-                    exitSelectionMode()
-                }
-            } catch (e: Exception) {
-                Log.e("FileManager", "Error preparing for Dropbox upload", e)
-                runOnUiThread { Toast.makeText(this, "Ошибка подготовки к загрузке", Toast.LENGTH_SHORT).show() }
-            }
-        }
-    }
 }
