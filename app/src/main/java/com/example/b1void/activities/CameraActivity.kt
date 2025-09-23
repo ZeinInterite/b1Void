@@ -25,8 +25,10 @@ import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.ScaleGestureDetector
 import android.view.View
+import android.view.animation.AccelerateInterpolator
 import android.view.animation.AlphaAnimation
 import android.view.animation.Animation
+import android.view.animation.DecelerateInterpolator
 import android.webkit.MimeTypeMap
 import android.widget.Chronometer
 import android.widget.ImageButton
@@ -93,6 +95,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var zoomSeekBarWrapper: VerticalSeekBarWrapper
     private lateinit var zoomSeekBar: VerticalSeekBar
     private lateinit var focusIndicator: View
+    private lateinit var captureAnimationView: ImageView
 
     // CameraX components
     private var imageCapture: ImageCapture? = null
@@ -112,7 +115,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var settingsManager: CameraSettingsManager
     private var flashMode = ImageCapture.FLASH_MODE_OFF
     private var timestampEnabled = true
-    private var selectedResolution: Size? = null
+    private var selectedResolution: Size? = DEFAULT_PHOTO_RESOLUTION
 
     // State variables
     private var currentMode = CaptureMode.PHOTO
@@ -263,6 +266,7 @@ class CameraActivity : AppCompatActivity() {
         zoomSeekBarWrapper = findViewById(R.id.zoomSeekBarWrapper)
         zoomSeekBar = findViewById(R.id.zoomSeekBar)
         focusIndicator = findViewById(R.id.focusIndicator)
+        captureAnimationView = findViewById(R.id.captureAnimationView)
         zoomSeekBarWrapper.visibility = View.GONE
         zoomSeekBar.isEnabled = false
     }
@@ -289,10 +293,13 @@ class CameraActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             settingsManager.getResolution().collect { resString ->
-                val newResolution = resString?.let { parseResolution(it) }
-                if (newResolution != selectedResolution) {
+                val newResolution = resString?.let { parseResolution(it) } ?: DEFAULT_PHOTO_RESOLUTION
+                if (selectedResolution != newResolution) {
                     selectedResolution = newResolution
                     startCamera()
+                }
+                if (resString == null) {
+                    settingsManager.setResolution("${DEFAULT_PHOTO_RESOLUTION.width}x${DEFAULT_PHOTO_RESOLUTION.height}")
                 }
             }
         }
@@ -515,6 +522,61 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
+    private fun playCaptureAnimation(imageUri: Uri) {
+        captureAnimationView.animate().cancel()
+
+        Glide.with(this)
+            .load(imageUri)
+            .centerCrop()
+            .into(captureAnimationView)
+
+        captureAnimationView.visibility = View.VISIBLE
+        captureAnimationView.alpha = 0f
+        captureAnimationView.scaleX = 0.6f
+        captureAnimationView.scaleY = 0.6f
+        captureAnimationView.translationX = 0f
+        captureAnimationView.translationY = 0f
+
+        captureAnimationView.post {
+            if (!isFinishing && !isDestroyed) {
+                val startLocation = IntArray(2)
+                val endLocation = IntArray(2)
+                captureAnimationView.getLocationOnScreen(startLocation)
+                thumbnailPreview.getLocationOnScreen(endLocation)
+
+                val deltaX = endLocation[0] - startLocation[0]
+                val deltaY = endLocation[1] - startLocation[1]
+
+                captureAnimationView.animate()
+                    .alpha(1f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(140)
+                    .setInterpolator(DecelerateInterpolator())
+                    .withEndAction {
+                        captureAnimationView.animate()
+                            .translationX(deltaX.toFloat())
+                            .translationY(deltaY.toFloat())
+                            .alpha(0f)
+                            .scaleX(0.3f)
+                            .scaleY(0.3f)
+                            .setDuration(280)
+                            .setInterpolator(AccelerateInterpolator())
+                            .withEndAction {
+                                captureAnimationView.visibility = View.GONE
+                                captureAnimationView.translationX = 0f
+                                captureAnimationView.translationY = 0f
+                                captureAnimationView.scaleX = 1f
+                                captureAnimationView.scaleY = 1f
+                                captureAnimationView.alpha = 1f
+                            }
+                            .start()
+                    }
+                    .start()
+            }
+        }
+    }
+
     private fun initializeOrientationListener() {
         orientationEventListener = object : OrientationEventListener(this) {
             override fun onOrientationChanged(orientationDegrees: Int) {
@@ -610,8 +672,9 @@ class CameraActivity : AppCompatActivity() {
                 lastSavedFile = savedFile
 
                 runOnUiThread {
-                    val msg = "Фото сохранено: ${Uri.fromFile(savedFile)}"
-                    updateThumbnail(Uri.fromFile(savedFile))
+                    val fileUri = Uri.fromFile(savedFile)
+                    updateThumbnail(fileUri)
+                    playCaptureAnimation(fileUri)
                 }
             }
 
@@ -779,6 +842,7 @@ class CameraActivity : AppCompatActivity() {
         orientationEventListener?.disable()
         orientationEventListener = null
         focusIndicator.removeCallbacks(hideFocusIndicatorRunnable)
+        captureAnimationView.animate().cancel()
         cameraExecutor.shutdown()
     }
 
@@ -787,5 +851,6 @@ class CameraActivity : AppCompatActivity() {
         private const val REQUEST_CODE_PERMISSIONS = 10
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
         const val EXTRA_SAVE_PATH = "extra_save_path"
+        private val DEFAULT_PHOTO_RESOLUTION = Size(720, 960)
     }
 }

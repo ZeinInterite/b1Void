@@ -80,6 +80,22 @@
             android:configChanges="orientation|keyboard|screenSize" />
 
         <activity
+            android:name=".activities.ShareImportActivity"
+            android:exported="true"
+            android:theme="@style/Theme.B1Void">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".activities.SplashActivity"
             android:exported="true"
             android:launchMode="singleTask">

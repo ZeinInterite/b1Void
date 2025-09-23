@@ -12,7 +12,6 @@ import android.preference.PreferenceManager
 import android.provider.MediaStore
 import android.util.Log
 import android.view.*
-import android.webkit.MimeTypeMap
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -30,7 +29,6 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 import java.util.Locale
 import java.util.*
@@ -113,6 +111,13 @@ class FileManagerActivity : AppCompatActivity() {
         if (isSelectionMode) {
             startSelectionMode(selectedFiles.firstOrNull())
         }
+
+        handleTargetDirectoryIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleTargetDirectoryIntent(intent)
     }
 
     private fun initializeViews() {
@@ -332,26 +337,28 @@ class FileManagerActivity : AppCompatActivity() {
 
     private fun saveMediaToDirectory(directory: File, uris: List<Uri>) {
         thread {
-            uris.forEach { uri ->
-                val mimeType = contentResolver.getType(uri)
-                val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType) ?: "file"
-                val prefix = if (mimeType?.startsWith("video") == true) "Video" else "Image"
-                val fname = "$prefix-${System.currentTimeMillis()}.$extension"
-                val file = File(directory, fname)
-                try {
-                    contentResolver.openInputStream(uri)?.use { input ->
-                        FileOutputStream(file).use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                } catch (e: IOException) {
-                    e.printStackTrace()
-                }
-            }
+            FileManagerUtils.importUrisToDirectory(this, directory, uris)
             runOnUiThread {
                 loadDirectoryContent(directory)
             }
         }
+    }
+
+    private fun handleTargetDirectoryIntent(intent: Intent?) {
+        val targetPath = intent?.getStringExtra(ShareImportActivity.EXTRA_TARGET_DIRECTORY) ?: return
+        val targetDirectory = File(targetPath)
+        if (!targetDirectory.exists() || !targetDirectory.isDirectory) {
+            intent.removeExtra(ShareImportActivity.EXTRA_TARGET_DIRECTORY)
+            return
+        }
+
+        if (directoryStack.lastOrNull() != targetDirectory) {
+            openDirectory(targetDirectory)
+        } else {
+            loadDirectoryContent(targetDirectory)
+        }
+
+        intent.removeExtra(ShareImportActivity.EXTRA_TARGET_DIRECTORY)
     }
 
     private fun showPopupMenu(file: File, view: View) {

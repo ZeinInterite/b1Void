@@ -117,6 +117,20 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:visibility="gone" />
 
+    <ImageView
+        android:id="@+id/captureAnimationView"
+        android:layout_width="220dp"
+        android:layout_height="220dp"
+        android:visibility="gone"
+        android:scaleType="centerCrop"
+        android:background="@drawable/capture_animation_background"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        tools:visibility="visible"
+        tools:src="@tools:sample/avatars" />
+
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/bottomControls"
         android:layout_width="0dp"

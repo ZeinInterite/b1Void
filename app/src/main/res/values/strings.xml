@@ -8,6 +8,8 @@
     <string name="APP_KEY">elw6ey40dkbo1i0</string>
     <string name="select_images_from_gallery">Выберите фото из галереи</string>
     <string name="gallery_app_not_found">Галерея недоступна на устройстве</string>
+    <string name="import_complete">Фотографии добавлены в приложение</string>
+    <string name="import_failed">Не удалось добавить фотографии</string>
     <string name="share_photos">Поделиться фото</string>
     <string name="share_archive">Поделиться архивом</string>
     <string name="open_trash">Корзина</string>

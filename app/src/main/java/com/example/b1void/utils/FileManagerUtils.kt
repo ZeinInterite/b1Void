@@ -1,14 +1,15 @@
 package com.example.b1void.utils
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
+import android.webkit.MimeTypeMap
 import android.widget.Toast
-import java.io.File
-import java.io.IOException
-
 import java.io.BufferedInputStream
+import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.IOException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -33,7 +34,46 @@ object FileManagerUtils {
         
         return AppDirectories(appDirectory, zipDirectory, trashDirectory)
     }
-    
+
+    fun importUrisToDirectory(context: Context, directory: File, uris: List<Uri>): List<File> {
+        if (!directory.exists()) {
+            directory.mkdirs()
+        }
+        val resolver = context.contentResolver
+        val savedFiles = mutableListOf<File>()
+
+        uris.forEach { uri ->
+            try {
+                val mimeType = resolver.getType(uri)
+                val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
+                    ?: run {
+                        val path = uri.lastPathSegment ?: ""
+                        val dotIndex = path.lastIndexOf('.')
+                        if (dotIndex >= 0 && dotIndex < path.length - 1) {
+                            path.substring(dotIndex + 1)
+                        } else {
+                            "jpg"
+                        }
+                    }
+                val prefix = if (mimeType?.startsWith("video") == true) "Video" else "Image"
+                val fileName = "$prefix-${System.currentTimeMillis()}.$extension"
+                val targetFile = File(directory, fileName)
+
+                resolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(targetFile).use { output ->
+                        input.copyTo(output)
+                    }
+                } ?: throw IOException("Не удалось открыть поток: $uri")
+
+                savedFiles.add(targetFile)
+            } catch (e: Exception) {
+                Log.e("FileManager", "Ошибка импорта $uri: ${e.message}", e)
+            }
+        }
+
+        return savedFiles
+    }
+
     private fun createDirectoryIfNotExists(directory: File, directoryName: String, context: Context) {
         if (!directory.exists()) {
             try {
