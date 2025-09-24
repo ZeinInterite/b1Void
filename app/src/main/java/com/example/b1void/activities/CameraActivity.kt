@@ -29,6 +29,7 @@ import android.view.animation.AccelerateInterpolator
 import android.view.animation.AlphaAnimation
 import android.view.animation.Animation
 import android.view.animation.DecelerateInterpolator
+import android.view.WindowManager
 import android.webkit.MimeTypeMap
 import android.widget.Chronometer
 import android.widget.ImageButton
@@ -390,11 +391,21 @@ class CameraActivity : AppCompatActivity() {
                 setupTorchObserver()
                 setupResolutionList()
                 setupZoomObserver()
+                focusAtCenter()
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
 
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun focusAtCenter() {
+        previewView.post {
+            val width = previewView.width
+            val height = previewView.height
+            if (width <= 0 || height <= 0) return@post
+            startFocusMeteringAt(width / 2f, height / 2f, showIndicator = false)
+        }
     }
 
     @SuppressLint("UnsafeOptInUsageError")
@@ -454,6 +465,10 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun focusAtPoint(x: Float, y: Float) {
+        startFocusMeteringAt(x, y, showIndicator = true)
+    }
+
+    private fun startFocusMeteringAt(x: Float, y: Float, showIndicator: Boolean) {
         val cam = camera ?: return
         val factory = previewView.meteringPointFactory
         val afPoint = factory.createPoint(x, y)
@@ -464,10 +479,14 @@ class CameraActivity : AppCompatActivity() {
             .setAutoCancelDuration(3, TimeUnit.SECONDS)
             .build()
 
-        showFocusIndicator(x, y)
+        if (showIndicator) {
+            showFocusIndicator(x, y)
+        }
 
         if (!cam.cameraInfo.isFocusMeteringSupported(action)) {
-            focusIndicator.postDelayed(hideFocusIndicatorRunnable, 600)
+            if (showIndicator) {
+                focusIndicator.postDelayed(hideFocusIndicatorRunnable, 600)
+            }
             return
         }
 
@@ -475,10 +494,14 @@ class CameraActivity : AppCompatActivity() {
         future.addListener({
             try {
                 val result = future.get()
-                val delay = if (result.isFocusSuccessful) 600L else 200L
-                focusIndicator.postDelayed(hideFocusIndicatorRunnable, delay)
+                if (showIndicator) {
+                    val delay = if (result.isFocusSuccessful) 600L else 200L
+                    focusIndicator.postDelayed(hideFocusIndicatorRunnable, delay)
+                }
             } catch (e: Exception) {
-                focusIndicator.post(hideFocusIndicatorRunnable)
+                if (showIndicator) {
+                    focusIndicator.post(hideFocusIndicatorRunnable)
+                }
             }
         }, ContextCompat.getMainExecutor(this))
     }
@@ -829,11 +852,13 @@ class CameraActivity : AppCompatActivity() {
         recording?.stop()
         recording = null
         orientationEventListener?.disable()
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     override fun onResume() {
         super.onResume()
         orientationEventListener?.enable()
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         loadLatestPhotoThumbnail()
     }
 

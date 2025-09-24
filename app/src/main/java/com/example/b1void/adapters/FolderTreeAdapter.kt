@@ -1,10 +1,9 @@
 package com.example.b1void.adapters
 
-import android.graphics.Color
-import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -15,7 +14,7 @@ import com.example.b1void.utils.dpToPx
 
 class FolderTreeAdapter(
     private val currentSourcePath: String,
-    private val rootFolderPath: String, // Добавляем путь к корневой папке
+    private val rootFolderPath: String,
     private val onFolderClick: (FolderNode) -> Unit,
     private val onFolderSelect: (FolderNode) -> Unit
 ) : ListAdapter<FolderNode, FolderTreeAdapter.FolderViewHolder>(FolderDiffCallback()) {
@@ -30,39 +29,54 @@ class FolderTreeAdapter(
     }
 
     inner class FolderViewHolder(private val binding: ItemFolderTreeBinding) : RecyclerView.ViewHolder(binding.root) {
+
+        private val baseStartPadding = ViewCompat.getPaddingStart(binding.root)
+        private val baseTopPadding = binding.root.paddingTop
+        private val baseEndPadding = ViewCompat.getPaddingEnd(binding.root)
+        private val baseBottomPadding = binding.root.paddingBottom
+
         fun bind(node: FolderNode) {
-            // Если это корневая папка, отображаем специальное имя
+            val context = itemView.context
+
             binding.folderName.text = if (node.file.absolutePath == rootFolderPath) {
                 "Основная директория"
             } else {
                 node.file.name
             }
 
-            // Отступ для имитации вложенности
-            val indent = (node.level * 24).dpToPx(itemView.context) // Используем extension function
-            binding.root.setPadding(indent, 0, 0, 0)
+            val indent = (node.level * 24).dpToPx(context)
+            ViewCompat.setPaddingRelative(
+                binding.root,
+                baseStartPadding + indent,
+                baseTopPadding,
+                baseEndPadding,
+                baseBottomPadding
+            )
 
-            // Иконка expand/collapse
             binding.expandIcon.rotation = if (node.isExpanded) 90f else 0f
 
-            // Подсветка текущей папки (откуда перемещаем)
-            if (node.file.absolutePath == currentSourcePath) {
-                binding.folderName.setTextColor(Color.GRAY)
-                binding.root.isClickable = false
-            } else {
-                binding.folderName.setTextColor(Color.BLACK) // Используем жестко заданный цвет
-                binding.root.isClickable = true
-            }
+            val isSourceFolder = node.file.absolutePath == currentSourcePath
+            val defaultTextColor = ContextCompat.getColor(context, R.color.move_folder_item_text)
+            val disabledTextColor = ContextCompat.getColor(context, R.color.gray)
+            val selectedTextColor = ContextCompat.getColor(context, R.color.delete_red)
+            val defaultBackgroundColor = ContextCompat.getColor(context, R.color.move_folder_item_background)
+            val selectedBackgroundColor = ContextCompat.getColor(context, R.color.move_folder_item_selected_background)
 
-            // Подсветка выбранной для перемещения папки
-            if (node.isSelected) {
-                binding.root.setBackgroundColor(ContextCompat.getColor(itemView.context, R.color.selection_highlight))
-            } else {
-                binding.root.setBackgroundColor(Color.TRANSPARENT)
-            }
+            binding.folderName.setTextColor(
+                when {
+                    isSourceFolder -> disabledTextColor
+                    node.isSelected -> selectedTextColor
+                    else -> defaultTextColor
+                }
+            )
+
+            binding.root.setBackgroundColor(
+                if (node.isSelected) selectedBackgroundColor else defaultBackgroundColor
+            )
+            binding.root.isClickable = !isSourceFolder
 
             binding.root.setOnClickListener {
-                if (node.file.absolutePath != currentSourcePath) {
+                if (!isSourceFolder) {
                     onFolderSelect(node)
                 }
             }
@@ -71,8 +85,6 @@ class FolderTreeAdapter(
                 onFolderClick(node)
             }
         }
-
-        
     }
 }
 

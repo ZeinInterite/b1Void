@@ -23,6 +23,9 @@
     <color name="green">#00FF00</color>
 
     <!-- Новый цвет для подсветки выделения -->
-    <color name="selection_highlight">#200000FF</color> <!-- 12.5% alpha blue -->
+    <!-- Highlight colors for move dialog -->
+    <color name="move_folder_item_background">#FFE8EAF6</color>
+    <color name="move_folder_item_selected_background">#33FF0000</color>
+    <color name="move_folder_item_text">#FF212121</color>
     <color name="button_background_color">#B0858585</color>
 </resources>
