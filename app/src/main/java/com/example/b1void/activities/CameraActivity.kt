@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -12,11 +13,15 @@ import android.graphics.Color
 import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CaptureRequest
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.util.Size
@@ -25,6 +30,7 @@ import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.ScaleGestureDetector
 import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.AlphaAnimation
 import android.view.animation.Animation
@@ -38,9 +44,15 @@ import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.constraintlayout.widget.ConstraintSet
+import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.Camera2Interop
+import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.CameraState
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -62,9 +74,10 @@ import com.example.b1void.R
 import com.example.b1void.adapters.ResolutionAdapter
 import com.example.b1void.data.CameraSettingsManager
 import com.example.b1void.ui.CameraSettingsDialogFragment
-import com.example.b1void.orientation.OrientationManager
-import com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBar
-import com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper
+import androidx.transition.AutoTransition
+import androidx.transition.TransitionManager
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.io.File
@@ -95,10 +108,12 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var resolutionSelectorButton: ImageButton
     private lateinit var resolutionListContainer: CardView
     private lateinit var resolutionRecyclerView: RecyclerView
-    private lateinit var zoomSeekBarWrapper: VerticalSeekBarWrapper
-    private lateinit var zoomSeekBar: VerticalSeekBar
+    private lateinit var zoomSlider: SeekBar
     private lateinit var focusIndicator: View
     private lateinit var captureAnimationView: ImageView
+    private lateinit var rootLayout: ConstraintLayout
+    private lateinit var topControlsContainer: LinearLayout
+    private lateinit var bottomControlsContainer: ConstraintLayout
 
     // CameraX components
     private var imageCapture: ImageCapture? = null
@@ -110,6 +125,16 @@ class CameraActivity : AppCompatActivity() {
     private var previewUseCase: Preview? = null
     private var orientationEventListener: OrientationEventListener? = null
     private var currentTargetRotation = Surface.ROTATION_0
+    private var cameraRestartJob: Job? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var isLandscapeUi: Boolean = false
+    private var layoutOrientationInitialized = false
+    private val controlsHideDelayMs = 2500L
+    private val controlsAutoHideRunnable = Runnable {
+        if (isLandscapeUi) {
+            fadeControlsForLandscape()
+        }
+    }
 
     // Gesture detector
     private lateinit var scaleGestureDetector: ScaleGestureDetector
@@ -128,10 +153,6 @@ class CameraActivity : AppCompatActivity() {
     private var minZoomRatio = 1f
     private var maxZoomRatio = 1f
     private var isZoomGesture = false
-
-    // Orientation management
-    private lateinit var orientationManager: OrientationManager
-
     private val hideFocusIndicatorRunnable = Runnable {
         focusIndicator.animate().cancel()
         focusIndicator.visibility = View.GONE
@@ -142,10 +163,7 @@ class CameraActivity : AppCompatActivity() {
         setContentView(R.layout.activity_camera)
 
         settingsManager = CameraSettingsManager(this)
-        
-        // Initialize orientation manager
-        orientationManager = OrientationManager(this, this)
-        
+
         initializeViews()
         setupListeners()
         observeSettings()
@@ -160,7 +178,7 @@ class CameraActivity : AppCompatActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
         scaleGestureDetector = ScaleGestureDetector(this, ScaleGestureListener())
         currentTargetRotation = getDisplayRotation()
-        initializeOrientationListener()
+        setupOrientationListener()
     }
 
     private inner class ScaleGestureListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -228,8 +246,7 @@ class CameraActivity : AppCompatActivity() {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     isZoomGesture = false
-                    // Show controls on interaction
-                    orientationManager.showControlsOnInteraction()
+                    showControlsOnInteraction()
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> isZoomGesture = true
                 MotionEvent.ACTION_CANCEL -> isZoomGesture = false
@@ -243,14 +260,14 @@ class CameraActivity : AppCompatActivity() {
             true
         }
 
-        zoomSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+        zoomSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (!fromUser) return
                 val cam = camera ?: return
-                if (zoomSeekBar.max == 0) return
+                if (zoomSlider.max == 0) return
                 val zoomRange = maxZoomRatio - minZoomRatio
                 if (zoomRange <= 0f) return
-                val fraction = progress.toFloat() / zoomSeekBar.max
+                val fraction = progress.toFloat() / zoomSlider.max
                 val newZoomRatio = minZoomRatio + fraction * zoomRange
                 cam.cameraControl.setZoomRatio(newZoomRatio)
             }
@@ -266,6 +283,9 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun initializeViews() {
+        rootLayout = findViewById(R.id.main_container)
+        topControlsContainer = findViewById(R.id.topControls)
+        bottomControlsContainer = findViewById(R.id.bottomControls)
         previewView = findViewById(R.id.previewView)
         captureButton = findViewById(R.id.shutterButton)
         modeSwitchButton = findViewById(R.id.mode_switch_button)
@@ -277,29 +297,12 @@ class CameraActivity : AppCompatActivity() {
         resolutionSelectorButton = findViewById(R.id.resolutionSelectorButton)
         resolutionListContainer = findViewById(R.id.resolutionListContainer)
         resolutionRecyclerView = findViewById(R.id.resolutionRecyclerView)
-        zoomSeekBarWrapper = findViewById(R.id.zoomSeekBarWrapper)
-        zoomSeekBar = findViewById(R.id.zoomSeekBar)
+        zoomSlider = findViewById(R.id.zoomSlider)
         focusIndicator = findViewById(R.id.focusIndicator)
         captureAnimationView = findViewById(R.id.captureAnimationView)
-        zoomSeekBarWrapper.visibility = View.GONE
-        zoomSeekBar.isEnabled = false
-        
-        // Initialize orientation manager with UI components
-        val topControls = findViewById<LinearLayout>(R.id.topControls)
-        val bottomControls = findViewById<androidx.constraintlayout.widget.ConstraintLayout>(R.id.bottomControls)
-        val rootLayout = findViewById<androidx.constraintlayout.widget.ConstraintLayout>(android.R.id.content)
-        
-        if (topControls != null && bottomControls != null && rootLayout != null) {
-            // Create wrapper ConstraintLayout for topControls to match OrientationManager interface
-            val topControlsWrapper = androidx.constraintlayout.widget.ConstraintLayout(this)
-            orientationManager.initialize(
-                captureButton,
-                thumbnailPreview,
-                topControlsWrapper,
-                bottomControls,
-                rootLayout
-            )
-        }
+        zoomSlider.isEnabled = false
+
+        updateLayoutForRotation(getDisplayRotation(), animate = false)
     }
 
     private fun observeSettings() {
@@ -324,13 +327,19 @@ class CameraActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             settingsManager.getResolution().collect { resString ->
-                val newResolution = resString?.let { parseResolution(it) } ?: DEFAULT_PHOTO_RESOLUTION
+                val parsedResolution = resString?.let { parseResolution(it) }
+                val newResolution = parsedResolution ?: DEFAULT_PHOTO_RESOLUTION
+
+                if (!isValidResolution(parsedResolution)) {
+                    selectedResolution = DEFAULT_PHOTO_RESOLUTION
+                    settingsManager.setResolution("${DEFAULT_PHOTO_RESOLUTION.width}x${DEFAULT_PHOTO_RESOLUTION.height}")
+                    startCamera()
+                    return@collect
+                }
+
                 if (selectedResolution != newResolution) {
                     selectedResolution = newResolution
                     startCamera()
-                }
-                if (resString == null) {
-                    settingsManager.setResolution("${DEFAULT_PHOTO_RESOLUTION.width}x${DEFAULT_PHOTO_RESOLUTION.height}")
                 }
             }
         }
@@ -385,7 +394,10 @@ class CameraActivity : AppCompatActivity() {
         cameraProviderFuture.addListener({
             cameraProvider = cameraProviderFuture.get()
 
-            val preview = Preview.Builder()
+            val previewBuilder = Preview.Builder()
+            applyCamera2Defaults(previewBuilder)
+
+            val preview = previewBuilder
                 .setTargetRotation(currentTargetRotation)
                 .build()
                 .also {
@@ -402,10 +414,12 @@ class CameraActivity : AppCompatActivity() {
             videoCapture = newVideoCapture
 
             val imageCaptureBuilder = ImageCapture.Builder()
+            applyCamera2Defaults(imageCaptureBuilder)
+            imageCaptureBuilder
                 .setFlashMode(flashMode)
                 .setTargetRotation(currentTargetRotation)
             
-            selectedResolution?.let {
+            selectedResolution?.takeIf { isValidResolution(it) }?.let {
                 imageCaptureBuilder.setTargetResolution(it)
             }
 
@@ -418,15 +432,101 @@ class CameraActivity : AppCompatActivity() {
                 camera = cameraProvider?.bindToLifecycle(
                     this, cameraSelector, preview, newImageCapture, newVideoCapture
                 )
+                applyCamera2Defaults()
+                setupCameraStateObserver()
                 setupTorchObserver()
                 setupResolutionList()
                 setupZoomObserver()
                 focusAtCenter()
+            } catch (exc: CameraAccessException) {
+                Log.e(TAG, "Camera access error while binding use cases", exc)
+                scheduleCameraRestart("CameraAccessException: ${exc.reason}")
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
 
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
+    private fun setupCameraStateObserver() {
+        val cam = camera ?: return
+        val cameraStateLiveData = cam.cameraInfo.cameraState
+        cameraStateLiveData.removeObservers(this)
+        cameraStateLiveData.observe(this) { state ->
+            val error = state.error ?: return@observe
+            when (error.code) {
+                CameraState.ERROR_CAMERA_IN_USE,
+                CameraState.ERROR_MAX_CAMERAS_IN_USE -> {
+                    Log.w(TAG, "Camera state error (${error.code}), scheduling restart")
+                    scheduleCameraRestart("CameraState error ${error.code}")
+                }
+                CameraState.ERROR_CAMERA_DISABLED,
+                CameraState.ERROR_CAMERA_FATAL_ERROR -> {
+                    Log.e(TAG, "Non-recoverable camera error (${error.code})")
+                }
+                else -> {
+                    Log.w(TAG, "Camera error (${error.code})")
+                }
+            }
+        }
+    }
+
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
+    private fun applyCamera2Defaults(previewBuilder: Preview.Builder) {
+        val extender = Camera2Interop.Extender(previewBuilder)
+        extender.setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
+    }
+
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
+    private fun applyCamera2Defaults(imageCaptureBuilder: ImageCapture.Builder) {
+        val extender = Camera2Interop.Extender(imageCaptureBuilder)
+        extender.setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
+        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
+    }
+
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
+    private fun applyCamera2Defaults() {
+        val cam = camera ?: return
+        val camera2Control = Camera2CameraControl.from(cam.cameraControl)
+        camera2Control.clearCaptureRequestOptions()
+        val options = CaptureRequestOptions.Builder()
+            .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0)
+            .build()
+        camera2Control.setCaptureRequestOptions(options)
+    }
+
+    private fun scheduleCameraRestart(reason: String? = null) {
+        if (cameraRestartJob?.isActive == true) {
+            Log.d(TAG, "Camera restart already scheduled")
+            return
+        }
+        cameraRestartJob = lifecycleScope.launch {
+            Log.i(TAG, "Scheduling camera restart${reason?.let { ": $it" } ?: ""}")
+            delay(500)
+            restartCameraSession()
+        }
+    }
+
+    private fun restartCameraSession() {
+        if (isFinishing || isDestroyed) return
+        try {
+            cameraProvider?.unbindAll()
+        } catch (exc: Exception) {
+            Log.e(TAG, "Failed to unbind camera before restart", exc)
+        }
+        mainHandler.post { startCamera() }
     }
 
     private fun focusAtCenter() {
@@ -468,8 +568,8 @@ class CameraActivity : AppCompatActivity() {
 
     private fun setupZoomObserver() {
         val cam = camera ?: run {
-            zoomSeekBarWrapper.visibility = View.GONE
-            zoomSeekBar.isEnabled = false
+            zoomSlider.visibility = View.GONE
+            zoomSlider.isEnabled = false
             return
         }
         val zoomStateLiveData = cam.cameraInfo.zoomState
@@ -479,17 +579,17 @@ class CameraActivity : AppCompatActivity() {
             maxZoomRatio = state.maxZoomRatio
             val zoomRange = maxZoomRatio - minZoomRatio
             val shouldShowZoom = zoomRange > 0.01f
-            zoomSeekBarWrapper.visibility = if (shouldShowZoom) View.VISIBLE else View.GONE
-            zoomSeekBar.isEnabled = shouldShowZoom
+            zoomSlider.visibility = if (shouldShowZoom) View.VISIBLE else View.GONE
+            zoomSlider.isEnabled = shouldShowZoom
             if (!shouldShowZoom) {
-                zoomSeekBar.progress = 0
+                zoomSlider.progress = 0
                 return@observe
             }
 
             val fraction = if (zoomRange <= 0f) 0f else (state.zoomRatio - minZoomRatio) / zoomRange
-            val newProgress = (fraction.coerceIn(0f, 1f) * zoomSeekBar.max).roundToInt()
-            if (zoomSeekBar.progress != newProgress) {
-                zoomSeekBar.progress = newProgress
+            val newProgress = (fraction.coerceIn(0f, 1f) * zoomSlider.max).roundToInt()
+            if (zoomSlider.progress != newProgress) {
+                zoomSlider.progress = newProgress
             }
         }
     }
@@ -630,7 +730,7 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
-    private fun initializeOrientationListener() {
+    private fun setupOrientationListener() {
         orientationEventListener = object : OrientationEventListener(this) {
             override fun onOrientationChanged(orientationDegrees: Int) {
                 if (orientationDegrees == ORIENTATION_UNKNOWN) return
@@ -644,9 +744,7 @@ class CameraActivity : AppCompatActivity() {
                 if (rotation != currentTargetRotation) {
                     currentTargetRotation = rotation
                     applyTargetRotations(rotation)
-                    
-                    // Notify OrientationManager of rotation change
-                    orientationManager.detectOrientationChange(rotation)
+                    updateLayoutForRotation(rotation)
                 }
             }
         }
@@ -659,7 +757,176 @@ class CameraActivity : AppCompatActivity() {
             }
         }
     }
+
+    private fun updateLayoutForRotation(rotation: Int, animate: Boolean = true) {
+        if (!::rootLayout.isInitialized) return
+        val landscape = rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270
+        val shouldAnimate = animate && layoutOrientationInitialized
+
+        if (!layoutOrientationInitialized || landscape != isLandscapeUi) {
+            isLandscapeUi = landscape
+            layoutOrientationInitialized = true
+
+            if (shouldAnimate) {
+                val transition = AutoTransition().apply {
+                    duration = 160
+                    interpolator = AccelerateDecelerateInterpolator()
+                }
+                TransitionManager.beginDelayedTransition(rootLayout, transition)
+            } else {
+                captureButton.animate().cancel()
+                topControlsContainer.animate().cancel()
+                bottomControlsContainer.animate().cancel()
+            }
+
+            if (landscape) {
+                applyLandscapeLayout(shouldAnimate)
+            } else {
+                applyPortraitLayout(shouldAnimate)
+            }
+        } else if (landscape) {
+            scheduleControlsAutoHide()
+        }
     }
+
+    private fun applyLandscapeLayout(animate: Boolean) {
+        val edgeMargin = dpToPx(24)
+
+        val rootSet = ConstraintSet().apply { clone(rootLayout) }
+        rootSet.clear(R.id.thumbnailPreview, ConstraintSet.TOP)
+        rootSet.clear(R.id.thumbnailPreview, ConstraintSet.END)
+        rootSet.connect(R.id.thumbnailPreview, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, edgeMargin)
+        rootSet.connect(R.id.thumbnailPreview, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM, edgeMargin)
+
+        rootSet.clear(R.id.zoomSlider, ConstraintSet.START)
+        rootSet.clear(R.id.zoomSlider, ConstraintSet.END)
+        rootSet.clear(R.id.zoomSlider, ConstraintSet.TOP)
+        rootSet.clear(R.id.zoomSlider, ConstraintSet.BOTTOM)
+        rootSet.constrainWidth(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+        rootSet.constrainHeight(R.id.zoomSlider, dpToPx(180))
+        rootSet.connect(R.id.zoomSlider, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, edgeMargin)
+        rootSet.connect(R.id.zoomSlider, ConstraintSet.BOTTOM, R.id.bottomControls, ConstraintSet.TOP, dpToPx(8))
+        rootSet.applyTo(rootLayout)
+
+        zoomSlider.rotation = -90f
+
+        val bottomSet = ConstraintSet().apply { clone(bottomControlsContainer) }
+        bottomSet.connect(R.id.shutterButton, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, dpToPx(12))
+        bottomSet.connect(R.id.shutterButton, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, edgeMargin)
+        bottomSet.connect(R.id.shutterButton, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+        bottomSet.connect(R.id.shutterButton, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+        bottomSet.setHorizontalBias(R.id.shutterButton, 1f)
+
+        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.START)
+        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.END)
+        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.END, R.id.shutterButton, ConstraintSet.START, dpToPx(16))
+        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.TOP, R.id.shutterButton, ConstraintSet.TOP)
+        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.BOTTOM, R.id.shutterButton, ConstraintSet.BOTTOM)
+        bottomSet.applyTo(bottomControlsContainer)
+
+        val targetScale = 1.18f
+        if (animate) {
+            captureButton.animate().scaleX(targetScale).scaleY(targetScale).setDuration(220).start()
+        } else {
+            captureButton.scaleX = targetScale
+            captureButton.scaleY = targetScale
+        }
+
+        if (animate) {
+            topControlsContainer.animate().alpha(1f).setDuration(180).start()
+            bottomControlsContainer.animate().alpha(1f).setDuration(180).start()
+        } else {
+            topControlsContainer.alpha = 1f
+            bottomControlsContainer.alpha = 1f
+        }
+
+        showControlsOnInteraction()
+    }
+
+    private fun applyPortraitLayout(animate: Boolean) {
+        clearControlsAutoHide()
+
+        val startMargin = dpToPx(24)
+        val bottomMargin = dpToPx(32)
+
+        val rootSet = ConstraintSet()
+        rootSet.clone(rootLayout)
+        rootSet.clear(R.id.thumbnailPreview, ConstraintSet.TOP)
+        rootSet.clear(R.id.thumbnailPreview, ConstraintSet.END)
+        rootSet.connect(R.id.thumbnailPreview, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
+        rootSet.connect(R.id.thumbnailPreview, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM, bottomMargin)
+        rootSet.clear(R.id.zoomSlider, ConstraintSet.TOP)
+        rootSet.clear(R.id.zoomSlider, ConstraintSet.END)
+        rootSet.clear(R.id.zoomSlider, ConstraintSet.BOTTOM)
+        rootSet.clear(R.id.zoomSlider, ConstraintSet.START)
+        rootSet.constrainWidth(R.id.zoomSlider, ConstraintSet.MATCH_CONSTRAINT)
+        rootSet.constrainHeight(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+        rootSet.connect(R.id.zoomSlider, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
+        rootSet.connect(R.id.zoomSlider, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, startMargin)
+        rootSet.connect(R.id.zoomSlider, ConstraintSet.BOTTOM, R.id.bottomControls, ConstraintSet.TOP, dpToPx(12))
+        rootSet.applyTo(rootLayout)
+
+        zoomSlider.rotation = 0f
+
+        val bottomSet = ConstraintSet()
+        bottomSet.clone(bottomControlsContainer)
+        bottomSet.connect(R.id.shutterButton, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        bottomSet.connect(R.id.shutterButton, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+        bottomSet.connect(R.id.shutterButton, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+        bottomSet.connect(R.id.shutterButton, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+        bottomSet.setHorizontalBias(R.id.shutterButton, 0.5f)
+
+        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.START)
+        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.END)
+        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.START, R.id.shutterButton, ConstraintSet.END, dpToPx(16))
+        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.TOP, R.id.shutterButton, ConstraintSet.TOP)
+        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.BOTTOM, R.id.shutterButton, ConstraintSet.BOTTOM)
+        bottomSet.applyTo(bottomControlsContainer)
+
+        if (animate) {
+            captureButton.animate().scaleX(1f).scaleY(1f).setDuration(220).start()
+            topControlsContainer.animate().alpha(1f).setDuration(200).start()
+            bottomControlsContainer.animate().alpha(1f).setDuration(200).start()
+        } else {
+            captureButton.scaleX = 1f
+            captureButton.scaleY = 1f
+            topControlsContainer.alpha = 1f
+            bottomControlsContainer.alpha = 1f
+        }
+    }
+
+    private fun showControlsOnInteraction() {
+        if (!layoutOrientationInitialized || !isLandscapeUi) return
+        topControlsContainer.animate().alpha(1f).setDuration(150).start()
+        bottomControlsContainer.animate().alpha(1f).setDuration(150).start()
+        clearControlsAutoHide()
+        scheduleControlsAutoHide()
+    }
+
+    private fun scheduleControlsAutoHide() {
+        if (!isLandscapeUi) {
+            clearControlsAutoHide()
+            return
+        }
+        mainHandler.removeCallbacks(controlsAutoHideRunnable)
+        mainHandler.postDelayed(controlsAutoHideRunnable, controlsHideDelayMs)
+    }
+
+    private fun clearControlsAutoHide() {
+        mainHandler.removeCallbacks(controlsAutoHideRunnable)
+    }
+
+    private fun fadeControlsForLandscape() {
+        topControlsContainer.animate().alpha(0.55f).setDuration(250).start()
+        bottomControlsContainer.animate().alpha(0.8f).setDuration(250).start()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateLayoutForRotation(getDisplayRotation())
+    }
+
+    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).roundToInt()
 
     private fun applyTargetRotations(rotation: Int) {
         previewUseCase?.targetRotation = rotation
@@ -862,11 +1129,15 @@ class CameraActivity : AppCompatActivity() {
     private fun parseResolution(resString: String): Size? {
         return try {
             val parts = resString.split("x")
-            Size(parts[0].toInt(), parts[1].toInt())
+            val width = parts[0].toInt()
+            val height = parts[1].toInt()
+            if (width > 0 && height > 0) Size(width, height) else null
         } catch (e: Exception) {
             null
         }
     }
+
+    private fun isValidResolution(size: Size?): Boolean = size?.let { it.width > 0 && it.height > 0 } ?: false
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
@@ -887,6 +1158,7 @@ class CameraActivity : AppCompatActivity() {
         recording = null
         orientationEventListener?.disable()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        clearControlsAutoHide()
     }
 
     override fun onResume() {
@@ -898,9 +1170,10 @@ class CameraActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        cameraRestartJob?.cancel()
+        mainHandler.removeCallbacksAndMessages(null)
         orientationEventListener?.disable()
         orientationEventListener = null
-        orientationManager.cleanup()
         focusIndicator.removeCallbacks(hideFocusIndicatorRunnable)
         captureAnimationView.animate().cancel()
         cameraExecutor.shutdown()
