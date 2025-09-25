@@ -106,7 +106,9 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var settingsButton: ImageButton
     private lateinit var torchButton: ImageButton
     private lateinit var resolutionSelectorButton: ImageButton
-    private lateinit var resolutionListContainer: CardView\r\n    private lateinit var resolutionRecyclerView: RecyclerView\r\n    private lateinit var closeResolutionListButton: ImageButton
+    private lateinit var resolutionListContainer: CardView
+    private lateinit var resolutionRecyclerView: RecyclerView
+    private lateinit var closeResolutionListButton: ImageButton
     private lateinit var zoomSlider: SeekBar
     private lateinit var focusIndicator: View
     private lateinit var captureAnimationView: ImageView
@@ -226,8 +228,17 @@ class CameraActivity : AppCompatActivity() {
         settingsButton.setOnClickListener {
             CameraSettingsDialogFragment().show(supportFragmentManager, "CameraSettingsDialog")
         }
+        resolutionSelectorButton.setOnClickListener {
+            val shouldShow = resolutionListContainer.visibility != View.VISIBLE
+        resolutionListContainer.visibility = if (shouldShow) View.VISIBLE else View.GONE
+            if (shouldShow) {
+        resolutionListContainer.bringToFront()
+            }
+        }
 
-        resolutionSelectorButton.setOnClickListener {\r\n            val shouldShow = resolutionListContainer.visibility != View.VISIBLE\r\n            resolutionListContainer.visibility = if (shouldShow) View.VISIBLE else View.GONE\r\n            if (shouldShow) {\r\n                resolutionListContainer.bringToFront()\r\n            }\r\n        }\r\n\r\n        closeResolutionListButton.setOnClickListener {\r\n            resolutionListContainer.visibility = View.GONE\r\n        }
+        closeResolutionListButton.setOnClickListener {
+        resolutionListContainer.visibility = View.GONE
+        }
 
         torchButton.setOnClickListener {
             camera?.let {
@@ -292,7 +303,9 @@ class CameraActivity : AppCompatActivity() {
         settingsButton = findViewById(R.id.settingsButton)
         torchButton = findViewById(R.id.torchButton)
         resolutionSelectorButton = findViewById(R.id.resolutionSelectorButton)
-        resolutionListContainer = findViewById(R.id.resolutionListContainer)\r\n        resolutionRecyclerView = findViewById(R.id.resolutionRecyclerView)\r\n        closeResolutionListButton = findViewById(R.id.closeResolutionListButton)
+        resolutionListContainer = findViewById(R.id.resolutionListContainer)
+        resolutionRecyclerView = findViewById(R.id.resolutionRecyclerView)
+        closeResolutionListButton = findViewById(R.id.closeResolutionListButton)
         zoomSlider = findViewById(R.id.zoomSlider)
         focusIndicator = findViewById(R.id.focusIndicator)
         captureAnimationView = findViewById(R.id.captureAnimationView)
@@ -547,7 +560,7 @@ class CameraActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     settingsManager.setResolution("${size.width}x${size.height}")
                 }
-                resolutionListContainer.visibility = View.GONE
+        resolutionListContainer.visibility = View.GONE
             }
         }
     }
@@ -1183,6 +1196,16 @@ class CameraActivity : AppCompatActivity() {
         private val DEFAULT_PHOTO_RESOLUTION = Size(960, 720)
     }
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
