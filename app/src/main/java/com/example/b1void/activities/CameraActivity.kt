@@ -106,8 +106,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var settingsButton: ImageButton
     private lateinit var torchButton: ImageButton
     private lateinit var resolutionSelectorButton: ImageButton
-    private lateinit var resolutionListContainer: CardView
-    private lateinit var resolutionRecyclerView: RecyclerView
+    private lateinit var resolutionListContainer: CardView\r\n    private lateinit var resolutionRecyclerView: RecyclerView\r\n    private lateinit var closeResolutionListButton: ImageButton
     private lateinit var zoomSlider: SeekBar
     private lateinit var focusIndicator: View
     private lateinit var captureAnimationView: ImageView
@@ -228,9 +227,7 @@ class CameraActivity : AppCompatActivity() {
             CameraSettingsDialogFragment().show(supportFragmentManager, "CameraSettingsDialog")
         }
 
-        resolutionSelectorButton.setOnClickListener {
-            resolutionListContainer.visibility = if (resolutionListContainer.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-        }
+        resolutionSelectorButton.setOnClickListener {\r\n            val shouldShow = resolutionListContainer.visibility != View.VISIBLE\r\n            resolutionListContainer.visibility = if (shouldShow) View.VISIBLE else View.GONE\r\n            if (shouldShow) {\r\n                resolutionListContainer.bringToFront()\r\n            }\r\n        }\r\n\r\n        closeResolutionListButton.setOnClickListener {\r\n            resolutionListContainer.visibility = View.GONE\r\n        }
 
         torchButton.setOnClickListener {
             camera?.let {
@@ -295,8 +292,7 @@ class CameraActivity : AppCompatActivity() {
         settingsButton = findViewById(R.id.settingsButton)
         torchButton = findViewById(R.id.torchButton)
         resolutionSelectorButton = findViewById(R.id.resolutionSelectorButton)
-        resolutionListContainer = findViewById(R.id.resolutionListContainer)
-        resolutionRecyclerView = findViewById(R.id.resolutionRecyclerView)
+        resolutionListContainer = findViewById(R.id.resolutionListContainer)\r\n        resolutionRecyclerView = findViewById(R.id.resolutionRecyclerView)\r\n        closeResolutionListButton = findViewById(R.id.closeResolutionListButton)
         zoomSlider = findViewById(R.id.zoomSlider)
         focusIndicator = findViewById(R.id.focusIndicator)
         captureAnimationView = findViewById(R.id.captureAnimationView)
@@ -1184,6 +1180,9 @@ class CameraActivity : AppCompatActivity() {
         private const val REQUEST_CODE_PERMISSIONS = 10
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
         const val EXTRA_SAVE_PATH = "extra_save_path"
-        private val DEFAULT_PHOTO_RESOLUTION = Size(720, 960)
+        private val DEFAULT_PHOTO_RESOLUTION = Size(960, 720)
     }
 }
+
+
+

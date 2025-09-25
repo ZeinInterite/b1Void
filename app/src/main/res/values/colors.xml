@@ -30,4 +30,7 @@
     <color name="file_selection_overlay">#66000000</color>
     <color name="file_selection_badge_background">#FF2962FF</color>
     <color name="button_background_color">#B0858585</color>
+    <color name="camera_popup_background">#CC1E1E1E</color>
 </resources>
+
+

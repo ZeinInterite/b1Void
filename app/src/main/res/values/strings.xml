@@ -50,4 +50,7 @@
 
     <string name="file_manager_sort_description">РџРµСЂРµРєР»СЋС‡РёС‚СЊ РїРѕСЂСЏРґРѕРє СЃРѕСЂС‚РёСЂРѕРІРєРё</string>
 
+    <string name="camera_resolution_title">Разрешение</string>
+    <string name="camera_resolution_close">Закрыть список разрешений</string>
 </resources>
+
