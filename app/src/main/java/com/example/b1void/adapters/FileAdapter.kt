@@ -44,39 +44,44 @@ class FileAdapter(
             holder.fileIcon.layoutParams = layoutParams
         }
 
-        holder.playIcon.visibility = View.GONE
-        holder.fileName.visibility = View.VISIBLE
+        Glide.with(holder.fileIcon).clear(holder.fileIcon)
+        holder.fileIcon.setImageDrawable(null)
+
+        holder.playIcon.isVisible = false
+        holder.fileName.isVisible = true
+        holder.fileName.text = file.name
 
         when {
             file.isDirectory -> {
-                holder.fileIcon.setImageResource(R.drawable.ic_folder)
-                holder.fileName.text = file.name
+                holder.fileIcon.scaleType = ImageView.ScaleType.CENTER_INSIDE
+                holder.fileIcon.setImageResource(R.drawable.ic_folder_large)
             }
             isImage(file) -> {
+                holder.fileIcon.scaleType = ImageView.ScaleType.CENTER_CROP
                 Glide.with(context)
                     .load(file)
                     .centerCrop()
                     .placeholder(R.drawable.image_ic)
                     .error(R.drawable.image_ic)
                     .into(holder.fileIcon)
-                holder.fileName.visibility = View.GONE
+                holder.fileName.isVisible = false
             }
             isVideo(file) -> {
+                holder.fileIcon.scaleType = ImageView.ScaleType.CENTER_CROP
                 Glide.with(context)
                     .load(file)
                     .centerCrop()
                     .placeholder(R.drawable.ic_videocam)
                     .error(R.drawable.ic_videocam)
                     .into(holder.fileIcon)
-                holder.playIcon.visibility = View.VISIBLE
-                holder.fileName.visibility = View.GONE
+                holder.playIcon.isVisible = true
+                holder.fileName.isVisible = false
             }
             else -> {
+                holder.fileIcon.scaleType = ImageView.ScaleType.CENTER_INSIDE
                 holder.fileIcon.setImageResource(R.drawable.file_ic)
-                holder.fileName.text = file.name
             }
         }
-
         updateSelectionState(holder, file)
 
         holder.itemView.setOnClickListener { onItemClickListener(file) }
