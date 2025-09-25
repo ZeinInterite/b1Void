@@ -45,7 +45,7 @@
     <string name="file_manager_selection_initial">Выбрано: 0</string>
     <string name="file_manager_selection_count">Выбрано: %1$d</string>
     <string name="file_manager_select_all">Выбрать всё</string>
-    <string name="file_manager_select_none">Очистить</string>
+    <string name="file_manager_select_none">Отмена</string>
     <string name="file_manager_actions">Действия</string>
 
     <string name="file_manager_sort_description">Переключить порядок сортировки</string>

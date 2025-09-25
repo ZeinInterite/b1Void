@@ -500,6 +500,10 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     private fun onItemLongClick(file: File, view: View) {
+        if (isSelectionMode) {
+            toggleFileSelection(file)
+            return
+        }
         showPopupMenu(file, view)
     }
 

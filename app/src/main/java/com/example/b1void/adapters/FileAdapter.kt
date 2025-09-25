@@ -38,11 +38,6 @@ class FileAdapter(
     override fun onBindViewHolder(holder: FileViewHolder, position: Int) {
         val file = files[position]
 
-        holder.fileIcon.post {
-            val layoutParams = holder.fileIcon.layoutParams
-            layoutParams.height = holder.fileIcon.width
-            holder.fileIcon.layoutParams = layoutParams
-        }
 
         Glide.with(holder.fileIcon).clear(holder.fileIcon)
         holder.fileIcon.setImageDrawable(null)
