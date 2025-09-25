@@ -30,6 +30,7 @@ import android.view.animation.AlphaAnimation
 import android.view.animation.Animation
 import android.view.animation.DecelerateInterpolator
 import android.view.WindowManager
+import android.widget.LinearLayout
 import android.webkit.MimeTypeMap
 import android.widget.Chronometer
 import android.widget.ImageButton
@@ -61,6 +62,7 @@ import com.example.b1void.R
 import com.example.b1void.adapters.ResolutionAdapter
 import com.example.b1void.data.CameraSettingsManager
 import com.example.b1void.ui.CameraSettingsDialogFragment
+import com.example.b1void.orientation.OrientationManager
 import com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBar
 import com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBarWrapper
 import kotlinx.coroutines.flow.collect
@@ -127,6 +129,9 @@ class CameraActivity : AppCompatActivity() {
     private var maxZoomRatio = 1f
     private var isZoomGesture = false
 
+    // Orientation management
+    private lateinit var orientationManager: OrientationManager
+
     private val hideFocusIndicatorRunnable = Runnable {
         focusIndicator.animate().cancel()
         focusIndicator.visibility = View.GONE
@@ -137,6 +142,10 @@ class CameraActivity : AppCompatActivity() {
         setContentView(R.layout.activity_camera)
 
         settingsManager = CameraSettingsManager(this)
+        
+        // Initialize orientation manager
+        orientationManager = OrientationManager(this, this)
+        
         initializeViews()
         setupListeners()
         observeSettings()
@@ -217,7 +226,11 @@ class CameraActivity : AppCompatActivity() {
         previewView.setOnTouchListener { view, event ->
             scaleGestureDetector.onTouchEvent(event)
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> isZoomGesture = false
+                MotionEvent.ACTION_DOWN -> {
+                    isZoomGesture = false
+                    // Show controls on interaction
+                    orientationManager.showControlsOnInteraction()
+                }
                 MotionEvent.ACTION_POINTER_DOWN -> isZoomGesture = true
                 MotionEvent.ACTION_CANCEL -> isZoomGesture = false
                 MotionEvent.ACTION_UP -> {
@@ -270,6 +283,23 @@ class CameraActivity : AppCompatActivity() {
         captureAnimationView = findViewById(R.id.captureAnimationView)
         zoomSeekBarWrapper.visibility = View.GONE
         zoomSeekBar.isEnabled = false
+        
+        // Initialize orientation manager with UI components
+        val topControls = findViewById<LinearLayout>(R.id.topControls)
+        val bottomControls = findViewById<androidx.constraintlayout.widget.ConstraintLayout>(R.id.bottomControls)
+        val rootLayout = findViewById<androidx.constraintlayout.widget.ConstraintLayout>(android.R.id.content)
+        
+        if (topControls != null && bottomControls != null && rootLayout != null) {
+            // Create wrapper ConstraintLayout for topControls to match OrientationManager interface
+            val topControlsWrapper = androidx.constraintlayout.widget.ConstraintLayout(this)
+            orientationManager.initialize(
+                captureButton,
+                thumbnailPreview,
+                topControlsWrapper,
+                bottomControls,
+                rootLayout
+            )
+        }
     }
 
     private fun observeSettings() {
@@ -614,6 +644,9 @@ class CameraActivity : AppCompatActivity() {
                 if (rotation != currentTargetRotation) {
                     currentTargetRotation = rotation
                     applyTargetRotations(rotation)
+                    
+                    // Notify OrientationManager of rotation change
+                    orientationManager.detectOrientationChange(rotation)
                 }
             }
         }
@@ -625,6 +658,7 @@ class CameraActivity : AppCompatActivity() {
                 listener.disable()
             }
         }
+    }
     }
 
     private fun applyTargetRotations(rotation: Int) {
@@ -866,6 +900,7 @@ class CameraActivity : AppCompatActivity() {
         super.onDestroy()
         orientationEventListener?.disable()
         orientationEventListener = null
+        orientationManager.cleanup()
         focusIndicator.removeCallbacks(hideFocusIndicatorRunnable)
         captureAnimationView.animate().cancel()
         cameraExecutor.shutdown()
