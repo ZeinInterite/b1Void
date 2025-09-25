@@ -78,6 +78,9 @@ class FileManagerActivity : AppCompatActivity() {
     private val MIN_SPAN_COUNT = 2
     private val MAX_SPAN_COUNT = 6
 
+    private enum class SwipeSelectionMode { NONE, ADD, REMOVE }
+    private var swipeSelectionMode = SwipeSelectionMode.NONE
+
     companion object {
     }
 
@@ -233,14 +236,37 @@ class FileManagerActivity : AppCompatActivity() {
         recyclerView.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
             override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
                 scaleGestureDetector.onTouchEvent(e)
+                gestureDetector?.onTouchEvent(e)
+
                 if (isSelectionMode) {
-                    gestureDetector?.onTouchEvent(e)
-                    if (e.action == MotionEvent.ACTION_UP && isSwipeSelectionActive) {
-                        stopSwipeSelection()
+                    when (e.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            recyclerView.findChildViewUnder(e.x, e.y)?.let { childView ->
+                                val position = recyclerView.getChildAdapterPosition(childView)
+                                if (position != RecyclerView.NO_POSITION) {
+                                    val touchedFile = fileAdapter.files[position]
+                                    val mode = if (selectedFiles.contains(touchedFile)) {
+                                        SwipeSelectionMode.REMOVE
+                                    } else {
+                                        SwipeSelectionMode.ADD
+                                    }
+                                    startSwipeSelection(position, mode)
+                                } else {
+                                    stopSwipeSelection()
+                                }
+                            } ?: stopSwipeSelection()
+                        }
+                        MotionEvent.ACTION_UP,
+                        MotionEvent.ACTION_CANCEL -> {
+                            if (isSwipeSelectionActive) {
+                                stopSwipeSelection()
+                            }
+                        }
                     }
                 }
                 return false
             }
+
             override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
             override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
         })
@@ -249,28 +275,44 @@ class FileManagerActivity : AppCompatActivity() {
     private fun setupGestureDetector() {
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-                if (isSwipeSelectionActive) {
-                    recyclerView.findChildViewUnder(e2.x, e2.y)?.let { childView ->
-                        val position = recyclerView.getChildAdapterPosition(childView)
-                        if (position != RecyclerView.NO_POSITION && position != lastTouchedPosition) {
-                            val file = fileAdapter.files[position]
-                            toggleFileSelection(file)
+                if (!isSwipeSelectionActive) {
+                    return false
+                }
+                recyclerView.findChildViewUnder(e2.x, e2.y)?.let { childView ->
+                    val position = recyclerView.getChildAdapterPosition(childView)
+                    if (position != RecyclerView.NO_POSITION && position != lastTouchedPosition) {
+                        val anchorPosition = lastTouchedPosition
+                        if (anchorPosition in 0 until fileAdapter.itemCount) {
+                            val anchorFile = fileAdapter.files[anchorPosition]
+                            when (swipeSelectionMode) {
+                                SwipeSelectionMode.ADD -> selectFile(anchorFile)
+                                SwipeSelectionMode.REMOVE -> deselectFile(anchorFile)
+                                SwipeSelectionMode.NONE -> Unit
+                            }
+                        }
+                        if (!isSelectionMode) {
+                            return@let
+                        }
+                        val file = fileAdapter.files[position]
+                        handleSwipeSelection(file)
+                        if (isSelectionMode) {
                             lastTouchedPosition = position
                         }
                     }
-                    return true
                 }
-                return false
+                return true
             }
 
             override fun onLongPress(e: MotionEvent) {
-                if (!isSelectionMode) {
-                    recyclerView.findChildViewUnder(e.x, e.y)?.let { childView ->
-                        val position = recyclerView.getChildAdapterPosition(childView)
-                        if (position != RecyclerView.NO_POSITION) {
-                            val file = fileAdapter.files[position]
-                            startSelectionMode(file)
-                        }
+                if (isSelectionMode) {
+                    return
+                }
+                recyclerView.findChildViewUnder(e.x, e.y)?.let { childView ->
+                    val position = recyclerView.getChildAdapterPosition(childView)
+                    if (position != RecyclerView.NO_POSITION) {
+                        val file = fileAdapter.files[position]
+                        startSelectionMode(file, position)
+                        startSwipeSelection(position, SwipeSelectionMode.ADD)
                     }
                 }
             }
@@ -284,13 +326,15 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
 
-    private fun startSwipeSelection() {
+    private fun startSwipeSelection(position: Int, mode: SwipeSelectionMode) {
         isSwipeSelectionActive = true
-        lastTouchedPosition = -1
+        swipeSelectionMode = mode
+        lastTouchedPosition = position
     }
 
     private fun stopSwipeSelection() {
         isSwipeSelectionActive = false
+        swipeSelectionMode = SwipeSelectionMode.NONE
         lastTouchedPosition = -1
     }
 
@@ -599,20 +643,26 @@ class FileManagerActivity : AppCompatActivity() {
 
     // --- Новая логика режима выделения ---
 
-    private fun startSelectionMode(initialFile: File?) {
+    private fun startSelectionMode(initialFile: File?, initialPosition: Int? = null) {
+        val wasSelectionMode = isSelectionMode
         isSelectionMode = true
+        stopSwipeSelection()
+
         initialFile?.let { selectedFiles.add(it) }
+
         fileAdapter.isSelectionMode = true
         fileAdapter.selectedFiles = selectedFiles
         fileAdapter.notifyDataSetChanged()
 
-        selectionTopToolbar.visibility = View.VISIBLE
-        val slideIn = AnimationUtils.loadAnimation(this, R.anim.slide_in_top)
-        selectionTopToolbar.startAnimation(slideIn)
+        if (!wasSelectionMode) {
+            selectionTopToolbar.visibility = View.VISIBLE
+            val slideIn = AnimationUtils.loadAnimation(this, R.anim.slide_in_top)
+            selectionTopToolbar.startAnimation(slideIn)
+            swipeRefreshLayout.isEnabled = false
+        }
 
-        swipeRefreshLayout.isEnabled = false
         updateSelectionState()
-        startSwipeSelection()
+        initialPosition?.let { lastTouchedPosition = it }
     }
 
     private fun exitSelectionMode() {
@@ -631,20 +681,43 @@ class FileManagerActivity : AppCompatActivity() {
 
     private fun toggleFileSelection(file: File) {
         if (selectedFiles.contains(file)) {
-            selectedFiles.remove(file)
+            deselectFile(file)
         } else {
-            selectedFiles.add(file)
+            selectFile(file)
         }
-        fileAdapter.notifyItemChanged(fileAdapter.files.indexOf(file))
-        updateSelectionState()
+    }
 
+    private fun selectFile(file: File) {
+        if (selectedFiles.contains(file)) return
+        val previousSelection = selectedFiles.toSet()
+        selectedFiles.add(file)
+        fileAdapter.notifySelectionChanged(previousSelection, selectedFiles)
+        updateSelectionState()
+    }
+
+    private fun deselectFile(file: File) {
+        if (!selectedFiles.contains(file)) return
+        val previousSelection = selectedFiles.toSet()
+        selectedFiles.remove(file)
+        fileAdapter.notifySelectionChanged(previousSelection, selectedFiles)
+        updateSelectionState()
         if (selectedFiles.isEmpty()) {
             exitSelectionMode()
         }
     }
 
+    private fun handleSwipeSelection(file: File) {
+        if (!isSelectionMode) return
+        when (swipeSelectionMode) {
+            SwipeSelectionMode.ADD -> selectFile(file)
+            SwipeSelectionMode.REMOVE -> deselectFile(file)
+            SwipeSelectionMode.NONE -> toggleFileSelection(file)
+        }
+    }
+
     private fun toggleSelectAll() {
         val selectableFiles = fileAdapter.files.filterNot { it.isDirectory }
+        val previousSelection = selectedFiles.toSet()
         val hasAllSelectable = selectableFiles.isNotEmpty() && selectableFiles.all { it in selectedFiles }
 
         if (hasAllSelectable) {
@@ -654,13 +727,22 @@ class FileManagerActivity : AppCompatActivity() {
             selectedFiles.addAll(selectableFiles)
         }
 
-        fileAdapter.notifyDataSetChanged()
+        fileAdapter.notifySelectionChanged(previousSelection, selectedFiles)
         updateSelectionState()
+
+        if (selectedFiles.isEmpty()) {
+            exitSelectionMode()
+        }
     }
 
     private fun updateSelectionState() {
         val count = selectedFiles.size
-        selectionCountTextView.text = "Выбрано: $count"
+        selectionCountTextView.text = getString(R.string.file_manager_selection_count, count)
+
+        val selectableFiles = fileAdapter.files.filterNot { it.isDirectory }
+        val allSelectableSelected = selectableFiles.isNotEmpty() && selectableFiles.all { selectedFiles.contains(it) }
+        selectAllToggleButton.text = getString(if (allSelectableSelected) R.string.file_manager_select_none else R.string.file_manager_select_all)
+
         confirmSelectionButton.isEnabled = count > 0
     }
 

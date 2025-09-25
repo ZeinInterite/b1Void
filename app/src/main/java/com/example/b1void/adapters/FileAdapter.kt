@@ -1,12 +1,12 @@
-package com.example.b1void.adapters
+﻿package com.example.b1void.adapters
 
 import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.CheckBox
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
@@ -25,8 +25,9 @@ class FileAdapter(
     class FileViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val fileName: TextView = itemView.findViewById(R.id.file_name)
         val fileIcon: ImageView = itemView.findViewById(R.id.file_icon)
-        val playIcon: ImageView = itemView.findViewById(R.id.play_icon) // Added for video indication
-        val checkBox: CheckBox = itemView.findViewById(R.id.checkbox)
+        val playIcon: ImageView = itemView.findViewById(R.id.play_icon)
+        val selectionOverlay: View = itemView.findViewById(R.id.selection_overlay)
+        val selectionBadge: TextView = itemView.findViewById(R.id.selection_badge)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FileViewHolder {
@@ -43,39 +44,42 @@ class FileAdapter(
             holder.fileIcon.layoutParams = layoutParams
         }
 
-        holder.playIcon.visibility = View.GONE // Hide by default
+        holder.playIcon.visibility = View.GONE
         holder.fileName.visibility = View.VISIBLE
 
-        if (file.isDirectory) {
-            holder.fileIcon.setImageResource(R.drawable.ic_folder)
-            holder.fileName.text = file.name
-        } else if (isImage(file)) {
-            Glide.with(context)
-                .load(file)
-                .centerCrop()
-                .placeholder(R.drawable.image_ic)
-                .error(R.drawable.image_ic)
-                .into(holder.fileIcon)
-            holder.fileName.visibility = View.GONE
-        } else if (isVideo(file)) {
-            Glide.with(context)
-                .load(file) // Glide can load thumbnails from video files
-                .centerCrop()
-                .placeholder(R.drawable.ic_videocam) // Placeholder for video
-                .error(R.drawable.ic_videocam)
-                .into(holder.fileIcon)
-            holder.playIcon.visibility = View.VISIBLE // Show play icon for videos
-            holder.fileName.visibility = View.GONE
-        } else {
-            holder.fileIcon.setImageResource(R.drawable.file_ic)
-            holder.fileName.text = file.name
+        when {
+            file.isDirectory -> {
+                holder.fileIcon.setImageResource(R.drawable.ic_folder)
+                holder.fileName.text = file.name
+            }
+            isImage(file) -> {
+                Glide.with(context)
+                    .load(file)
+                    .centerCrop()
+                    .placeholder(R.drawable.image_ic)
+                    .error(R.drawable.image_ic)
+                    .into(holder.fileIcon)
+                holder.fileName.visibility = View.GONE
+            }
+            isVideo(file) -> {
+                Glide.with(context)
+                    .load(file)
+                    .centerCrop()
+                    .placeholder(R.drawable.ic_videocam)
+                    .error(R.drawable.ic_videocam)
+                    .into(holder.fileIcon)
+                holder.playIcon.visibility = View.VISIBLE
+                holder.fileName.visibility = View.GONE
+            }
+            else -> {
+                holder.fileIcon.setImageResource(R.drawable.file_ic)
+                holder.fileName.text = file.name
+            }
         }
 
         updateSelectionState(holder, file)
 
-        holder.itemView.setOnClickListener {
-            onItemClickListener(file)
-        }
+        holder.itemView.setOnClickListener { onItemClickListener(file) }
         holder.itemView.setOnLongClickListener {
             onShowContextMenu(file, holder.itemView)
             true
@@ -83,19 +87,35 @@ class FileAdapter(
     }
 
     private fun updateSelectionState(holder: FileViewHolder, file: File) {
-        holder.checkBox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
-        holder.checkBox.isChecked = selectedFiles.contains(file)
-        
         if (isSelectionMode) {
-            holder.itemView.alpha = if (selectedFiles.contains(file)) 0.7f else 1.0f
-            holder.itemView.setBackgroundResource(
-                if (selectedFiles.contains(file)) R.drawable.selected_item_background 
-                else android.R.color.transparent
-            )
+            val isSelected = selectedFiles.contains(file)
+            holder.selectionOverlay.isVisible = isSelected
+            holder.selectionBadge.isVisible = isSelected
+            holder.itemView.alpha = if (isSelected) 1f else 0.75f
+
+            if (isSelected) {
+                val order = selectionIndexOf(file)
+                holder.selectionBadge.text = if (order >= 0) (order + 1).toString() else ""
+            } else {
+                holder.selectionBadge.text = ""
+            }
         } else {
-            holder.itemView.alpha = 1.0f
-            holder.itemView.setBackgroundResource(android.R.color.transparent)
+            holder.selectionOverlay.isVisible = false
+            holder.selectionBadge.isVisible = false
+            holder.selectionBadge.text = ""
+            holder.itemView.alpha = 1f
         }
+    }
+
+    private fun selectionIndexOf(file: File): Int {
+        var index = 0
+        for (selected in selectedFiles) {
+            if (selected == file) {
+                return index
+            }
+            index++
+        }
+        return -1
     }
 
     override fun getItemCount(): Int = files.size
@@ -104,6 +124,18 @@ class FileAdapter(
         val diffResult = DiffUtil.calculateDiff(FileDiffCallback(this.files, updatedFiles))
         this.files = updatedFiles
         diffResult.dispatchUpdatesTo(this)
+    }
+
+    fun notifySelectionChanged(previousSelection: Set<File>, currentSelection: Set<File>) {
+        val impacted = mutableSetOf<File>()
+        impacted.addAll(previousSelection)
+        impacted.addAll(currentSelection)
+        impacted.forEach { file ->
+            val index = files.indexOf(file)
+            if (index != -1) {
+                notifyItemChanged(index)
+            }
+        }
     }
 
     fun isImage(file: File): Boolean {
