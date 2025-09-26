@@ -100,34 +100,18 @@
 
             <Button
                 android:id="@+id/select_all_toggle_button"
-                style="@style/Widget.AppCompat.Button.Borderless"
+                style="@style/SelectionToolbarButtonStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp"
-                android:text="@string/file_manager_select_all"
-                android:textColor="@android:color/white"
-                android:textSize="14sp" />
+                android:text="@string/file_manager_select_all" />
 
             <Button
                 android:id="@+id/confirm_selection_button"
-                style="@style/Widget.AppCompat.Button.Borderless"
+                style="@style/SelectionToolbarButtonStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp"
                 android:text="@string/file_manager_actions"
-                android:textColor="@android:color/white"
-                android:textSize="14sp"
                 android:enabled="false" />
         </LinearLayout>
     </com.google.android.material.appbar.AppBarLayout>

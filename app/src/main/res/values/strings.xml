@@ -52,5 +52,8 @@
 
     <string name="camera_resolution_title">Разрешение</string>
     <string name="camera_resolution_close">Закрыть список разрешений</string>
+
+    <string name="trash_cleared_automatically">Корзина автоматически очищена</string>
 </resources>
+
 

@@ -7,6 +7,7 @@
 - Firebase config sits in `app/google-services.json`; avoid committing environment-specific variants.
 
 ## Build, Test, and Development Commands
+- Don't use "./gradlew.bat compileDebugKotlin"
 - Run `./gradlew assembleDebug` (Windows: `./gradlew.bat assembleDebug`) to build the debug APK.
 - Use `./gradlew lint` to execute Android lint; resolve warnings before merging.
 - Execute `./gradlew test` for JVM unit tests and `./gradlew connectedAndroidTest` with an attached device for Espresso flows.

@@ -32,6 +32,7 @@ import java.io.File
 import java.io.IOException
 import java.util.Locale
 import java.util.*
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -82,6 +83,8 @@ class FileManagerActivity : AppCompatActivity() {
     private var swipeSelectionMode = SwipeSelectionMode.NONE
 
     companion object {
+        private const val KEY_LAST_TRASH_AUTO_CLEAR = "last_trash_auto_clear"
+        private val AUTO_TRASH_CLEAR_INTERVAL_MS = TimeUnit.DAYS.toMillis(30)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -93,6 +96,7 @@ class FileManagerActivity : AppCompatActivity() {
         setupRecyclerView()
         setupGestureDetector()
         setupDirectories()
+        maybeAutoClearTrash()
         setupMoveResultListener() // Добавляем листенер
 
         if (savedInstanceState != null) {
@@ -342,6 +346,33 @@ class FileManagerActivity : AppCompatActivity() {
         val (appDir, _, trashDir) = FileManagerUtils.createAppDirectories(this)
         appDirectory = appDir
         trashDirectory = trashDir
+    }
+
+    private fun maybeAutoClearTrash() {
+        val now = System.currentTimeMillis()
+        val lastCleanup = sharedPreferences.getLong(KEY_LAST_TRASH_AUTO_CLEAR, 0L)
+        if (now - lastCleanup < AUTO_TRASH_CLEAR_INTERVAL_MS) {
+            return
+        }
+
+        val trashHadItems = trashDirectory.exists() && (trashDirectory.listFiles()?.isNotEmpty() == true)
+
+        thread {
+            val cleared = FileManagerUtils.clearTrash(trashDirectory)
+            if (cleared) {
+                sharedPreferences.edit().putLong(KEY_LAST_TRASH_AUTO_CLEAR, now).apply()
+                if (trashHadItems) {
+                    runOnUiThread {
+                        if (getCurrentDirectory() == trashDirectory) {
+                            loadDirectoryContent(trashDirectory)
+                        }
+                        Toast.makeText(this, R.string.trash_cleared_automatically, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                Log.w("FileManager", "Automatic trash cleanup failed")
+            }
+        }
     }
 
     private fun toggleSortOrder() {
@@ -599,6 +630,7 @@ class FileManagerActivity : AppCompatActivity() {
             val cleared = FileManagerUtils.clearTrash(trashDirectory)
             runOnUiThread {
                 if (cleared) {
+                    sharedPreferences.edit().putLong(KEY_LAST_TRASH_AUTO_CLEAR, System.currentTimeMillis()).apply()
                     Toast.makeText(this, R.string.trash_cleared, Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this, R.string.trash_clear_failed, Toast.LENGTH_SHORT).show()

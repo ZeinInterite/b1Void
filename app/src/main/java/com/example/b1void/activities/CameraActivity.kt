@@ -115,6 +115,17 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var rootLayout: ConstraintLayout
     private lateinit var topControlsContainer: LinearLayout
     private lateinit var bottomControlsContainer: ConstraintLayout
+    private lateinit var topControlsSpacer: View
+
+    private enum class UiOrientation {
+        PORTRAIT,
+        PORTRAIT_REVERSE,
+        LANDSCAPE_LEFT,
+        LANDSCAPE_RIGHT
+    }
+
+    private var currentUiOrientation: UiOrientation? = null
+
 
     // CameraX components
     private var imageCapture: ImageCapture? = null
@@ -130,9 +141,11 @@ class CameraActivity : AppCompatActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var isLandscapeUi: Boolean = false
     private var layoutOrientationInitialized = false
+    private var lastLayoutRotation: Int = Surface.ROTATION_0
     private val controlsHideDelayMs = 2500L
     private val controlsAutoHideRunnable = Runnable {
-        if (isLandscapeUi) {
+        val orientation = currentUiOrientation
+        if (orientation == UiOrientation.LANDSCAPE_LEFT || orientation == UiOrientation.LANDSCAPE_RIGHT) {
             fadeControlsForLandscape()
         }
     }
@@ -166,6 +179,8 @@ class CameraActivity : AppCompatActivity() {
         settingsManager = CameraSettingsManager(this)
 
         initializeViews()
+        lastLayoutRotation = getDisplayRotation()
+        updateLayoutForRotation(lastLayoutRotation, animate = false)
         setupListeners()
         observeSettings()
 
@@ -294,6 +309,7 @@ class CameraActivity : AppCompatActivity() {
         rootLayout = findViewById(R.id.main_container)
         topControlsContainer = findViewById(R.id.topControls)
         bottomControlsContainer = findViewById(R.id.bottomControls)
+        topControlsSpacer = findViewById(R.id.topControlsSpacer)
         previewView = findViewById(R.id.previewView)
         captureButton = findViewById(R.id.shutterButton)
         modeSwitchButton = findViewById(R.id.mode_switch_button)
@@ -753,8 +769,10 @@ class CameraActivity : AppCompatActivity() {
                 if (rotation != currentTargetRotation) {
                     currentTargetRotation = rotation
                     applyTargetRotations(rotation)
-                    updateLayoutForRotation(rotation)
                 }
+
+                val displayRotation = getDisplayRotation()
+                updateLayoutForRotation(displayRotation)
             }
         }
 
@@ -769,13 +787,24 @@ class CameraActivity : AppCompatActivity() {
 
     private fun updateLayoutForRotation(rotation: Int, animate: Boolean = true) {
         if (!::rootLayout.isInitialized) return
-        val landscape = rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270
-        val shouldAnimate = animate && layoutOrientationInitialized
 
-        if (!layoutOrientationInitialized || landscape != isLandscapeUi) {
-            isLandscapeUi = landscape
-            layoutOrientationInitialized = true
+        if (layoutOrientationInitialized && rotation == lastLayoutRotation) {
+            currentUiOrientation?.let { handleAutoHideForOrientation(it) }
+            return
+        }
 
+        val targetOrientation = when (rotation) {
+            Surface.ROTATION_0 -> UiOrientation.PORTRAIT
+            Surface.ROTATION_180 -> UiOrientation.PORTRAIT_REVERSE
+            Surface.ROTATION_90 -> UiOrientation.LANDSCAPE_RIGHT
+            Surface.ROTATION_270 -> UiOrientation.LANDSCAPE_LEFT
+            else -> UiOrientation.PORTRAIT
+        }
+
+        val orientationChanged = currentUiOrientation != targetOrientation || !layoutOrientationInitialized
+        val shouldAnimate = animate && layoutOrientationInitialized && orientationChanged
+
+        if (orientationChanged) {
             if (shouldAnimate) {
                 val transition = AutoTransition().apply {
                     duration = 160
@@ -788,58 +817,170 @@ class CameraActivity : AppCompatActivity() {
                 bottomControlsContainer.animate().cancel()
             }
 
-            if (landscape) {
-                applyLandscapeLayout(shouldAnimate)
-            } else {
-                applyPortraitLayout(shouldAnimate)
+            when (targetOrientation) {
+                UiOrientation.PORTRAIT -> applyPortraitLayout(shouldAnimate, reversed = false)
+                UiOrientation.PORTRAIT_REVERSE -> applyPortraitLayout(shouldAnimate, reversed = true)
+                UiOrientation.LANDSCAPE_LEFT -> applyLandscapeLayout(shouldAnimate, flipped = false)
+                UiOrientation.LANDSCAPE_RIGHT -> applyLandscapeLayout(shouldAnimate, flipped = true)
             }
-        } else if (landscape) {
+
+            currentUiOrientation = targetOrientation
+            isLandscapeUi = targetOrientation == UiOrientation.LANDSCAPE_LEFT || targetOrientation == UiOrientation.LANDSCAPE_RIGHT
+            layoutOrientationInitialized = true
+        }
+
+        currentUiOrientation?.let { handleAutoHideForOrientation(it) }
+        lastLayoutRotation = rotation
+    }
+
+    private fun handleAutoHideForOrientation(orientation: UiOrientation) {
+        if (orientation == UiOrientation.LANDSCAPE_LEFT || orientation == UiOrientation.LANDSCAPE_RIGHT) {
             scheduleControlsAutoHide()
+        } else {
+            clearControlsAutoHide()
         }
     }
 
-    private fun applyLandscapeLayout(animate: Boolean) {
+    private fun applyLandscapeLayout(animate: Boolean, flipped: Boolean) {
         val edgeMargin = dpToPx(24)
+        val verticalSpacing = dpToPx(16)
+        val columnPadding = dpToPx(12)
+
+        topControlsContainer.orientation = LinearLayout.VERTICAL
+        topControlsContainer.setPadding(columnPadding, dpToPx(20), columnPadding, dpToPx(20))
+        topControlsContainer.setBackgroundColor(Color.TRANSPARENT)
+        topControlsSpacer.visibility = View.GONE
+
+        bottomControlsContainer.setPadding(columnPadding, columnPadding, columnPadding, columnPadding)
+        bottomControlsContainer.setBackgroundColor(Color.TRANSPARENT)
+
+        (settingsButton.layoutParams as LinearLayout.LayoutParams).let { params ->
+            params.marginStart = 0
+            params.topMargin = 0
+            settingsButton.layoutParams = params
+        }
+        (torchButton.layoutParams as LinearLayout.LayoutParams).let { params ->
+            params.marginStart = 0
+            params.topMargin = verticalSpacing / 2
+            torchButton.layoutParams = params
+        }
+        (flipCameraButton.layoutParams as LinearLayout.LayoutParams).let { params ->
+            params.marginStart = 0
+            params.topMargin = verticalSpacing / 2
+            flipCameraButton.layoutParams = params
+        }
 
         val rootSet = ConstraintSet().apply { clone(rootLayout) }
-        rootSet.clear(R.id.thumbnailPreview, ConstraintSet.TOP)
-        rootSet.clear(R.id.thumbnailPreview, ConstraintSet.END)
-        rootSet.connect(R.id.thumbnailPreview, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, edgeMargin)
-        rootSet.connect(R.id.thumbnailPreview, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM, edgeMargin)
 
+        rootSet.clear(R.id.thumbnailPreview, ConstraintSet.START)
+        rootSet.clear(R.id.thumbnailPreview, ConstraintSet.END)
+        rootSet.clear(R.id.thumbnailPreview, ConstraintSet.BOTTOM)
+        rootSet.connect(
+            R.id.thumbnailPreview,
+            ConstraintSet.START,
+            ConstraintSet.PARENT_ID,
+            ConstraintSet.START,
+            edgeMargin
+        )
+        rootSet.connect(R.id.thumbnailPreview, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP, edgeMargin)
+
+        rootSet.constrainWidth(R.id.topControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+        rootSet.constrainHeight(R.id.topControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+        rootSet.clear(R.id.topControls, ConstraintSet.START)
+        rootSet.clear(R.id.topControls, ConstraintSet.END)
+        rootSet.clear(R.id.topControls, ConstraintSet.TOP)
+        rootSet.connect(
+            R.id.topControls,
+            ConstraintSet.START,
+            ConstraintSet.PARENT_ID,
+            ConstraintSet.START,
+            edgeMargin
+        )
+        rootSet.connect(R.id.topControls, ConstraintSet.TOP, R.id.thumbnailPreview, ConstraintSet.BOTTOM, verticalSpacing)
+
+        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.START)
+        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.END)
+        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.BOTTOM)
+        rootSet.connect(
+            R.id.resolutionSelectorButton,
+            ConstraintSet.START,
+            ConstraintSet.PARENT_ID,
+            ConstraintSet.START,
+            edgeMargin
+        )
+        rootSet.connect(R.id.resolutionSelectorButton, ConstraintSet.TOP, R.id.topControls, ConstraintSet.BOTTOM, verticalSpacing)
+
+        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.START)
+        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.END)
+        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.BOTTOM)
+        rootSet.connect(
+            R.id.resolutionListContainer,
+            ConstraintSet.START,
+            R.id.resolutionSelectorButton,
+            ConstraintSet.START
+        )
+        rootSet.connect(R.id.resolutionListContainer, ConstraintSet.TOP, R.id.resolutionSelectorButton, ConstraintSet.BOTTOM, dpToPx(8))
+
+        rootSet.constrainWidth(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+        rootSet.constrainHeight(R.id.zoomSlider, dpToPx(200))
         rootSet.clear(R.id.zoomSlider, ConstraintSet.START)
         rootSet.clear(R.id.zoomSlider, ConstraintSet.END)
-        rootSet.clear(R.id.zoomSlider, ConstraintSet.TOP)
         rootSet.clear(R.id.zoomSlider, ConstraintSet.BOTTOM)
-        rootSet.constrainWidth(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
-        rootSet.constrainHeight(R.id.zoomSlider, dpToPx(180))
-        rootSet.connect(R.id.zoomSlider, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, edgeMargin)
-        rootSet.connect(R.id.zoomSlider, ConstraintSet.BOTTOM, R.id.bottomControls, ConstraintSet.TOP, dpToPx(8))
+        rootSet.connect(
+            R.id.zoomSlider,
+            ConstraintSet.START,
+            ConstraintSet.PARENT_ID,
+            ConstraintSet.START,
+            edgeMargin
+        )
+        rootSet.connect(R.id.zoomSlider, ConstraintSet.TOP, R.id.resolutionListContainer, ConstraintSet.BOTTOM, verticalSpacing)
+
+        rootSet.constrainWidth(R.id.bottomControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+        rootSet.constrainHeight(R.id.bottomControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+        rootSet.clear(R.id.bottomControls, ConstraintSet.START)
+        rootSet.clear(R.id.bottomControls, ConstraintSet.END)
+        rootSet.clear(R.id.bottomControls, ConstraintSet.BOTTOM)
+        rootSet.connect(
+            R.id.bottomControls,
+            ConstraintSet.END,
+            ConstraintSet.PARENT_ID,
+            ConstraintSet.END,
+            edgeMargin
+        )
+        rootSet.connect(R.id.bottomControls, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP, edgeMargin)
+
+        rootSet.clear(R.id.recording_timer, ConstraintSet.START)
+        rootSet.clear(R.id.recording_timer, ConstraintSet.END)
+        rootSet.clear(R.id.recording_timer, ConstraintSet.BOTTOM)
+        rootSet.connect(
+            R.id.recording_timer,
+            ConstraintSet.END,
+            ConstraintSet.PARENT_ID,
+            ConstraintSet.END,
+            edgeMargin
+        )
+        rootSet.connect(R.id.recording_timer, ConstraintSet.TOP, R.id.bottomControls, ConstraintSet.BOTTOM, verticalSpacing)
+
         rootSet.applyTo(rootLayout)
 
-        zoomSlider.rotation = -90f
+        zoomSlider.rotation = if (flipped) 90f else -90f
 
         val bottomSet = ConstraintSet().apply { clone(bottomControlsContainer) }
-        bottomSet.connect(R.id.shutterButton, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, dpToPx(12))
-        bottomSet.connect(R.id.shutterButton, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, edgeMargin)
+        bottomSet.clear(R.id.shutterButton, ConstraintSet.BOTTOM)
         bottomSet.connect(R.id.shutterButton, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
-        bottomSet.connect(R.id.shutterButton, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
-        bottomSet.setHorizontalBias(R.id.shutterButton, 1f)
+        bottomSet.connect(R.id.shutterButton, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        bottomSet.connect(R.id.shutterButton, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
 
         bottomSet.clear(R.id.mode_switch_button, ConstraintSet.START)
         bottomSet.clear(R.id.mode_switch_button, ConstraintSet.END)
-        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.END, R.id.shutterButton, ConstraintSet.START, dpToPx(16))
-        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.TOP, R.id.shutterButton, ConstraintSet.TOP)
-        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.BOTTOM, R.id.shutterButton, ConstraintSet.BOTTOM)
+        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.BOTTOM)
+        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.TOP, R.id.shutterButton, ConstraintSet.BOTTOM, verticalSpacing)
+        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
         bottomSet.applyTo(bottomControlsContainer)
 
-        val targetScale = 1.18f
-        if (animate) {
-            captureButton.animate().scaleX(targetScale).scaleY(targetScale).setDuration(220).start()
-        } else {
-            captureButton.scaleX = targetScale
-            captureButton.scaleY = targetScale
-        }
+        captureButton.scaleX = 1f
+        captureButton.scaleY = 1f
 
         if (animate) {
             topControlsContainer.animate().alpha(1f).setDuration(180).start()
@@ -852,33 +993,145 @@ class CameraActivity : AppCompatActivity() {
         showControlsOnInteraction()
     }
 
-    private fun applyPortraitLayout(animate: Boolean) {
+    private fun applyPortraitLayout(animate: Boolean, reversed: Boolean = false) {
         clearControlsAutoHide()
+
+        topControlsContainer.orientation = LinearLayout.HORIZONTAL
+        topControlsContainer.setPadding(dpToPx(16), dpToPx(20), dpToPx(16), dpToPx(12))
+        topControlsContainer.setBackgroundColor(Color.TRANSPARENT)
+        topControlsSpacer.visibility = View.VISIBLE
+
+        bottomControlsContainer.setPadding(dpToPx(24), dpToPx(24), dpToPx(24), dpToPx(24))
+        bottomControlsContainer.setBackgroundColor(Color.TRANSPARENT)
+
+        (settingsButton.layoutParams as LinearLayout.LayoutParams).let { params ->
+            params.marginStart = 0
+            params.topMargin = 0
+            settingsButton.layoutParams = params
+        }
+        (torchButton.layoutParams as LinearLayout.LayoutParams).let { params ->
+            params.marginStart = dpToPx(16)
+            params.topMargin = 0
+            torchButton.layoutParams = params
+        }
+        (flipCameraButton.layoutParams as LinearLayout.LayoutParams).let { params ->
+            params.marginStart = 0
+            params.topMargin = 0
+            flipCameraButton.layoutParams = params
+        }
 
         val startMargin = dpToPx(24)
         val bottomMargin = dpToPx(32)
 
-        val rootSet = ConstraintSet()
-        rootSet.clone(rootLayout)
-        rootSet.clear(R.id.thumbnailPreview, ConstraintSet.TOP)
+        val rootSet = ConstraintSet().apply { clone(rootLayout) }
+
+        rootSet.clear(R.id.thumbnailPreview, ConstraintSet.START)
         rootSet.clear(R.id.thumbnailPreview, ConstraintSet.END)
-        rootSet.connect(R.id.thumbnailPreview, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
-        rootSet.connect(R.id.thumbnailPreview, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM, bottomMargin)
-        rootSet.clear(R.id.zoomSlider, ConstraintSet.TOP)
-        rootSet.clear(R.id.zoomSlider, ConstraintSet.END)
-        rootSet.clear(R.id.zoomSlider, ConstraintSet.BOTTOM)
+        rootSet.clear(R.id.thumbnailPreview, ConstraintSet.TOP)
+        rootSet.clear(R.id.thumbnailPreview, ConstraintSet.BOTTOM)
+
+        rootSet.clear(R.id.topControls, ConstraintSet.START)
+        rootSet.clear(R.id.topControls, ConstraintSet.END)
+        rootSet.clear(R.id.topControls, ConstraintSet.TOP)
+        rootSet.clear(R.id.topControls, ConstraintSet.BOTTOM)
+
+        rootSet.clear(R.id.bottomControls, ConstraintSet.START)
+        rootSet.clear(R.id.bottomControls, ConstraintSet.END)
+        rootSet.clear(R.id.bottomControls, ConstraintSet.TOP)
+        rootSet.clear(R.id.bottomControls, ConstraintSet.BOTTOM)
+
         rootSet.clear(R.id.zoomSlider, ConstraintSet.START)
-        rootSet.constrainWidth(R.id.zoomSlider, ConstraintSet.MATCH_CONSTRAINT)
-        rootSet.constrainHeight(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
-        rootSet.connect(R.id.zoomSlider, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
-        rootSet.connect(R.id.zoomSlider, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, startMargin)
-        rootSet.connect(R.id.zoomSlider, ConstraintSet.BOTTOM, R.id.bottomControls, ConstraintSet.TOP, dpToPx(12))
+        rootSet.clear(R.id.zoomSlider, ConstraintSet.END)
+        rootSet.clear(R.id.zoomSlider, ConstraintSet.TOP)
+        rootSet.clear(R.id.zoomSlider, ConstraintSet.BOTTOM)
+
+        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.START)
+        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.END)
+        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.TOP)
+        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.BOTTOM)
+
+        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.START)
+        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.END)
+        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.TOP)
+        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.BOTTOM)
+
+        rootSet.clear(R.id.recording_timer, ConstraintSet.START)
+        rootSet.clear(R.id.recording_timer, ConstraintSet.END)
+        rootSet.clear(R.id.recording_timer, ConstraintSet.TOP)
+        rootSet.clear(R.id.recording_timer, ConstraintSet.BOTTOM)
+
+        if (reversed) {
+            rootSet.constrainWidth(R.id.topControls, ConstraintLayout.LayoutParams.MATCH_CONSTRAINT)
+            rootSet.constrainHeight(R.id.topControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+            rootSet.connect(R.id.topControls, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            rootSet.connect(R.id.topControls, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            rootSet.connect(R.id.topControls, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+
+            rootSet.constrainWidth(R.id.bottomControls, ConstraintLayout.LayoutParams.MATCH_CONSTRAINT)
+            rootSet.constrainHeight(R.id.bottomControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+            rootSet.connect(R.id.bottomControls, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            rootSet.connect(R.id.bottomControls, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            rootSet.connect(R.id.bottomControls, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+            rootSet.setVerticalBias(R.id.bottomControls, 0f)
+
+            rootSet.connect(R.id.thumbnailPreview, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
+            rootSet.connect(R.id.thumbnailPreview, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP, startMargin)
+
+            rootSet.constrainWidth(R.id.zoomSlider, ConstraintLayout.LayoutParams.MATCH_CONSTRAINT)
+            rootSet.constrainHeight(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+            rootSet.connect(R.id.zoomSlider, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
+            rootSet.connect(R.id.zoomSlider, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, startMargin)
+            rootSet.connect(R.id.zoomSlider, ConstraintSet.TOP, R.id.bottomControls, ConstraintSet.BOTTOM, dpToPx(12))
+            rootSet.connect(R.id.zoomSlider, ConstraintSet.BOTTOM, R.id.topControls, ConstraintSet.TOP, dpToPx(12))
+
+            rootSet.connect(R.id.resolutionSelectorButton, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, startMargin)
+            rootSet.connect(R.id.resolutionSelectorButton, ConstraintSet.TOP, R.id.bottomControls, ConstraintSet.BOTTOM, dpToPx(20))
+
+            rootSet.connect(R.id.resolutionListContainer, ConstraintSet.END, R.id.resolutionSelectorButton, ConstraintSet.END)
+            rootSet.connect(R.id.resolutionListContainer, ConstraintSet.TOP, R.id.resolutionSelectorButton, ConstraintSet.BOTTOM, dpToPx(8))
+
+            rootSet.connect(R.id.recording_timer, ConstraintSet.BOTTOM, R.id.topControls, ConstraintSet.TOP, dpToPx(8))
+            rootSet.connect(R.id.recording_timer, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            rootSet.connect(R.id.recording_timer, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+        } else {
+            rootSet.constrainWidth(R.id.topControls, ConstraintLayout.LayoutParams.MATCH_CONSTRAINT)
+            rootSet.constrainHeight(R.id.topControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+            rootSet.connect(R.id.topControls, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            rootSet.connect(R.id.topControls, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            rootSet.connect(R.id.topControls, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+
+            rootSet.constrainWidth(R.id.bottomControls, ConstraintLayout.LayoutParams.MATCH_CONSTRAINT)
+            rootSet.constrainHeight(R.id.bottomControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+            rootSet.connect(R.id.bottomControls, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            rootSet.connect(R.id.bottomControls, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            rootSet.connect(R.id.bottomControls, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+            rootSet.setVerticalBias(R.id.bottomControls, 1f)
+
+            rootSet.connect(R.id.thumbnailPreview, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
+            rootSet.connect(R.id.thumbnailPreview, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM, bottomMargin)
+
+            rootSet.constrainWidth(R.id.zoomSlider, ConstraintSet.MATCH_CONSTRAINT)
+            rootSet.constrainHeight(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+            rootSet.connect(R.id.zoomSlider, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
+            rootSet.connect(R.id.zoomSlider, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, startMargin)
+            rootSet.connect(R.id.zoomSlider, ConstraintSet.BOTTOM, R.id.bottomControls, ConstraintSet.TOP, dpToPx(12))
+
+            rootSet.connect(R.id.resolutionSelectorButton, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, startMargin)
+            rootSet.connect(R.id.resolutionSelectorButton, ConstraintSet.BOTTOM, R.id.bottomControls, ConstraintSet.TOP, dpToPx(20))
+
+            rootSet.connect(R.id.resolutionListContainer, ConstraintSet.END, R.id.resolutionSelectorButton, ConstraintSet.END)
+            rootSet.connect(R.id.resolutionListContainer, ConstraintSet.BOTTOM, R.id.resolutionSelectorButton, ConstraintSet.TOP, dpToPx(8))
+
+            rootSet.connect(R.id.recording_timer, ConstraintSet.TOP, R.id.topControls, ConstraintSet.BOTTOM, dpToPx(8))
+            rootSet.connect(R.id.recording_timer, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            rootSet.connect(R.id.recording_timer, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+        }
+
         rootSet.applyTo(rootLayout)
 
         zoomSlider.rotation = 0f
 
-        val bottomSet = ConstraintSet()
-        bottomSet.clone(bottomControlsContainer)
+        val bottomSet = ConstraintSet().apply { clone(bottomControlsContainer) }
         bottomSet.connect(R.id.shutterButton, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
         bottomSet.connect(R.id.shutterButton, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
         bottomSet.connect(R.id.shutterButton, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
@@ -887,25 +1140,30 @@ class CameraActivity : AppCompatActivity() {
 
         bottomSet.clear(R.id.mode_switch_button, ConstraintSet.START)
         bottomSet.clear(R.id.mode_switch_button, ConstraintSet.END)
+        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.TOP)
+        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.BOTTOM)
         bottomSet.connect(R.id.mode_switch_button, ConstraintSet.START, R.id.shutterButton, ConstraintSet.END, dpToPx(16))
         bottomSet.connect(R.id.mode_switch_button, ConstraintSet.TOP, R.id.shutterButton, ConstraintSet.TOP)
         bottomSet.connect(R.id.mode_switch_button, ConstraintSet.BOTTOM, R.id.shutterButton, ConstraintSet.BOTTOM)
         bottomSet.applyTo(bottomControlsContainer)
 
         if (animate) {
-            captureButton.animate().scaleX(1f).scaleY(1f).setDuration(220).start()
             topControlsContainer.animate().alpha(1f).setDuration(200).start()
             bottomControlsContainer.animate().alpha(1f).setDuration(200).start()
         } else {
-            captureButton.scaleX = 1f
-            captureButton.scaleY = 1f
             topControlsContainer.alpha = 1f
             bottomControlsContainer.alpha = 1f
         }
+
+        captureButton.scaleX = 1f
+        captureButton.scaleY = 1f
     }
 
+
     private fun showControlsOnInteraction() {
-        if (!layoutOrientationInitialized || !isLandscapeUi) return
+        if (!layoutOrientationInitialized) return
+        val orientation = currentUiOrientation
+        if (orientation != UiOrientation.LANDSCAPE_LEFT && orientation != UiOrientation.LANDSCAPE_RIGHT) return
         topControlsContainer.animate().alpha(1f).setDuration(150).start()
         bottomControlsContainer.animate().alpha(1f).setDuration(150).start()
         clearControlsAutoHide()
@@ -913,7 +1171,8 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun scheduleControlsAutoHide() {
-        if (!isLandscapeUi) {
+        val orientation = currentUiOrientation
+        if (orientation != UiOrientation.LANDSCAPE_LEFT && orientation != UiOrientation.LANDSCAPE_RIGHT) {
             clearControlsAutoHide()
             return
         }
@@ -1174,6 +1433,7 @@ class CameraActivity : AppCompatActivity() {
         super.onResume()
         orientationEventListener?.enable()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        updateLayoutForRotation(getDisplayRotation(), animate = false)
         loadLatestPhotoThumbnail()
     }
 
@@ -1196,10 +1456,6 @@ class CameraActivity : AppCompatActivity() {
         private val DEFAULT_PHOTO_RESOLUTION = Size(960, 720)
     }
 }
-
-
-
-
 
 
 
