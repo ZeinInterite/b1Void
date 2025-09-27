@@ -59,6 +59,9 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.TorchState
+import androidx.camera.core.UseCase
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
 import androidx.camera.view.PreviewView
@@ -221,6 +224,7 @@ class CameraActivity : AppCompatActivity() {
         modeSwitchButton.setOnClickListener {
             currentMode = if (currentMode == CaptureMode.PHOTO) CaptureMode.VIDEO else CaptureMode.PHOTO
             updateCameraUI()
+            startCamera()
         }
 
         flipCameraButton.setOnClickListener {
@@ -422,6 +426,19 @@ class CameraActivity : AppCompatActivity() {
             val previewBuilder = Preview.Builder()
             applyCamera2Defaults(previewBuilder)
 
+            val targetResolution = selectedResolution?.takeIf { isValidResolution(it) }
+            if (targetResolution != null) {
+                val previewResolutionSelector = ResolutionSelector.Builder()
+                    .setResolutionStrategy(
+                        ResolutionStrategy(
+                            targetResolution,
+                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                        )
+                    )
+                    .build()
+                previewBuilder.setResolutionSelector(previewResolutionSelector)
+            }
+
             val preview = previewBuilder
                 .setTargetRotation(currentTargetRotation)
                 .build()
@@ -430,32 +447,48 @@ class CameraActivity : AppCompatActivity() {
                 }
             previewUseCase = preview
 
-            val recorder = Recorder.Builder()
-                .setQualitySelector(QualitySelector.from(Quality.HD))
-                .build()
-            val newVideoCapture = VideoCapture.withOutput(recorder).apply {
-                targetRotation = currentTargetRotation
-            }
-            videoCapture = newVideoCapture
-
             val imageCaptureBuilder = ImageCapture.Builder()
             applyCamera2Defaults(imageCaptureBuilder)
             imageCaptureBuilder
                 .setFlashMode(flashMode)
                 .setTargetRotation(currentTargetRotation)
-            
-            selectedResolution?.takeIf { isValidResolution(it) }?.let {
-                imageCaptureBuilder.setTargetResolution(it)
+
+            if (targetResolution != null) {
+                val captureResolutionSelector = ResolutionSelector.Builder()
+                    .setResolutionStrategy(
+                        ResolutionStrategy(
+                            targetResolution,
+                            ResolutionStrategy.FALLBACK_RULE_NONE
+                        )
+                    )
+                    .build()
+                imageCaptureBuilder.setResolutionSelector(captureResolutionSelector)
             }
 
             val newImageCapture = imageCaptureBuilder.build()
             imageCapture = newImageCapture
+
+            val useCases = mutableListOf<UseCase>(preview, newImageCapture)
+
+            if (currentMode == CaptureMode.VIDEO) {
+                val recorder = Recorder.Builder()
+                    .setQualitySelector(QualitySelector.from(Quality.HD))
+                    .build()
+                val newVideoCapture = VideoCapture.withOutput(recorder).apply {
+                    targetRotation = currentTargetRotation
+                }
+                videoCapture = newVideoCapture
+                useCases.add(newVideoCapture)
+            } else {
+                videoCapture = null
+            }
+
             applyTargetRotations(currentTargetRotation)
 
             try {
                 cameraProvider?.unbindAll()
                 camera = cameraProvider?.bindToLifecycle(
-                    this, cameraSelector, preview, newImageCapture, newVideoCapture
+                    this, cameraSelector, *useCases.toTypedArray()
                 )
                 applyCamera2Defaults()
                 setupCameraStateObserver()
