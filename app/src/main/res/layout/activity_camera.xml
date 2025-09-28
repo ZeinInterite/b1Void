@@ -16,7 +16,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:scaleType="fillCenter" />
+        app:scaleType="fitCenter" />
 
     <ProgressBar
         android:id="@+id/resolutionChangeProgressBar"
@@ -187,12 +187,15 @@
 
     <ImageView
         android:id="@+id/thumbnailPreview"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="56dp"
+        android:minHeight="56dp"
         android:layout_marginStart="24dp"
         android:layout_marginBottom="24dp"
+        android:adjustViewBounds="true"
         android:background="@android:color/darker_gray"
-        android:scaleType="centerCrop"
+        android:scaleType="fitCenter"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         tools:src="@tools:sample/avatars" />

@@ -2,6 +2,7 @@ package com.example.b1void.activities
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -13,9 +14,11 @@ import android.graphics.Color
 import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
+import androidx.exifinterface.media.ExifInterface
 import android.hardware.camera2.CaptureRequest
 import android.net.Uri
 import android.os.Build
@@ -59,7 +62,7 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.TorchState
-import androidx.camera.core.UseCase
+import androidx.camera.core.UseCaseGroup
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -91,6 +94,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
+import kotlin.math.abs
 
 class CameraActivity : AppCompatActivity() {
 
@@ -138,7 +142,13 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var cameraExecutor: ExecutorService
     private var camera: Camera? = null
     private var previewUseCase: Preview? = null
+    private var activeCameraId: String? = null
+    private var currentCameraCharacteristics: CameraCharacteristics? = null
+    private var availableCaptureResolutions: List<Size> = emptyList()
+    private var availablePreviewResolutions: List<Size> = emptyList()
     private var orientationEventListener: OrientationEventListener? = null
+    private var selectableCaptureResolutions: List<Size> = emptyList()
+    private val invalidCaptureResolutions = mutableSetOf<Size>()
     private var currentTargetRotation = Surface.ROTATION_0
     private var cameraRestartJob: Job? = null
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -315,11 +325,14 @@ class CameraActivity : AppCompatActivity() {
         bottomControlsContainer = findViewById(R.id.bottomControls)
         topControlsSpacer = findViewById(R.id.topControlsSpacer)
         previewView = findViewById(R.id.previewView)
+        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
         captureButton = findViewById(R.id.shutterButton)
         modeSwitchButton = findViewById(R.id.mode_switch_button)
         flipCameraButton = findViewById(R.id.switchCameraButton)
         recordingTimer = findViewById(R.id.recording_timer)
         thumbnailPreview = findViewById(R.id.thumbnailPreview)
+        thumbnailPreview.scaleType = ImageView.ScaleType.FIT_CENTER
+        thumbnailPreview.adjustViewBounds = true
         settingsButton = findViewById(R.id.settingsButton)
         torchButton = findViewById(R.id.torchButton)
         resolutionSelectorButton = findViewById(R.id.resolutionSelectorButton)
@@ -357,17 +370,8 @@ class CameraActivity : AppCompatActivity() {
         lifecycleScope.launch {
             settingsManager.getResolution().collect { resString ->
                 val parsedResolution = resString?.let { parseResolution(it) }
-                val newResolution = parsedResolution ?: DEFAULT_PHOTO_RESOLUTION
-
-                if (!isValidResolution(parsedResolution)) {
-                    selectedResolution = DEFAULT_PHOTO_RESOLUTION
-                    settingsManager.setResolution("${DEFAULT_PHOTO_RESOLUTION.width}x${DEFAULT_PHOTO_RESOLUTION.height}")
-                    startCamera()
-                    return@collect
-                }
-
-                if (selectedResolution != newResolution) {
-                    selectedResolution = newResolution
+                if (selectedResolution != parsedResolution) {
+                    selectedResolution = parsedResolution ?: DEFAULT_PHOTO_RESOLUTION
                     startCamera()
                 }
             }
@@ -396,7 +400,7 @@ class CameraActivity : AppCompatActivity() {
             try {
                 startActivity(intent)
             } catch (e: Exception) {
-                Toast.makeText(this, "???? ????????????? ??????>???\u0014?????? ???>?? ???'????<?'??? ?\"?????>??", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Невозможно открыть файл", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -423,52 +427,77 @@ class CameraActivity : AppCompatActivity() {
         cameraProviderFuture.addListener({
             cameraProvider = cameraProviderFuture.get()
 
-            val previewBuilder = Preview.Builder()
-            applyCamera2Defaults(previewBuilder)
-
-            val targetResolution = selectedResolution?.takeIf { isValidResolution(it) }
-            if (targetResolution != null) {
-                val previewResolutionSelector = ResolutionSelector.Builder()
-                    .setResolutionStrategy(
-                        ResolutionStrategy(
-                            targetResolution,
-                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
-                        )
-                    )
-                    .build()
-                previewBuilder.setResolutionSelector(previewResolutionSelector)
+            val resolvedCameraId = resolveCameraId()
+            if (resolvedCameraId != null) {
+                activeCameraId = resolvedCameraId
+                refreshCameraCharacteristics(resolvedCameraId)
+                updateSelectableCaptureResolutions()
+            } else {
+                availableCaptureResolutions = emptyList()
+                availablePreviewResolutions = emptyList()
+                selectableCaptureResolutions = emptyList()
             }
 
-            val preview = previewBuilder
-                .setTargetRotation(currentTargetRotation)
-                .build()
-                .also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
+            val captureResolution = selectedResolution?.let {
+                when {
+                    selectableCaptureResolutions.contains(it) -> it
+                    availableCaptureResolutions.contains(it) -> it
+                    else -> null
                 }
+            }
+                ?: selectableCaptureResolutions.firstOrNull()
+                ?: availableCaptureResolutions.firstOrNull()
+                ?: DEFAULT_PHOTO_RESOLUTION
+
+            val previewResolution = findBestPreviewResolutionFor(captureResolution)
+
+            if (selectedResolution != captureResolution) {
+                lifecycleScope.launch {
+                    settingsManager.setResolution("${captureResolution.width}x${captureResolution.height}")
+                }
+            }
+            selectedResolution = captureResolution
+
+            val imageCaptureSelector = ResolutionSelector.Builder()
+                .setResolutionStrategy(
+                    ResolutionStrategy(
+                        captureResolution,
+                        ResolutionStrategy.FALLBACK_RULE_NONE
+                    )
+                )
+                .build()
+
+            val useCaseGroupBuilder = UseCaseGroup.Builder()
+
+            val previewBuilder = Preview.Builder()
+                .setTargetRotation(currentTargetRotation)
+
+            val previewSelector = ResolutionSelector.Builder()
+                .setResolutionStrategy(
+                    ResolutionStrategy(
+                        previewResolution ?: captureResolution,
+                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                    )
+                )
+                .build()
+            previewBuilder.setResolutionSelector(previewSelector)
+
+            val preview = previewBuilder.build().also {
+                it.setSurfaceProvider(previewView.surfaceProvider)
+            }
             previewUseCase = preview
+            useCaseGroupBuilder.addUseCase(preview)
 
             val imageCaptureBuilder = ImageCapture.Builder()
-            applyCamera2Defaults(imageCaptureBuilder)
-            imageCaptureBuilder
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                 .setFlashMode(flashMode)
                 .setTargetRotation(currentTargetRotation)
 
-            if (targetResolution != null) {
-                val captureResolutionSelector = ResolutionSelector.Builder()
-                    .setResolutionStrategy(
-                        ResolutionStrategy(
-                            targetResolution,
-                            ResolutionStrategy.FALLBACK_RULE_NONE
-                        )
-                    )
-                    .build()
-                imageCaptureBuilder.setResolutionSelector(captureResolutionSelector)
-            }
+            imageCaptureBuilder.setResolutionSelector(imageCaptureSelector)
 
             val newImageCapture = imageCaptureBuilder.build()
             imageCapture = newImageCapture
-
-            val useCases = mutableListOf<UseCase>(preview, newImageCapture)
+            useCaseGroupBuilder.addUseCase(newImageCapture)
 
             if (currentMode == CaptureMode.VIDEO) {
                 val recorder = Recorder.Builder()
@@ -478,29 +507,34 @@ class CameraActivity : AppCompatActivity() {
                     targetRotation = currentTargetRotation
                 }
                 videoCapture = newVideoCapture
-                useCases.add(newVideoCapture)
+                useCaseGroupBuilder.addUseCase(newVideoCapture)
             } else {
                 videoCapture = null
             }
 
-            applyTargetRotations(currentTargetRotation)
-
             try {
                 cameraProvider?.unbindAll()
                 camera = cameraProvider?.bindToLifecycle(
-                    this, cameraSelector, *useCases.toTypedArray()
+                    this, cameraSelector, useCaseGroupBuilder.build()
                 )
                 applyCamera2Defaults()
                 setupCameraStateObserver()
                 setupTorchObserver()
                 setupResolutionList()
                 setupZoomObserver()
+                val resolutionConfirmed = verifyBoundCaptureResolution(captureResolution)
+                if (!resolutionConfirmed) {
+                    return@addListener
+                }
                 focusAtCenter()
-            } catch (exc: CameraAccessException) {
-                Log.e(TAG, "Camera access error while binding use cases", exc)
-                scheduleCameraRestart("CameraAccessException: ${exc.reason}")
+            } catch (exc: IllegalArgumentException) {
+                Log.w(TAG, "Binding failed for resolution ${captureResolution.width}x${captureResolution.height}", exc)
+                handleUnsupportedCaptureResolution(captureResolution)
+                return@addListener
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
+                scheduleCameraRestart("Use case binding failed")
+                return@addListener
             }
 
         }, ContextCompat.getMainExecutor(this))
@@ -554,15 +588,15 @@ class CameraActivity : AppCompatActivity() {
         val cam = camera ?: return
         val camera2Control = Camera2CameraControl.from(cam.cameraControl)
         camera2Control.clearCaptureRequestOptions()
-        val options = CaptureRequestOptions.Builder()
+        val optionsBuilder = CaptureRequestOptions.Builder()
             .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
             .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
             .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
             .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
             .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
             .setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0)
-            .build()
-        camera2Control.setCaptureRequestOptions(options)
+
+        camera2Control.setCaptureRequestOptions(optionsBuilder.build())
     }
 
     private fun scheduleCameraRestart(reason: String? = null) {
@@ -577,6 +611,68 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
+    private fun resolveCameraId(): String? {
+        val provider = cameraProvider ?: return null
+        val cameraInfos = provider.availableCameraInfos
+        return try {
+            cameraSelector.filter(cameraInfos).firstOrNull()
+                ?.let { Camera2CameraInfo.from(it).cameraId }
+        } catch (exc: Exception) {
+            Log.w(TAG, "Failed to resolve camera id", exc)
+            null
+        }
+    }
+
+    private fun refreshCameraCharacteristics(cameraId: String) {
+        val cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+        currentCameraCharacteristics = characteristics
+        val streamConfigurationMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+        availableCaptureResolutions = streamConfigurationMap?.getOutputSizes(ImageFormat.JPEG)
+            ?.toList()
+            ?.let { sortResolutionsDescending(it) }
+            ?: emptyList()
+        availablePreviewResolutions = streamConfigurationMap?.getOutputSizes(SurfaceTexture::class.java)
+            ?.toList()
+            ?.let { sortResolutionsDescending(it) }
+            ?: emptyList()
+        invalidCaptureResolutions.retainAll(availableCaptureResolutions.toSet())
+    }
+
+    private fun sortResolutionsDescending(sizes: List<Size>): List<Size> {
+        return sizes.distinctBy { it.width to it.height }
+            .sortedWith(compareByDescending<Size> { it.width.toLong() * it.height }
+                .thenByDescending { it.width })
+    }
+
+    private fun updateSelectableCaptureResolutions() {
+        if (availablePreviewResolutions.isEmpty()) {
+            selectableCaptureResolutions = availableCaptureResolutions
+            return
+        }
+
+        val filtered = availableCaptureResolutions.filter { captureSize ->
+            val targetRatio = aspectRatio(captureSize)
+            availablePreviewResolutions.any { matchesAspectRatio(it, targetRatio) }
+        }
+
+        selectableCaptureResolutions = (if (filtered.isNotEmpty()) filtered else availableCaptureResolutions)
+            .filterNot { invalidCaptureResolutions.contains(it) }
+    }
+
+    private fun findBestPreviewResolutionFor(captureSize: Size): Size? {
+        if (availablePreviewResolutions.isEmpty()) return null
+        val targetRatio = aspectRatio(captureSize)
+        val candidates = availablePreviewResolutions.filter { matchesAspectRatio(it, targetRatio) }
+        return candidates.maxByOrNull { it.width.toLong() * it.height }
+    }
+
+    private fun matchesAspectRatio(size: Size, targetRatio: Float): Boolean {
+        return abs(aspectRatio(size) - targetRatio) <= ASPECT_RATIO_TOLERANCE
+    }
+
+    private fun aspectRatio(size: Size): Float = size.width.toFloat() / size.height
+
     private fun restartCameraSession() {
         if (isFinishing || isDestroyed) return
         try {
@@ -584,6 +680,48 @@ class CameraActivity : AppCompatActivity() {
         } catch (exc: Exception) {
             Log.e(TAG, "Failed to unbind camera before restart", exc)
         }
+        mainHandler.post { startCamera() }
+    }
+
+    private fun verifyBoundCaptureResolution(requestedResolution: Size): Boolean {
+        val actualResolution = imageCapture?.resolutionInfo?.resolution ?: return true
+        if (actualResolution == requestedResolution) return true
+        Log.w(
+            TAG,
+            "Requested capture resolution ${requestedResolution.width}x${requestedResolution.height} but camera reported ${actualResolution.width}x${actualResolution.height}"
+        )
+        handleUnsupportedCaptureResolution(requestedResolution)
+        return false
+    }
+
+    private fun handleUnsupportedCaptureResolution(failedResolution: Size) {
+        if (!invalidCaptureResolutions.add(failedResolution)) {
+            Log.w(TAG, "Resolution ${failedResolution.width}x${failedResolution.height} already marked invalid")
+        } else {
+            Log.w(TAG, "Resolution ${failedResolution.width}x${failedResolution.height} is not supported by camera")
+        }
+
+        selectableCaptureResolutions = selectableCaptureResolutions.filterNot { it == failedResolution }
+        availableCaptureResolutions = availableCaptureResolutions.filterNot { it == failedResolution }
+
+        val fallback = selectableCaptureResolutions.firstOrNull()
+            ?: availableCaptureResolutions.firstOrNull()
+            ?: DEFAULT_PHOTO_RESOLUTION
+
+        if (fallback != failedResolution) {
+            if (selectedResolution != fallback) {
+                selectedResolution = fallback
+                lifecycleScope.launch {
+                    settingsManager.setResolution("${fallback.width}x${fallback.height}")
+                }
+            }
+        } else {
+            selectedResolution = DEFAULT_PHOTO_RESOLUTION
+            lifecycleScope.launch {
+                settingsManager.setResolution("${DEFAULT_PHOTO_RESOLUTION.width}x${DEFAULT_PHOTO_RESOLUTION.height}")
+            }
+        }
+
         mainHandler.post { startCamera() }
     }
 
@@ -598,19 +736,37 @@ class CameraActivity : AppCompatActivity() {
 
     @SuppressLint("UnsafeOptInUsageError")
     private fun setupResolutionList() {
-        camera?.let { cam ->
-            val cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-            val characteristics = cameraManager.getCameraCharacteristics(Camera2CameraInfo.from(cam.cameraInfo).cameraId)
-            val streamConfigurationMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-            val resolutions = streamConfigurationMap?.getOutputSizes(ImageFormat.JPEG)?.toList() ?: emptyList()
+        if (camera == null) return
 
+        val supportedResolutions = selectableCaptureResolutions.takeIf { it.isNotEmpty() }
+            ?: availableCaptureResolutions
+
+        if (supportedResolutions.isEmpty()) {
+            resolutionSelectorButton.visibility = View.GONE
+            resolutionListContainer.visibility = View.GONE
+            return
+        }
+
+        if (supportedResolutions.size <= 1) {
+            resolutionSelectorButton.visibility = View.GONE
+            resolutionListContainer.visibility = View.GONE
+        } else {
+            resolutionSelectorButton.visibility = View.VISIBLE
+        }
+
+        if (resolutionRecyclerView.layoutManager == null) {
             resolutionRecyclerView.layoutManager = LinearLayoutManager(this)
-            resolutionRecyclerView.adapter = ResolutionAdapter(resolutions.reversed(), selectedResolution) { size ->
+        }
+
+        resolutionRecyclerView.adapter = ResolutionAdapter(supportedResolutions, selectedResolution) { size ->
+            if (selectedResolution != size) {
+                selectedResolution = size
                 lifecycleScope.launch {
                     settingsManager.setResolution("${size.width}x${size.height}")
                 }
-        resolutionListContainer.visibility = View.GONE
+                startCamera()
             }
+            resolutionListContainer.visibility = View.GONE
         }
     }
 
@@ -820,7 +976,6 @@ class CameraActivity : AppCompatActivity() {
 
     private fun updateLayoutForRotation(rotation: Int, animate: Boolean = true) {
         if (!::rootLayout.isInitialized) return
-
         if (layoutOrientationInitialized && rotation == lastLayoutRotation) {
             currentUiOrientation?.let { handleAutoHideForOrientation(it) }
             return
@@ -1143,7 +1298,7 @@ class CameraActivity : AppCompatActivity() {
             rootSet.connect(R.id.thumbnailPreview, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
             rootSet.connect(R.id.thumbnailPreview, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM, bottomMargin)
 
-            rootSet.constrainWidth(R.id.zoomSlider, ConstraintSet.MATCH_CONSTRAINT)
+            rootSet.constrainWidth(R.id.zoomSlider, ConstraintLayout.LayoutParams.MATCH_CONSTRAINT)
             rootSet.constrainHeight(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
             rootSet.connect(R.id.zoomSlider, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
             rootSet.connect(R.id.zoomSlider, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, startMargin)
@@ -1268,45 +1423,70 @@ class CameraActivity : AppCompatActivity() {
             updateThumbnail(Uri.fromFile(latestImage))
         } else {
             lastSavedFile = null
-            runOnUiThread { thumbnailPreview.setImageResource(R.drawable.gray_square) }
+            runOnUiThread {
+                val size = resources.getDimensionPixelSize(R.dimen.thumbnail_max_size)
+                val params = thumbnailPreview.layoutParams
+                if (params.width != size || params.height != size) {
+                    params.width = size
+                    params.height = size
+                    thumbnailPreview.layoutParams = params
+                }
+                thumbnailPreview.setImageResource(R.drawable.gray_square)
+            }
         }
     }
 
     private fun takePhoto() {
         val imageCapture = this.imageCapture ?: return
 
-        imageCapture.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
-            override fun onCaptureSuccess(image: ImageProxy) {
-                val rotationDegrees = image.imageInfo.rotationDegrees
-                val bitmap = imageProxyToBitmap(image)
-                val rotatedBitmap = if (rotationDegrees != 0) {
-                    val matrix = android.graphics.Matrix().apply { postRotate(rotationDegrees.toFloat()) }
-                    Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-                } else {
-                    bitmap
+        val savePath = intent.getStringExtra(EXTRA_SAVE_PATH) ?: externalMediaDirs.firstOrNull()?.absolutePath ?: ""
+        val photoFile = File(savePath, "IMG_${System.currentTimeMillis()}.jpg")
+
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+
+        imageCapture.takePicture(
+            outputOptions,
+            cameraExecutor,
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    lastSavedFile = photoFile
+                    val savedUri = output.savedUri ?: Uri.fromFile(photoFile)
+
+                    if (timestampEnabled) {
+                        try {
+                            val bitmap = getCorrectlyOrientedBitmap(photoFile)
+                            val timestampedBitmap = addTimestampToBitmap(bitmap)
+                            saveBitmapToFile(timestampedBitmap, photoFile)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error adding timestamp", e)
+                        }
+                    }
+
+                    runOnUiThread {
+                        updateThumbnail(savedUri)
+                        playCaptureAnimation(savedUri)
+                    }
                 }
-                image.close()
 
-                val finalBitmap = if (timestampEnabled) {
-                    addTimestampToBitmap(rotatedBitmap)
-                } else {
-                    rotatedBitmap
-                }
-
-                val savedFile = saveBitmapToFile(finalBitmap)
-                lastSavedFile = savedFile
-
-                runOnUiThread {
-                    val fileUri = Uri.fromFile(savedFile)
-                    updateThumbnail(fileUri)
-                    playCaptureAnimation(fileUri)
+                override fun onError(exc: ImageCaptureException) {
+                    Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
                 }
             }
+        )
+    }
 
-            override fun onError(exception: ImageCaptureException) {
-                Log.e(TAG, "Photo capture failed: ${exception.message}", exception)
-            }
-        })
+    private fun getCorrectlyOrientedBitmap(photoFile: File): Bitmap {
+        val options = BitmapFactory.Options()
+        val bitmap = BitmapFactory.decodeFile(photoFile.absolutePath, options)
+        val exifInterface = androidx.exifinterface.media.ExifInterface(photoFile.absolutePath)
+        val orientation = exifInterface.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, androidx.exifinterface.media.ExifInterface.ORIENTATION_UNDEFINED)
+        val matrix = Matrix()
+        when (orientation) {
+            androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+            androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+        }
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
 
     private fun imageProxyToBitmap(image: ImageProxy): Bitmap {
@@ -1342,6 +1522,10 @@ class CameraActivity : AppCompatActivity() {
     private fun saveBitmapToFile(bitmap: Bitmap): File {
         val savePath = intent.getStringExtra(EXTRA_SAVE_PATH) ?: externalMediaDirs.firstOrNull()?.absolutePath ?: ""
         val file = File(savePath, "IMG_${System.currentTimeMillis()}.jpg")
+        return saveBitmapToFile(bitmap, file)
+    }
+
+    private fun saveBitmapToFile(bitmap: Bitmap, file: File): File {
         FileOutputStream(file).use {
             bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it)
         }
@@ -1388,10 +1572,88 @@ class CameraActivity : AppCompatActivity() {
 
     private fun updateThumbnail(uri: Uri) {
         runOnUiThread {
+            adjustThumbnailSize(uri)
             Glide.with(this)
                 .load(uri)
-                .circleCrop()
+                .fitCenter()
                 .into(thumbnailPreview)
+        }
+    }
+
+    private fun adjustThumbnailSize(uri: Uri) {
+        val path = uri.path
+        val isImage = when {
+            path != null -> isImageFile(File(path))
+            else -> {
+                val type = contentResolver.getType(uri)
+                type != null && type.startsWith("image/")
+            }
+        }
+        if (!isImage) return
+
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        try {
+            contentResolver.openInputStream(uri)?.use { inputStream ->
+                BitmapFactory.decodeStream(inputStream, null, options)
+            }
+        } catch (_: Exception) {
+            return
+        }
+
+        var width = options.outWidth
+        var height = options.outHeight
+        val rotationDegrees = resolveImageRotation(uri)
+        if (rotationDegrees == 90 || rotationDegrees == 270) {
+            val tmp = width
+            width = height
+            height = tmp
+        }
+        if (width <= 0 || height <= 0) return
+
+        val maxSize = resources.getDimensionPixelSize(R.dimen.thumbnail_max_size)
+        val (targetWidth, targetHeight) = if (width >= height) {
+            maxSize to (maxSize.toFloat() * height / width).roundToInt().coerceAtLeast(1)
+        } else {
+            (maxSize.toFloat() * width / height).roundToInt().coerceAtLeast(1) to maxSize
+        }
+
+        val params = thumbnailPreview.layoutParams
+        if (params.width != targetWidth || params.height != targetHeight) {
+            params.width = targetWidth
+            params.height = targetHeight
+            thumbnailPreview.layoutParams = params
+        }
+    }
+
+    private fun resolveImageRotation(uri: Uri): Int {
+        return try {
+            val orientation = if (uri.scheme == ContentResolver.SCHEME_CONTENT) {
+                contentResolver.openInputStream(uri)?.use { input ->
+                    ExifInterface(input).getAttributeInt(
+                        ExifInterface.TAG_ORIENTATION,
+                        ExifInterface.ORIENTATION_NORMAL
+                    )
+                } ?: ExifInterface.ORIENTATION_UNDEFINED
+            } else {
+                val path = uri.path
+                if (!path.isNullOrEmpty()) {
+                    ExifInterface(path).getAttributeInt(
+                        ExifInterface.TAG_ORIENTATION,
+                        ExifInterface.ORIENTATION_NORMAL
+                    )
+                } else {
+                    ExifInterface.ORIENTATION_UNDEFINED
+                }
+            }
+
+            when (orientation) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                else -> 0
+            }
+        } catch (_: Exception) {
+            0
         }
     }
 
@@ -1486,15 +1748,7 @@ class CameraActivity : AppCompatActivity() {
         private const val REQUEST_CODE_PERMISSIONS = 10
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
         const val EXTRA_SAVE_PATH = "extra_save_path"
-        private val DEFAULT_PHOTO_RESOLUTION = Size(960, 720)
+        private val DEFAULT_PHOTO_RESOLUTION = Size(1280, 960)
+        private const val ASPECT_RATIO_TOLERANCE = 0.02f
     }
 }
-
-
-
-
-
-
-
-
-
