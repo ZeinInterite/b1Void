@@ -17,7 +17,6 @@ class CameraSettingsManager(private val context: Context) {
 
     companion object {
         val FLASH_ENABLED_KEY = intPreferencesKey("flash_mode")
-        val TIMESTAMP_ENABLED_KEY = booleanPreferencesKey("timestamp_enabled")
         val RESOLUTION_KEY = stringPreferencesKey("resolution")
         
         // Orientation layout preferences
@@ -36,18 +35,6 @@ class CameraSettingsManager(private val context: Context) {
     suspend fun setFlashMode(mode: Int) {
         context.dataStore.edit {
             it[FLASH_ENABLED_KEY] = mode
-        }
-    }
-
-    fun isTimestampEnabled(): Flow<Boolean> {
-        return context.dataStore.data.map {
-            it[TIMESTAMP_ENABLED_KEY] ?: true // Default to ON
-        }
-    }
-
-    suspend fun setTimestampEnabled(isEnabled: Boolean) {
-        context.dataStore.edit {
-            it[TIMESTAMP_ENABLED_KEY] = isEnabled
         }
     }
 

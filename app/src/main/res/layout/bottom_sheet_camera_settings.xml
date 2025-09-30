@@ -45,11 +45,4 @@
             android:text="Выкл"/>
 
     </RadioGroup>
-
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/timestamp_switch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Штамп даты и времени на фото" />
-
 </LinearLayout>

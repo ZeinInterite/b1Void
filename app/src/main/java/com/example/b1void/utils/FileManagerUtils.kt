@@ -200,6 +200,16 @@ object FileManagerUtils {
                fileName.endsWith(".gif") || 
                fileName.endsWith(".bmp")
     }
+
+    fun isVideoFile(file: File): Boolean {
+        val fileName = file.name.lowercase()
+        return fileName.endsWith(".mp4") ||
+               fileName.endsWith(".mov") ||
+               fileName.endsWith(".mkv") ||
+               fileName.endsWith(".avi") ||
+               fileName.endsWith(".3gp") ||
+               fileName.endsWith(".webm")
+    }
     
     fun getSortedFiles(directory: File, ascending: Boolean): List<File> {
         val files = directory.listFiles()?.toList() ?: emptyList()

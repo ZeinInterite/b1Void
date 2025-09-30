@@ -86,8 +86,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import com.example.b1void.utils.VideoStampProcessor
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
@@ -169,7 +172,6 @@ class CameraActivity : AppCompatActivity() {
     // Settings
     private lateinit var settingsManager: CameraSettingsManager
     private var flashMode = ImageCapture.FLASH_MODE_OFF
-    private var timestampEnabled = true
     private var selectedResolution: Size? = DEFAULT_PHOTO_RESOLUTION
 
     // State variables
@@ -366,11 +368,6 @@ class CameraActivity : AppCompatActivity() {
                     flashMode = newFlashMode
                     startCamera()
                 }
-            }
-        }
-        lifecycleScope.launch {
-            settingsManager.isTimestampEnabled().collect { isEnabled ->
-                timestampEnabled = isEnabled
             }
         }
         lifecycleScope.launch {
@@ -1464,14 +1461,12 @@ class CameraActivity : AppCompatActivity() {
                     lastSavedFile = photoFile
                     val savedUri = output.savedUri ?: Uri.fromFile(photoFile)
 
-                    if (timestampEnabled) {
-                        try {
-                            val bitmap = getCorrectlyOrientedBitmap(photoFile)
-                            val timestampedBitmap = addTimestampToBitmap(bitmap)
-                            saveBitmapToFile(timestampedBitmap, photoFile)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error adding timestamp", e)
-                        }
+                    try {
+                        val bitmap = getCorrectlyOrientedBitmap(photoFile)
+                        val timestampedBitmap = addTimestampToBitmap(bitmap)
+                        saveBitmapToFile(timestampedBitmap, photoFile)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error adding timestamp", e)
                     }
 
                     runOnUiThread {
@@ -1522,12 +1517,15 @@ class CameraActivity : AppCompatActivity() {
         val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         val timestamp = sdf.format(Date())
 
-        val fontMetrics = paint.fontMetrics
         paint.textAlign = Paint.Align.RIGHT
         val x = newBitmap.width - padding
-        val y = newBitmap.height - padding - fontMetrics.bottom
+        val fontMetrics = paint.fontMetrics
+        val timestampY = newBitmap.height - padding - fontMetrics.bottom
+        val companyY = timestampY - paint.textSize - padding * 0.3f
 
-        canvas.drawText(timestamp, x, y, paint)
+        canvas.drawText("DOCUMENT LLC", x, companyY, paint)
+        canvas.drawText(timestamp, x, timestampY, paint)
+
         return newBitmap
     }
 
@@ -1571,8 +1569,7 @@ class CameraActivity : AppCompatActivity() {
                         isRecording = false
                         stopRecordingIndicator()
                         if (!recordEvent.hasError()) {
-                            val msg = "Видео сохранено: ${recordEvent.outputResults.outputUri}"
-                            updateThumbnail(recordEvent.outputResults.outputUri)
+                            processVideoStamp(videoFile)
                         } else {
                             Log.e(TAG, "Video capture error: ${recordEvent.error}")
                             videoFile.delete()
@@ -1723,6 +1720,27 @@ class CameraActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(this, "Разрешения не предоставлены.", Toast.LENGTH_SHORT).show()
                 finish()
+            }
+        }
+    }
+
+    private fun processVideoStamp(videoFile: File) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val processor = VideoStampProcessor(this@CameraActivity)
+            val stampTimestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+            val success = try {
+                processor.applyStamp(videoFile, "DOCUMENT LLC", stampTimestamp)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to stamp video", e)
+                false
+            }
+            if (!success) {
+                Log.w(TAG, "Video stamp processor reported failure for ${videoFile.name}")
+            }
+
+            val uri = Uri.fromFile(videoFile)
+            withContext(Dispatchers.Main) {
+                updateThumbnail(uri)
             }
         }
     }

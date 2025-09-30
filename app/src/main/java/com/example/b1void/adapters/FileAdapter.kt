@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.b1void.R
 import java.io.File
+import com.example.b1void.utils.FileManagerUtils
 
 class FileAdapter(
     var files: List<File>,
@@ -143,10 +144,7 @@ class FileAdapter(
         return fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || fileName.endsWith(".png") || fileName.endsWith(".gif") || fileName.endsWith(".bmp")
     }
 
-    fun isVideo(file: File): Boolean {
-        val fileName = file.name.lowercase()
-        return fileName.endsWith(".mp4") || fileName.endsWith(".mov") || fileName.endsWith(".avi")
-    }
+    fun isVideo(file: File): Boolean = FileManagerUtils.isVideoFile(file)
 
     class FileDiffCallback(
         private val oldList: List<File>,

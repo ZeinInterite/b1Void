@@ -9,7 +9,6 @@ import androidx.lifecycle.lifecycleScope
 import com.example.b1void.R
 import com.example.b1void.data.CameraSettingsManager
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.google.android.material.switchmaterial.SwitchMaterial
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -30,7 +29,6 @@ class CameraSettingsDialogFragment : BottomSheetDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         val flashRadioGroup = view.findViewById<RadioGroup>(R.id.flash_mode_group)
-        val timestampSwitch = view.findViewById<SwitchMaterial>(R.id.timestamp_switch)
 
         // Load current settings and update UI
         lifecycleScope.launch {
@@ -40,8 +38,6 @@ class CameraSettingsDialogFragment : BottomSheetDialogFragment() {
                 1 -> flashRadioGroup.check(R.id.flash_mode_on)
                 2 -> flashRadioGroup.check(R.id.flash_mode_auto)
             }
-
-            timestampSwitch.isChecked = settingsManager.isTimestampEnabled().first()
         }
 
         // Save settings on change
@@ -54,12 +50,6 @@ class CameraSettingsDialogFragment : BottomSheetDialogFragment() {
             }
             lifecycleScope.launch {
                 settingsManager.setFlashMode(mode)
-            }
-        }
-
-        timestampSwitch.setOnCheckedChangeListener { _, isChecked ->
-            lifecycleScope.launch {
-                settingsManager.setTimestampEnabled(isChecked)
             }
         }
     }

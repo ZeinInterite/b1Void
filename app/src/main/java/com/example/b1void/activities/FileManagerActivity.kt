@@ -840,6 +840,7 @@ class FileManagerActivity : AppCompatActivity() {
 
         val filesToShare = selectedFiles.toList()
         val shareAsImages = filesToShare.isNotEmpty() && filesToShare.all { it.isFile && FileManagerUtils.isImageFile(it) }
+        val shareAsVideos = filesToShare.isNotEmpty() && filesToShare.all { it.isFile && FileManagerUtils.isVideoFile(it) }
 
         if (shareAsImages) {
             val imageUris = ArrayList<Uri>(filesToShare.size)
@@ -855,6 +856,32 @@ class FileManagerActivity : AppCompatActivity() {
             }
 
             startActivity(Intent.createChooser(shareIntent, getString(R.string.share_photos)))
+            exitSelectionMode()
+            return
+        }
+
+        if (shareAsVideos) {
+            val videoUris = ArrayList<Uri>(filesToShare.size)
+            filesToShare.forEach { file ->
+                val uri = FileProvider.getUriForFile(this, "${packageName}.provider", file)
+                videoUris.add(uri)
+            }
+
+            val shareIntent = if (videoUris.size == 1) {
+                Intent(Intent.ACTION_SEND).apply {
+                    type = "video/*"
+                    putExtra(Intent.EXTRA_STREAM, videoUris.first())
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            } else {
+                Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                    type = "video/*"
+                    putParcelableArrayListExtra(Intent.EXTRA_STREAM, videoUris)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            }
+
+            startActivity(Intent.createChooser(shareIntent, getString(R.string.share_videos)))
             exitSelectionMode()
             return
         }
