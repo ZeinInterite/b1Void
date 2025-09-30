@@ -190,6 +190,11 @@ class CameraActivity : AppCompatActivity() {
         setContentView(R.layout.activity_camera)
 
         settingsManager = CameraSettingsManager(this)
+        if (savedInstanceState == null) {
+            lifecycleScope.launch {
+                settingsManager.setResolution("${DEFAULT_PHOTO_RESOLUTION.width}x${DEFAULT_PHOTO_RESOLUTION.height}")
+            }
+        }
 
         initializeViews()
         lastLayoutRotation = getDisplayRotation()
@@ -687,6 +692,11 @@ class CameraActivity : AppCompatActivity() {
     private fun verifyBoundCaptureResolution(requestedResolution: Size): Boolean {
         val actualResolution = imageCapture?.resolutionInfo?.resolution ?: return true
         if (actualResolution == requestedResolution) return true
+
+        val isSwappedOrientationMatch = actualResolution.width == requestedResolution.height &&
+                actualResolution.height == requestedResolution.width
+        if (isSwappedOrientationMatch) return true
+
         Log.w(
             TAG,
             "Requested capture resolution ${requestedResolution.width}x${requestedResolution.height} but camera reported ${actualResolution.width}x${actualResolution.height}"
@@ -1750,7 +1760,7 @@ class CameraActivity : AppCompatActivity() {
         private const val REQUEST_CODE_PERMISSIONS = 10
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
         const val EXTRA_SAVE_PATH = "extra_save_path"
-        private val DEFAULT_PHOTO_RESOLUTION = Size(1280, 960)
+        private val DEFAULT_PHOTO_RESOLUTION = Size(960, 720)
         private const val ASPECT_RATIO_TOLERANCE = 0.02f
     }
 }
