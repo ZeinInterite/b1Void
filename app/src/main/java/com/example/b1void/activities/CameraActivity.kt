@@ -325,6 +325,7 @@ class CameraActivity : AppCompatActivity() {
         bottomControlsContainer = findViewById(R.id.bottomControls)
         topControlsSpacer = findViewById(R.id.topControlsSpacer)
         previewView = findViewById(R.id.previewView)
+        previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
         captureButton = findViewById(R.id.shutterButton)
         modeSwitchButton = findViewById(R.id.mode_switch_button)
@@ -998,6 +999,7 @@ class CameraActivity : AppCompatActivity() {
                     duration = 160
                     interpolator = AccelerateDecelerateInterpolator()
                 }
+                transition.excludeTarget(previewView, true)
                 TransitionManager.beginDelayedTransition(rootLayout, transition)
             } else {
                 captureButton.animate().cancel()
