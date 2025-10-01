@@ -120,13 +120,20 @@ class MoveFilesBottomSheet : BottomSheetDialogFragment() {
         private const val ARG_FILE_IDS = "arg_file_ids"
         private const val ARG_SOURCE_FOLDER_PATH = "arg_source_folder_path"
         private const val ARG_ROOT_FOLDER_PATH = "arg_root_folder_path"
+        private const val ARG_TRASH_FOLDER_PATH = "arg_trash_folder_path"
 
-        fun newInstance(filePaths: List<String>, sourceFolderPath: String, rootFolderPath: String): MoveFilesBottomSheet {
+        fun newInstance(
+            filePaths: List<String>,
+            sourceFolderPath: String,
+            rootFolderPath: String,
+            trashFolderPath: String
+        ): MoveFilesBottomSheet {
             return MoveFilesBottomSheet().apply {
                 arguments = Bundle().apply {
                     putStringArrayList(ARG_FILE_IDS, ArrayList(filePaths))
                     putString(ARG_SOURCE_FOLDER_PATH, sourceFolderPath)
                     putString(ARG_ROOT_FOLDER_PATH, rootFolderPath)
+                    putString(ARG_TRASH_FOLDER_PATH, trashFolderPath)
                 }
             }
         }

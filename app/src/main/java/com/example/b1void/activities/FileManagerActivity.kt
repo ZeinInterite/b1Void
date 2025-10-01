@@ -944,7 +944,12 @@ class FileManagerActivity : AppCompatActivity() {
         val sourceFolderPath = getCurrentDirectory().absolutePath
         val rootFolderPath = appDirectory.absolutePath
 
-        MoveFilesBottomSheet.newInstance(filePaths, sourceFolderPath, rootFolderPath)
+        MoveFilesBottomSheet.newInstance(
+            filePaths,
+            sourceFolderPath,
+            rootFolderPath,
+            trashDirectory.absolutePath
+        )
             .show(supportFragmentManager, MoveFilesBottomSheet.TAG)
     }
 

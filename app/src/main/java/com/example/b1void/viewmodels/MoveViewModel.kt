@@ -29,6 +29,7 @@ class MoveViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel(
     private val filesToMovePaths: List<String> = savedStateHandle.get<ArrayList<String>>("arg_file_ids") ?: emptyList()
     private val sourceFolderPath: String = savedStateHandle.get<String>("arg_source_folder_path") ?: ""
     private val rootFolderPath: String = savedStateHandle.get<String>("arg_root_folder_path") ?: ""
+    private val trashFolderPath: String = savedStateHandle.get<String>("arg_trash_folder_path") ?: ""
 
     init {
         fetchFolderTree()
@@ -55,7 +56,7 @@ class MoveViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel(
     }
 
     fun selectFolder(folderNode: FolderNode) {
-        if (folderNode.file.absolutePath == sourceFolderPath) return
+        if (folderNode.file.absolutePath == sourceFolderPath || shouldSkipNode(folderNode)) return
 
         selectedNode?.isSelected = false
         folderNode.isSelected = true
@@ -96,6 +97,7 @@ class MoveViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel(
     }
 
     private fun addNodeToList(node: FolderNode, list: MutableList<FolderNode>) {
+        if (shouldSkipNode(node)) return
         list.add(node)
         if (node.isExpanded) {
             node.children.forEach { child ->
@@ -107,6 +109,7 @@ class MoveViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel(
     private fun filterTree(nodes: List<FolderNode>, query: String): List<FolderNode> {
         val filtered = mutableListOf<FolderNode>()
         for (node in nodes) {
+            if (shouldSkipNode(node)) continue
             val childrenMatch = filterTree(node.children, query)
             if (node.file.name.contains(query, ignoreCase = true) || childrenMatch.isNotEmpty()) {
                 // Создаем копию, чтобы не изменять кэш
@@ -120,5 +123,10 @@ class MoveViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel(
     private fun generateBreadcrumbs(node: FolderNode): String {
         val rootPath = File(rootFolderPath).parentFile?.absolutePath ?: ""
         return node.file.absolutePath.removePrefix(rootPath).removePrefix("/")
+    }
+
+    private fun shouldSkipNode(node: FolderNode): Boolean {
+        if (trashFolderPath.isBlank()) return false
+        return node.file.absolutePath == trashFolderPath
     }
 }
