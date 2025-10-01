@@ -23,6 +23,9 @@ class FolderRepository {
     private fun scanDirectory(parentNode: FolderNode) {
         val directories = parentNode.file.listFiles { file -> file.isDirectory }?.sortedBy { it.name }
         directories?.forEach { dir ->
+            if (dir.name.equals("Trash", ignoreCase = true)) {
+                return@forEach
+            }
             val childNode = FolderNode(file = dir, level = parentNode.level + 1)
             parentNode.children.add(childNode)
             scanDirectory(childNode) // Рекурсивный вызов
