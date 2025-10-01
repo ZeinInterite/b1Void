@@ -890,7 +890,13 @@ class FileManagerActivity : AppCompatActivity() {
             val sharedZipsDir = File(cacheDir, "shared_zips").apply { mkdirs() }
             sharedZipsDir.listFiles()?.forEach { it.delete() }
 
-            val zipFile = File(sharedZipsDir, "archive-${System.currentTimeMillis()}.zip")
+            val zipFileName = if (filesToShare.size == 1 && filesToShare.first().isDirectory) {
+                val folderName = filesToShare.first().name.removeSuffix(".zip")
+                "$folderName.zip"
+            } else {
+                "archive-${System.currentTimeMillis()}.zip"
+            }
+            val zipFile = File(sharedZipsDir, zipFileName)
 
             try {
                 val tempDir = File(cacheDir, "temp_share").apply { mkdirs() }
