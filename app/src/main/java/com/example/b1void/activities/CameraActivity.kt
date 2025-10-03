@@ -1510,15 +1510,15 @@ class CameraActivity : AppCompatActivity() {
         val textSize = originalBitmap.width / 35f
         val padding = originalBitmap.width / 45f
         val paint = Paint().apply {
-            color = Color.RED
+            color = Color.WHITE
             this.textSize = textSize
             isAntiAlias = true
         }
         val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         val timestamp = sdf.format(Date())
 
-        paint.textAlign = Paint.Align.RIGHT
-        val x = newBitmap.width - padding
+        paint.textAlign = Paint.Align.LEFT
+        val x = padding
         val fontMetrics = paint.fontMetrics
         val timestampY = newBitmap.height - padding - fontMetrics.bottom
         val companyY = timestampY - paint.textSize - padding * 0.3f

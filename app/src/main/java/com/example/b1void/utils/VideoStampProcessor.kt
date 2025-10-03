@@ -31,8 +31,8 @@ class VideoStampProcessor(private val context: Context) {
             val overlayBitmap = createStampBitmap(width, height, companyLabel, timestampText)
 
             val overlaySettings = OverlaySettings.Builder()
-                .setOverlayFrameAnchor(1f, 1f)
-                .setBackgroundFrameAnchor(1f, 1f)
+                .setOverlayFrameAnchor(-1f, 1f)
+                .setBackgroundFrameAnchor(-1f, 1f)
                 .build()
 
             val overlay = BitmapOverlay.createStaticBitmapOverlay(overlayBitmap, overlaySettings)
@@ -87,8 +87,8 @@ class VideoStampProcessor(private val context: Context) {
         canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.RED
-            textAlign = Paint.Align.RIGHT
+            color = Color.WHITE
+            textAlign = Paint.Align.LEFT
             textSize = videoWidth / 35f
         }
 
@@ -97,7 +97,7 @@ class VideoStampProcessor(private val context: Context) {
         val timestampY = videoHeight - padding - fontMetrics.bottom
         val companyY = timestampY - paint.textSize - padding * 0.3f
 
-        val x = videoWidth - padding
+        val x = padding
 
         canvas.drawText(company, x, companyY, paint)
         canvas.drawText(timestamp, x, timestampY, paint)
