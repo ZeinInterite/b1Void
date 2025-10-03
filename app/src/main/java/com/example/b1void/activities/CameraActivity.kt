@@ -333,7 +333,7 @@ class CameraActivity : AppCompatActivity() {
         topControlsSpacer = findViewById(R.id.topControlsSpacer)
         previewView = findViewById(R.id.previewView)
         previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
+        previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
         captureButton = findViewById(R.id.shutterButton)
         modeSwitchButton = findViewById(R.id.mode_switch_button)
         flipCameraButton = findViewById(R.id.switchCameraButton)
