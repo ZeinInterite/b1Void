@@ -222,7 +222,10 @@ object FileManagerUtils {
 
     fun zipDirectory(directory: File, zipFile: File) {
         ZipOutputStream(FileOutputStream(zipFile)).use { zipOut ->
-            addFileToZip(directory, directory.name, zipOut)
+            val children = directory.listFiles()
+            children?.forEach { childFile ->
+                addFileToZip(childFile, childFile.name, zipOut)
+            }
         }
     }
 
