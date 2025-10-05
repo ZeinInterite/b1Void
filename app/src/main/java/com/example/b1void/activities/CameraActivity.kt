@@ -68,16 +68,12 @@ import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
 import androidx.camera.view.PreviewView
-import androidx.cardview.widget.CardView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.b1void.R
-import com.example.b1void.adapters.ResolutionAdapter
 import com.example.b1void.data.CameraSettingsManager
 import com.example.b1void.ui.CameraSettingsDialogFragment
 import androidx.transition.AutoTransition
@@ -115,10 +111,6 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var thumbnailPreview: ImageView
     private lateinit var settingsButton: ImageButton
     private lateinit var torchButton: ImageButton
-    private lateinit var resolutionSelectorButton: ImageButton
-    private lateinit var resolutionListContainer: CardView
-    private lateinit var resolutionRecyclerView: RecyclerView
-    private lateinit var closeResolutionListButton: ImageButton
     private lateinit var zoomSlider: SeekBar
     private lateinit var focusIndicator: View
     private lateinit var captureAnimationView: ImageView
@@ -173,6 +165,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var settingsManager: CameraSettingsManager
     private var flashMode = ImageCapture.FLASH_MODE_OFF
     private var selectedResolution: Size? = DEFAULT_PHOTO_RESOLUTION
+    private var supportedResolutions: List<Size> = emptyList()
 
     // State variables
     private var currentMode = CaptureMode.PHOTO
@@ -262,18 +255,13 @@ class CameraActivity : AppCompatActivity() {
         }
 
         settingsButton.setOnClickListener {
-            CameraSettingsDialogFragment().show(supportFragmentManager, "CameraSettingsDialog")
-        }
-        resolutionSelectorButton.setOnClickListener {
-            val shouldShow = resolutionListContainer.visibility != View.VISIBLE
-        resolutionListContainer.visibility = if (shouldShow) View.VISIBLE else View.GONE
-            if (shouldShow) {
-        resolutionListContainer.bringToFront()
+            val settingsDialog = CameraSettingsDialogFragment()
+            settingsDialog.setSupportedResolutions(supportedResolutions) { newResolution ->
+                selectedResolution = newResolution
+                // Restart camera with new resolution
+                startCamera()
             }
-        }
-
-        closeResolutionListButton.setOnClickListener {
-        resolutionListContainer.visibility = View.GONE
+            settingsDialog.show(supportFragmentManager, "CameraSettingsDialog")
         }
 
         torchButton.setOnClickListener {
@@ -343,10 +331,6 @@ class CameraActivity : AppCompatActivity() {
         thumbnailPreview.adjustViewBounds = true
         settingsButton = findViewById(R.id.settingsButton)
         torchButton = findViewById(R.id.torchButton)
-        resolutionSelectorButton = findViewById(R.id.resolutionSelectorButton)
-        resolutionListContainer = findViewById(R.id.resolutionListContainer)
-        resolutionRecyclerView = findViewById(R.id.resolutionRecyclerView)
-        closeResolutionListButton = findViewById(R.id.closeResolutionListButton)
         zoomSlider = findViewById(R.id.zoomSlider)
         focusIndicator = findViewById(R.id.focusIndicator)
         captureAnimationView = findViewById(R.id.captureAnimationView)
@@ -435,10 +419,14 @@ class CameraActivity : AppCompatActivity() {
                 activeCameraId = resolvedCameraId
                 refreshCameraCharacteristics(resolvedCameraId)
                 updateSelectableCaptureResolutions()
+                // Update supported resolutions with real camera data
+                supportedResolutions = com.example.b1void.utils.CameraOptimizer.getSupportedResolutions(this, resolvedCameraId)
             } else {
                 availableCaptureResolutions = emptyList()
                 availablePreviewResolutions = emptyList()
                 selectableCaptureResolutions = emptyList()
+                // Use fallback resolutions if no camera ID
+                supportedResolutions = com.example.b1void.utils.CameraOptimizer.getSupportedResolutions(this)
             }
 
             val captureResolution = selectedResolution?.let {
@@ -523,7 +511,6 @@ class CameraActivity : AppCompatActivity() {
                 applyCamera2Defaults()
                 setupCameraStateObserver()
                 setupTorchObserver()
-                setupResolutionList()
                 setupZoomObserver()
                 val resolutionConfirmed = verifyBoundCaptureResolution(captureResolution)
                 if (!resolutionConfirmed) {
@@ -742,41 +729,6 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
-    @SuppressLint("UnsafeOptInUsageError")
-    private fun setupResolutionList() {
-        if (camera == null) return
-
-        val supportedResolutions = selectableCaptureResolutions.takeIf { it.isNotEmpty() }
-            ?: availableCaptureResolutions
-
-        if (supportedResolutions.isEmpty()) {
-            resolutionSelectorButton.visibility = View.GONE
-            resolutionListContainer.visibility = View.GONE
-            return
-        }
-
-        if (supportedResolutions.size <= 1) {
-            resolutionSelectorButton.visibility = View.GONE
-            resolutionListContainer.visibility = View.GONE
-        } else {
-            resolutionSelectorButton.visibility = View.VISIBLE
-        }
-
-        if (resolutionRecyclerView.layoutManager == null) {
-            resolutionRecyclerView.layoutManager = LinearLayoutManager(this)
-        }
-
-        resolutionRecyclerView.adapter = ResolutionAdapter(supportedResolutions, selectedResolution) { size ->
-            if (selectedResolution != size) {
-                selectedResolution = size
-                lifecycleScope.launch {
-                    settingsManager.setResolution("${size.width}x${size.height}")
-                }
-                startCamera()
-            }
-            resolutionListContainer.visibility = View.GONE
-        }
-    }
 
     private fun setupTorchObserver() {
         camera?.cameraInfo?.torchState?.observe(this) { state ->
@@ -1095,28 +1047,6 @@ class CameraActivity : AppCompatActivity() {
         )
         rootSet.connect(R.id.topControls, ConstraintSet.TOP, R.id.thumbnailPreview, ConstraintSet.BOTTOM, verticalSpacing)
 
-        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.START)
-        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.END)
-        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.BOTTOM)
-        rootSet.connect(
-            R.id.resolutionSelectorButton,
-            ConstraintSet.START,
-            ConstraintSet.PARENT_ID,
-            ConstraintSet.START,
-            edgeMargin
-        )
-        rootSet.connect(R.id.resolutionSelectorButton, ConstraintSet.TOP, R.id.topControls, ConstraintSet.BOTTOM, verticalSpacing)
-
-        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.START)
-        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.END)
-        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.BOTTOM)
-        rootSet.connect(
-            R.id.resolutionListContainer,
-            ConstraintSet.START,
-            R.id.resolutionSelectorButton,
-            ConstraintSet.START
-        )
-        rootSet.connect(R.id.resolutionListContainer, ConstraintSet.TOP, R.id.resolutionSelectorButton, ConstraintSet.BOTTOM, dpToPx(8))
 
         rootSet.constrainWidth(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
         rootSet.constrainHeight(R.id.zoomSlider, dpToPx(200))
@@ -1130,7 +1060,7 @@ class CameraActivity : AppCompatActivity() {
             ConstraintSet.START,
             edgeMargin
         )
-        rootSet.connect(R.id.zoomSlider, ConstraintSet.TOP, R.id.resolutionListContainer, ConstraintSet.BOTTOM, verticalSpacing)
+        rootSet.connect(R.id.zoomSlider, ConstraintSet.TOP, R.id.topControls, ConstraintSet.BOTTOM, verticalSpacing)
 
         rootSet.constrainWidth(R.id.bottomControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
         rootSet.constrainHeight(R.id.bottomControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
@@ -1242,15 +1172,6 @@ class CameraActivity : AppCompatActivity() {
         rootSet.clear(R.id.zoomSlider, ConstraintSet.TOP)
         rootSet.clear(R.id.zoomSlider, ConstraintSet.BOTTOM)
 
-        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.START)
-        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.END)
-        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.TOP)
-        rootSet.clear(R.id.resolutionSelectorButton, ConstraintSet.BOTTOM)
-
-        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.START)
-        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.END)
-        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.TOP)
-        rootSet.clear(R.id.resolutionListContainer, ConstraintSet.BOTTOM)
 
         rootSet.clear(R.id.recording_timer, ConstraintSet.START)
         rootSet.clear(R.id.recording_timer, ConstraintSet.END)
@@ -1281,11 +1202,6 @@ class CameraActivity : AppCompatActivity() {
             rootSet.connect(R.id.zoomSlider, ConstraintSet.TOP, R.id.bottomControls, ConstraintSet.BOTTOM, dpToPx(12))
             rootSet.connect(R.id.zoomSlider, ConstraintSet.BOTTOM, R.id.topControls, ConstraintSet.TOP, dpToPx(12))
 
-            rootSet.connect(R.id.resolutionSelectorButton, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, startMargin)
-            rootSet.connect(R.id.resolutionSelectorButton, ConstraintSet.TOP, R.id.bottomControls, ConstraintSet.BOTTOM, dpToPx(20))
-
-            rootSet.connect(R.id.resolutionListContainer, ConstraintSet.END, R.id.resolutionSelectorButton, ConstraintSet.END)
-            rootSet.connect(R.id.resolutionListContainer, ConstraintSet.TOP, R.id.resolutionSelectorButton, ConstraintSet.BOTTOM, dpToPx(8))
 
             rootSet.connect(R.id.recording_timer, ConstraintSet.BOTTOM, R.id.topControls, ConstraintSet.TOP, dpToPx(8))
             rootSet.connect(R.id.recording_timer, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
@@ -1313,11 +1229,6 @@ class CameraActivity : AppCompatActivity() {
             rootSet.connect(R.id.zoomSlider, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, startMargin)
             rootSet.connect(R.id.zoomSlider, ConstraintSet.BOTTOM, R.id.bottomControls, ConstraintSet.TOP, dpToPx(12))
 
-            rootSet.connect(R.id.resolutionSelectorButton, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, startMargin)
-            rootSet.connect(R.id.resolutionSelectorButton, ConstraintSet.BOTTOM, R.id.bottomControls, ConstraintSet.TOP, dpToPx(20))
-
-            rootSet.connect(R.id.resolutionListContainer, ConstraintSet.END, R.id.resolutionSelectorButton, ConstraintSet.END)
-            rootSet.connect(R.id.resolutionListContainer, ConstraintSet.BOTTOM, R.id.resolutionSelectorButton, ConstraintSet.TOP, dpToPx(8))
 
             rootSet.connect(R.id.recording_timer, ConstraintSet.TOP, R.id.topControls, ConstraintSet.BOTTOM, dpToPx(8))
             rootSet.connect(R.id.recording_timer, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)

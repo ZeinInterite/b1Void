@@ -1,6 +1,7 @@
 package com.example.b1void.utils
 
 import android.content.Context
+import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.util.Log
@@ -23,6 +24,66 @@ object CameraOptimizer {
             Size(1280, 720) // 720p для слабых устройств
         } else {
             Size(1920, 1080) // 1080p для обычных устройств
+        }
+    }
+
+    /**
+     * Получает список поддерживаемых разрешений камеры
+     */
+    fun getSupportedResolutions(context: Context, cameraId: String? = null): List<Size> {
+        return try {
+            val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val actualCameraId = cameraId ?: cameraManager.cameraIdList.firstOrNull { id ->
+                val characteristics = cameraManager.getCameraCharacteristics(id)
+                characteristics.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK
+            } ?: cameraManager.cameraIdList.firstOrNull()
+
+            if (actualCameraId != null) {
+                val characteristics = cameraManager.getCameraCharacteristics(actualCameraId)
+                val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                
+                if (map != null) {
+                    val jpegSizes = map.getOutputSizes(ImageFormat.JPEG)?.toList() ?: emptyList()
+                    
+                    // Фильтруем и сортируем разрешения
+                    val filteredSizes = jpegSizes
+                        .filter { it.width >= 640 && it.height >= 480 } // Минимальное разрешение
+                        .filter { it.width <= 4096 && it.height <= 4096 } // Максимальное разрешение
+                        .sortedByDescending { it.width * it.height } // Сортируем по площади (от большего к меньшему)
+                    
+                    if (filteredSizes.isNotEmpty()) {
+                        return filteredSizes
+                    }
+                }
+            }
+            
+            // Fallback к предустановленным разрешениям если не удалось получить от камеры
+            getFallbackResolutions(context)
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка получения разрешений камеры", e)
+            getFallbackResolutions(context)
+        }
+    }
+
+    /**
+     * Получает резервные разрешения для слабых устройств
+     */
+    private fun getFallbackResolutions(context: Context): List<Size> {
+        val isLowEnd = MemoryManager.isLowEndDevice(context)
+        
+        return if (isLowEnd) {
+            listOf(
+                Size(1920, 1080), // 1080p
+                Size(1280, 720),  // 720p
+                Size(640, 480)    // 480p
+            )
+        } else {
+            listOf(
+                Size(3840, 2160), // 4K
+                Size(2560, 1440), // 1440p
+                Size(1920, 1080), // 1080p
+                Size(1280, 720)   // 720p
+            )
         }
     }
 
