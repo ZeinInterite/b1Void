@@ -5,7 +5,8 @@
       "Bash(findstr:*)",
       "Bash(grep:*)",
       "Bash(./gradlew.bat:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(.gradlew.bat assembleDebug)"
     ],
     "deny": []
   }

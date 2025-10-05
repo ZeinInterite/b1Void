@@ -25,6 +25,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import android.util.Size
@@ -166,6 +167,9 @@ class CameraActivity : AppCompatActivity() {
     private var flashMode = ImageCapture.FLASH_MODE_OFF
     private var selectedResolution: Size? = DEFAULT_PHOTO_RESOLUTION
     private var supportedResolutions: List<Size> = emptyList()
+    
+    // Wake lock for screen management
+    private var wakeLock: PowerManager.WakeLock? = null
 
     // State variables
     private var currentMode = CaptureMode.PHOTO
@@ -208,6 +212,9 @@ class CameraActivity : AppCompatActivity() {
         scaleGestureDetector = ScaleGestureDetector(this, ScaleGestureListener())
         currentTargetRotation = getDisplayRotation()
         setupOrientationListener()
+        
+        // Initialize wake lock
+        setupWakeLock()
     }
 
     private inner class ScaleGestureListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -901,6 +908,34 @@ class CameraActivity : AppCompatActivity() {
                     }
                     .start()
             }
+        }
+    }
+
+    private fun setupWakeLock() {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.SCREEN_BRIGHT_WAKE_LOCK,
+            "CameraApp::KeepScreenOn"
+        )
+    }
+
+    private fun acquireWakeLock() {
+        try {
+            if (wakeLock?.isHeld != true) {
+                wakeLock?.acquire(10*60*1000L /*10 minutes*/)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to acquire wake lock", e)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to release wake lock", e)
         }
     }
 
@@ -1662,6 +1697,7 @@ class CameraActivity : AppCompatActivity() {
         recording = null
         orientationEventListener?.disable()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        releaseWakeLock()
         clearControlsAutoHide()
     }
 
@@ -1669,6 +1705,7 @@ class CameraActivity : AppCompatActivity() {
         super.onResume()
         orientationEventListener?.enable()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        acquireWakeLock()
         updateLayoutForRotation(getDisplayRotation(), animate = false)
         loadLatestPhotoThumbnail()
     }
@@ -1681,6 +1718,7 @@ class CameraActivity : AppCompatActivity() {
         orientationEventListener = null
         focusIndicator.removeCallbacks(hideFocusIndicatorRunnable)
         captureAnimationView.animate().cancel()
+        releaseWakeLock()
         cameraExecutor.shutdown()
     }
 

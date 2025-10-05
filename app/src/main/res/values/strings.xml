@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Инспектор</string>
+    <string name="app_name">DOCUMENT LLC</string>
     <string name="login">Вход</string>
     <string name="passWorker">Код сотрудника</string>
     <string name="passAdm">Задайте пароль</string>
