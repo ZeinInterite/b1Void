@@ -76,6 +76,16 @@
             android:contentDescription="Switch camera"
             android:src="@android:drawable/ic_menu_revert"
             app:tint="@color/white" />
+
+        <ImageButton
+            android:id="@+id/autofocusButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="16dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Autofocus"
+            android:src="@android:drawable/ic_menu_view"
+            app:tint="@color/white" />
     </LinearLayout>
 
 
@@ -110,6 +120,22 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toTopOf="@id/bottomControls"
+        tools:visibility="visible" />
+
+    <SeekBar
+        android:id="@+id/zoomSliderVertical"
+        android:layout_width="160dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="120dp"
+        android:max="100"
+        android:progress="0"
+        android:rotation="-90"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
         tools:visibility="visible" />
 
     <View
@@ -148,12 +174,12 @@
 
         <ImageButton
             android:id="@+id/shutterButton"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
+            android:layout_width="84dp"
+            android:layout_height="84dp"
             android:background="@drawable/bg_capture_button_photo"
             android:src="@drawable/camera"
             android:scaleType="centerInside"
-            android:padding="16dp"
+            android:padding="18dp"
             android:contentDescription="Capture"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"

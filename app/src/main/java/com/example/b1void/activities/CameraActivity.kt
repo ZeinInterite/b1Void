@@ -112,7 +112,9 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var thumbnailPreview: ImageView
     private lateinit var settingsButton: ImageButton
     private lateinit var torchButton: ImageButton
+    private lateinit var autofocusButton: ImageButton
     private lateinit var zoomSlider: SeekBar
+    private lateinit var zoomSliderVertical: SeekBar
     private lateinit var focusIndicator: View
     private lateinit var captureAnimationView: ImageView
     private lateinit var rootLayout: ConstraintLayout
@@ -280,6 +282,10 @@ class CameraActivity : AppCompatActivity() {
             }
         }
 
+        autofocusButton.setOnClickListener {
+            triggerManualAutofocus()
+        }
+
         previewView.setOnTouchListener { view, event ->
             scaleGestureDetector.onTouchEvent(event)
             when (event.actionMasked) {
@@ -309,6 +315,8 @@ class CameraActivity : AppCompatActivity() {
                 val fraction = progress.toFloat() / zoomSlider.max
                 val newZoomRatio = minZoomRatio + fraction * zoomRange
                 cam.cameraControl.setZoomRatio(newZoomRatio)
+                // Sync vertical slider
+                zoomSliderVertical.progress = progress
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {
@@ -317,6 +325,40 @@ class CameraActivity : AppCompatActivity() {
 
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
                 // no-op
+            }
+        })
+
+        zoomSliderVertical.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (!fromUser) return
+                Log.d(TAG, "Vertical zoom slider changed: progress=$progress, fromUser=$fromUser")
+                val cam = camera ?: run {
+                    Log.e(TAG, "Camera is null in vertical slider listener")
+                    return
+                }
+                if (zoomSliderVertical.max == 0) {
+                    Log.e(TAG, "Vertical slider max is 0")
+                    return
+                }
+                val zoomRange = maxZoomRatio - minZoomRatio
+                if (zoomRange <= 0f) {
+                    Log.e(TAG, "Invalid zoom range: $zoomRange (min=$minZoomRatio, max=$maxZoomRatio)")
+                    return
+                }
+                val fraction = progress.toFloat() / zoomSliderVertical.max
+                val newZoomRatio = minZoomRatio + fraction * zoomRange
+                Log.d(TAG, "Setting zoom ratio to: $newZoomRatio (fraction=$fraction)")
+                cam.cameraControl.setZoomRatio(newZoomRatio)
+                // Sync horizontal slider
+                zoomSlider.progress = progress
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                Log.d(TAG, "Vertical zoom slider touch started")
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                Log.d(TAG, "Vertical zoom slider touch stopped")
             }
         })
     }
@@ -338,10 +380,21 @@ class CameraActivity : AppCompatActivity() {
         thumbnailPreview.adjustViewBounds = true
         settingsButton = findViewById(R.id.settingsButton)
         torchButton = findViewById(R.id.torchButton)
+        autofocusButton = findViewById(R.id.autofocusButton)
         zoomSlider = findViewById(R.id.zoomSlider)
+        zoomSliderVertical = findViewById(R.id.zoomSliderVertical)
         focusIndicator = findViewById(R.id.focusIndicator)
         captureAnimationView = findViewById(R.id.captureAnimationView)
         zoomSlider.isEnabled = false
+        zoomSliderVertical.isEnabled = false
+        
+        // Set initial properties for vertical slider
+        zoomSliderVertical.max = 100
+        zoomSliderVertical.progress = 0
+        zoomSliderVertical.isClickable = true
+        zoomSliderVertical.isFocusable = true
+        
+        Log.d(TAG, "Initialized zoom sliders - vertical: enabled=${zoomSliderVertical.isEnabled}, clickable=${zoomSliderVertical.isClickable}")
 
         updateLayoutForRotation(getDisplayRotation(), animate = false)
     }
@@ -592,6 +645,24 @@ class CameraActivity : AppCompatActivity() {
             .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
             .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
             .setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0)
+            
+        // Enhanced autofocus settings
+        try {
+            // Add face detection for better autofocus
+            optionsBuilder.setCaptureRequestOption(CaptureRequest.STATISTICS_FACE_DETECT_MODE, CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE)
+            
+            // Enable lens stabilization if available
+            optionsBuilder.setCaptureRequestOption(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON)
+            
+            // Set autofocus trigger for better responsiveness
+            optionsBuilder.setCaptureRequestOption(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE)
+            
+            // Enable scene detection for better autofocus
+            optionsBuilder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
+            
+        } catch (e: Exception) {
+            Log.d(TAG, "Some enhanced autofocus features not supported: ${e.message}")
+        }
 
         camera2Control.setCaptureRequestOptions(optionsBuilder.build())
     }
@@ -736,6 +807,28 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
+    private fun triggerManualAutofocus() {
+        // Provide haptic feedback
+        previewView.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+        
+        // Visual feedback for autofocus button
+        autofocusButton.animate()
+            .scaleX(1.2f)
+            .scaleY(1.2f)
+            .setDuration(100)
+            .withEndAction {
+                autofocusButton.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(100)
+                    .start()
+            }
+            .start()
+            
+        // Use enhanced autofocus method
+        enhancedAutofocus()
+    }
+
 
     private fun setupTorchObserver() {
         camera?.cameraInfo?.torchState?.observe(this) { state ->
@@ -751,6 +844,8 @@ class CameraActivity : AppCompatActivity() {
         val cam = camera ?: run {
             zoomSlider.visibility = View.GONE
             zoomSlider.isEnabled = false
+            zoomSliderVertical.visibility = View.GONE
+            zoomSliderVertical.isEnabled = false
             return
         }
         val zoomStateLiveData = cam.cameraInfo.zoomState
@@ -760,23 +855,164 @@ class CameraActivity : AppCompatActivity() {
             maxZoomRatio = state.maxZoomRatio
             val zoomRange = maxZoomRatio - minZoomRatio
             val shouldShowZoom = zoomRange > 0.01f
-            zoomSlider.visibility = if (shouldShowZoom) View.VISIBLE else View.GONE
-            zoomSlider.isEnabled = shouldShowZoom
+            val isLandscape = currentUiOrientation == UiOrientation.LANDSCAPE_RIGHT
+            
+            if (shouldShowZoom) {
+                if (isLandscape) {
+                    // Show vertical slider in landscape, hide horizontal
+                    zoomSlider.visibility = View.GONE
+                    zoomSliderVertical.visibility = View.VISIBLE
+                    zoomSliderVertical.isEnabled = true
+                    zoomSlider.isEnabled = false
+                } else {
+                    // Show horizontal slider in portrait, hide vertical
+                    zoomSlider.visibility = View.VISIBLE
+                    zoomSliderVertical.visibility = View.GONE
+                    zoomSlider.isEnabled = true
+                    zoomSliderVertical.isEnabled = false
+                }
+            } else {
+                // Hide both sliders
+                zoomSlider.visibility = View.GONE
+                zoomSliderVertical.visibility = View.GONE
+                zoomSlider.isEnabled = false
+                zoomSliderVertical.isEnabled = false
+            }
+            
+            Log.d(TAG, "Zoom observer - shouldShow: $shouldShowZoom, landscape: $isLandscape, orientation: $currentUiOrientation, horizontal: ${zoomSlider.visibility}, vertical: ${zoomSliderVertical.visibility}")
             if (!shouldShowZoom) {
                 zoomSlider.progress = 0
+                zoomSliderVertical.progress = 0
                 return@observe
             }
 
             val fraction = if (zoomRange <= 0f) 0f else (state.zoomRatio - minZoomRatio) / zoomRange
             val newProgress = (fraction.coerceIn(0f, 1f) * zoomSlider.max).roundToInt()
+            
+            // Update both sliders but avoid infinite recursion
             if (zoomSlider.progress != newProgress) {
                 zoomSlider.progress = newProgress
+            }
+            if (zoomSliderVertical.progress != newProgress) {
+                zoomSliderVertical.progress = newProgress
+            }
+        }
+    }
+
+    private fun updateZoomSlidersVisibility() {
+        val isLandscape = currentUiOrientation == UiOrientation.LANDSCAPE_RIGHT
+        val cam = camera
+        
+        if (cam != null) {
+            val zoomState = cam.cameraInfo.zoomState.value
+            val shouldShowZoom = zoomState != null && (zoomState.maxZoomRatio - zoomState.minZoomRatio) > 0.01f
+            
+            Log.d(TAG, "Force update zoom sliders - landscape: $isLandscape, shouldShow: $shouldShowZoom, orientation: $currentUiOrientation")
+            
+            if (shouldShowZoom) {
+                if (isLandscape) {
+                    // Show vertical slider in landscape, hide horizontal
+                    zoomSlider.visibility = View.GONE
+                    zoomSliderVertical.visibility = View.VISIBLE
+                    zoomSliderVertical.isEnabled = true
+                    zoomSlider.isEnabled = false
+                    zoomSliderVertical.alpha = 1f
+                    zoomSliderVertical.isClickable = true
+                    zoomSliderVertical.isFocusable = true
+                    
+                    // Update the vertical slider with current zoom state
+                    val zoomState = cam.cameraInfo.zoomState.value
+                    if (zoomState != null) {
+                        val currentZoomRatio = zoomState.zoomRatio
+                        val zoomRange = zoomState.maxZoomRatio - zoomState.minZoomRatio
+                        val fraction = if (zoomRange <= 0f) 0f else (currentZoomRatio - zoomState.minZoomRatio) / zoomRange
+                        val progress = (fraction.coerceIn(0f, 1f) * zoomSliderVertical.max).roundToInt()
+                        zoomSliderVertical.progress = progress
+                        Log.d(TAG, "Updated vertical slider: progress=$progress, currentZoom=$currentZoomRatio, range=$zoomRange")
+                    }
+                    
+                    Log.d(TAG, "Showing vertical zoom slider in landscape - enabled=${zoomSliderVertical.isEnabled}, clickable=${zoomSliderVertical.isClickable}")
+                } else {
+                    // Show horizontal slider in portrait, hide vertical
+                    zoomSlider.visibility = View.VISIBLE
+                    zoomSliderVertical.visibility = View.GONE
+                    zoomSlider.isEnabled = true
+                    zoomSliderVertical.isEnabled = false
+                    zoomSlider.alpha = 1f
+                    Log.d(TAG, "Showing horizontal zoom slider in portrait")
+                }
+            } else {
+                // Hide both sliders
+                zoomSlider.visibility = View.GONE
+                zoomSliderVertical.visibility = View.GONE
+                zoomSlider.isEnabled = false
+                zoomSliderVertical.isEnabled = false
+                Log.d(TAG, "Hiding both zoom sliders - no zoom support")
             }
         }
     }
 
     private fun focusAtPoint(x: Float, y: Float) {
         startFocusMeteringAt(x, y, showIndicator = true)
+    }
+
+    private fun enhancedAutofocus() {
+        val cam = camera ?: return
+        
+        // Cancel any ongoing focus operation
+        cam.cameraControl.cancelFocusAndMetering()
+        
+        // Use enhanced focus metering with multiple areas
+        previewView.post {
+            val width = previewView.width
+            val height = previewView.height
+            if (width <= 0 || height <= 0) return@post
+            
+            val factory = previewView.meteringPointFactory
+            val centerPoint = factory.createPoint(width / 2f, height / 2f)
+            
+            // Create multiple focus points for better coverage
+            val action = FocusMeteringAction.Builder(centerPoint, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
+                .setAutoCancelDuration(5, TimeUnit.SECONDS) // Longer duration for manual focus
+                .build()
+            
+            showFocusIndicator(width / 2f, height / 2f)
+            
+            if (!cam.cameraInfo.isFocusMeteringSupported(action)) {
+                focusIndicator.postDelayed(hideFocusIndicatorRunnable, 800)
+                return@post
+            }
+            
+            val future = cam.cameraControl.startFocusAndMetering(action)
+            future.addListener({
+                try {
+                    val result = future.get()
+                    runOnUiThread {
+                        // Update autofocus button color based on focus success
+                        if (result.isFocusSuccessful) {
+                            autofocusButton.setColorFilter(ContextCompat.getColor(this@CameraActivity, android.R.color.holo_green_light))
+                            focusIndicator.postDelayed(hideFocusIndicatorRunnable, 1000)
+                        } else {
+                            autofocusButton.setColorFilter(ContextCompat.getColor(this@CameraActivity, android.R.color.holo_red_light))
+                            focusIndicator.postDelayed(hideFocusIndicatorRunnable, 500)
+                        }
+                        
+                        // Clear button color after delay
+                        autofocusButton.postDelayed({
+                            autofocusButton.clearColorFilter()
+                        }, 1500)
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        autofocusButton.setColorFilter(ContextCompat.getColor(this@CameraActivity, android.R.color.holo_orange_light))
+                        focusIndicator.post(hideFocusIndicatorRunnable)
+                        autofocusButton.postDelayed({
+                            autofocusButton.clearColorFilter()
+                        }, 1000)
+                    }
+                }
+            }, ContextCompat.getMainExecutor(this))
+        }
     }
 
     private fun startFocusMeteringAt(x: Float, y: Float, showIndicator: Boolean) {
@@ -839,18 +1075,38 @@ class CameraActivity : AppCompatActivity() {
         focusIndicator.apply {
             removeCallbacks(hideFocusIndicatorRunnable)
             visibility = View.VISIBLE
-            alpha = 1f
-            scaleX = 1f
-            scaleY = 1f
+            alpha = 0.8f
+            scaleX = 1.5f
+            scaleY = 1.5f
             translationX = clampedX
             translationY = clampedY
             animate().cancel()
+            
+            // Enhanced focus animation with scale and fade
             animate()
-                .scaleX(0.85f)
-                .scaleY(0.85f)
-                .setDuration(120)
+                .alpha(1f)
+                .scaleX(0.8f)
+                .scaleY(0.8f)
+                .setDuration(150)
                 .withEndAction {
-                    animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+                    animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(150)
+                        .withEndAction {
+                            // Pulse animation to show focusing is active
+                            animate()
+                                .alpha(0.6f)
+                                .setDuration(300)
+                                .withEndAction {
+                                    animate()
+                                        .alpha(1f)
+                                        .setDuration(300)
+                                        .start()
+                                }
+                                .start()
+                        }
+                        .start()
                 }
                 .start()
         }
@@ -1083,19 +1339,13 @@ class CameraActivity : AppCompatActivity() {
         rootSet.connect(R.id.topControls, ConstraintSet.TOP, R.id.thumbnailPreview, ConstraintSet.BOTTOM, verticalSpacing)
 
 
+        // Hide horizontal zoom slider in landscape mode - vertical slider is used instead
         rootSet.constrainWidth(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
-        rootSet.constrainHeight(R.id.zoomSlider, dpToPx(200))
+        rootSet.constrainHeight(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
         rootSet.clear(R.id.zoomSlider, ConstraintSet.START)
         rootSet.clear(R.id.zoomSlider, ConstraintSet.END)
+        rootSet.clear(R.id.zoomSlider, ConstraintSet.TOP)
         rootSet.clear(R.id.zoomSlider, ConstraintSet.BOTTOM)
-        rootSet.connect(
-            R.id.zoomSlider,
-            ConstraintSet.START,
-            ConstraintSet.PARENT_ID,
-            ConstraintSet.START,
-            edgeMargin
-        )
-        rootSet.connect(R.id.zoomSlider, ConstraintSet.TOP, R.id.topControls, ConstraintSet.BOTTOM, verticalSpacing)
 
         rootSet.constrainWidth(R.id.bottomControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
         rootSet.constrainHeight(R.id.bottomControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
@@ -1125,7 +1375,7 @@ class CameraActivity : AppCompatActivity() {
 
         rootSet.applyTo(rootLayout)
 
-        zoomSlider.rotation = if (flipped) 90f else -90f
+        // Note: Vertical zoom slider is used in landscape mode, horizontal is hidden
 
         val bottomSet = ConstraintSet().apply { clone(bottomControlsContainer) }
         bottomSet.clear(R.id.shutterButton, ConstraintSet.BOTTOM)
@@ -1147,12 +1397,21 @@ class CameraActivity : AppCompatActivity() {
         if (animate) {
             topControlsContainer.animate().alpha(1f).setDuration(180).start()
             bottomControlsContainer.animate().alpha(1f).setDuration(180).start()
+            if (zoomSliderVertical.visibility == View.VISIBLE) {
+                zoomSliderVertical.animate().alpha(1f).setDuration(180).start()
+            }
         } else {
             topControlsContainer.alpha = 1f
             bottomControlsContainer.alpha = 1f
+            if (zoomSliderVertical.visibility == View.VISIBLE) {
+                zoomSliderVertical.alpha = 1f
+            }
         }
 
         showControlsOnInteraction()
+        
+        // Force update zoom sliders after landscape layout is applied
+        updateZoomSlidersVisibility()
     }
 
     private fun applyPortraitLayout(animate: Boolean, reversed: Boolean = false) {
@@ -1293,29 +1552,42 @@ class CameraActivity : AppCompatActivity() {
         if (animate) {
             topControlsContainer.animate().alpha(1f).setDuration(200).start()
             bottomControlsContainer.animate().alpha(1f).setDuration(200).start()
+            if (zoomSlider.visibility == View.VISIBLE) {
+                zoomSlider.animate().alpha(1f).setDuration(200).start()
+            }
         } else {
             topControlsContainer.alpha = 1f
             bottomControlsContainer.alpha = 1f
+            if (zoomSlider.visibility == View.VISIBLE) {
+                zoomSlider.alpha = 1f
+            }
         }
 
         captureButton.scaleX = 1f
         captureButton.scaleY = 1f
+        
+        // Force update zoom sliders after portrait layout is applied  
+        updateZoomSlidersVisibility()
     }
 
 
     private fun showControlsOnInteraction() {
         if (!layoutOrientationInitialized) return
         val orientation = currentUiOrientation
-        if (orientation != UiOrientation.LANDSCAPE_LEFT && orientation != UiOrientation.LANDSCAPE_RIGHT) return
+        if (orientation != UiOrientation.LANDSCAPE_RIGHT) return
         topControlsContainer.animate().alpha(1f).setDuration(150).start()
         bottomControlsContainer.animate().alpha(1f).setDuration(150).start()
+        // Ensure vertical zoom slider is fully visible during interaction in landscape
+        if (zoomSliderVertical.visibility == View.VISIBLE) {
+            zoomSliderVertical.animate().alpha(1f).setDuration(150).start()
+        }
         clearControlsAutoHide()
         scheduleControlsAutoHide()
     }
 
     private fun scheduleControlsAutoHide() {
         val orientation = currentUiOrientation
-        if (orientation != UiOrientation.LANDSCAPE_LEFT && orientation != UiOrientation.LANDSCAPE_RIGHT) {
+        if (orientation != UiOrientation.LANDSCAPE_RIGHT) {
             clearControlsAutoHide()
             return
         }
@@ -1330,11 +1602,17 @@ class CameraActivity : AppCompatActivity() {
     private fun fadeControlsForLandscape() {
         topControlsContainer.animate().alpha(0.55f).setDuration(250).start()
         bottomControlsContainer.animate().alpha(0.8f).setDuration(250).start()
+        // Keep vertical zoom slider fully visible in landscape mode
+        if (zoomSliderVertical.visibility == View.VISIBLE) {
+            zoomSliderVertical.animate().alpha(1f).setDuration(250).start()
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         updateLayoutForRotation(getDisplayRotation())
+        // Force update zoom sliders visibility after orientation change
+        updateZoomSlidersVisibility()
     }
 
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).roundToInt()
