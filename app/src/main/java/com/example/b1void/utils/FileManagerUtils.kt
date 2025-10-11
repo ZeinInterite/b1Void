@@ -94,6 +94,10 @@ object FileManagerUtils {
 
     fun moveToTrash(target: File, trashDirectory: File): Boolean {
         return try {
+            Log.d("FileManager", "moveToTrash: Attempting to move '${target.absolutePath}' to trash")
+            Log.d("FileManager", "moveToTrash: Target exists: ${target.exists()}, isFile: ${target.isFile}, isDirectory: ${target.isDirectory}")
+            Log.d("FileManager", "moveToTrash: Trash directory: ${trashDirectory.absolutePath}")
+
             if (!trashDirectory.exists() && !trashDirectory.mkdirs()) {
                 Log.e("FileManager", "Failed to create trash directory at ${trashDirectory.absolutePath}")
                 return false
@@ -114,6 +118,7 @@ object FileManagerUtils {
             }
 
             if (targetPath == trashPath || targetPath.startsWith("$trashPath${File.separator}")) {
+                Log.d("FileManager", "moveToTrash: File is already in trash, permanently deleting")
                 return if (target.isDirectory) {
                     deleteDirectory(target)
                 } else {
@@ -128,17 +133,28 @@ object FileManagerUtils {
                 destination = File(trashDirectory, "${baseName}_${System.currentTimeMillis()}$extension")
             }
 
-            if (target.renameTo(destination)) {
+            Log.d("FileManager", "moveToTrash: Destination: ${destination.absolutePath}")
+
+            val result = if (target.renameTo(destination)) {
+                Log.d("FileManager", "moveToTrash: Successfully moved via renameTo")
                 true
             } else {
+                Log.d("FileManager", "moveToTrash: renameTo failed, attempting copy and delete")
                 if (target.isDirectory) {
                     val copied = target.copyRecursively(destination, overwrite = true)
-                    copied && deleteDirectory(target)
+                    val deleted = copied && deleteDirectory(target)
+                    Log.d("FileManager", "moveToTrash: Directory copied: $copied, deleted: $deleted")
+                    deleted
                 } else {
                     target.copyTo(destination, overwrite = true)
-                    target.delete()
+                    val deleted = target.delete()
+                    Log.d("FileManager", "moveToTrash: File copied, deleted: $deleted")
+                    deleted
                 }
             }
+
+            Log.d("FileManager", "moveToTrash: Final result: $result")
+            result
         } catch (e: Exception) {
             Log.e("FileManager", "Failed to move ${target.absolutePath} to trash: ${e.message}", e)
             false

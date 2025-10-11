@@ -789,7 +789,8 @@ class CameraActivity : AppCompatActivity() {
 
         if (!cam.cameraInfo.isFocusMeteringSupported(action)) {
             if (showIndicator) {
-                focusIndicator.postDelayed(hideFocusIndicatorRunnable, 600)
+                // Камера не поддерживает фокусировку - скрываем индикатор сразу
+                focusIndicator.post(hideFocusIndicatorRunnable)
             }
             return
         }
@@ -799,11 +800,12 @@ class CameraActivity : AppCompatActivity() {
             try {
                 val result = future.get()
                 if (showIndicator) {
-                    val delay = if (result.isFocusSuccessful) 600L else 200L
-                    focusIndicator.postDelayed(hideFocusIndicatorRunnable, delay)
+                    // Фокусировка завершена - скрываем индикатор сразу
+                    focusIndicator.post(hideFocusIndicatorRunnable)
                 }
             } catch (e: Exception) {
                 if (showIndicator) {
+                    // Ошибка фокусировки - скрываем индикатор сразу
                     focusIndicator.post(hideFocusIndicatorRunnable)
                 }
             }

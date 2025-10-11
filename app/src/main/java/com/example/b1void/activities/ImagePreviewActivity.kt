@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.View
 import android.widget.ImageButton
 import android.widget.LinearLayout
@@ -19,6 +20,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.example.b1void.R
 import com.example.b1void.adapters.ImagePagerAdapter
 import com.example.b1void.utils.ImageOptimizer
+import com.example.b1void.utils.FileManagerUtils
 import java.io.File
 
 class ImagePreviewActivity : AppCompatActivity() {
@@ -73,17 +75,36 @@ class ImagePreviewActivity : AppCompatActivity() {
 
     private fun confirmDelete() {
         AlertDialog.Builder(this)
-            .setTitle("Delete Image")
-            .setMessage("Are you sure you want to delete this image?")
-            .setPositiveButton("Delete") { _, _ -> deleteImage() }
-            .setNegativeButton("Cancel", null)
+            .setTitle("Удалить изображение?")
+            .setMessage("Файл будет перемещен в корзину. Продолжить?")
+            .setPositiveButton("Да") { _, _ -> deleteImage() }
+            .setNegativeButton("Отмена", null)
             .show()
     }
 
     private fun deleteImage() {
         val imagePath = imagePaths[currentImageIndex]
         val file = File(imagePath)
-        if (file.exists() && file.delete()) {
+
+        if (!file.exists()) {
+            Toast.makeText(this, "Файл не найден", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Получаем директорию корзины
+        val appDirectory = File(filesDir, "InspectorAppFolder")
+        val trashDirectory = File(appDirectory, "Trash")
+
+        Log.d("ImagePreview", "Attempting to delete: ${file.absolutePath}")
+        Log.d("ImagePreview", "Trash directory: ${trashDirectory.absolutePath}")
+
+        // Перемещаем файл в корзину вместо прямого удаления
+        val movedToTrash = FileManagerUtils.moveToTrash(file, trashDirectory)
+
+        if (movedToTrash) {
+            Log.d("ImagePreview", "File moved to trash successfully")
+            Toast.makeText(this, "Файл перемещен в корзину", Toast.LENGTH_SHORT).show()
+
             imagePaths.removeAt(currentImageIndex)
             pagerAdapter.notifyItemRemoved(currentImageIndex)
             ImageOptimizer.clearImageCache(this)
@@ -93,6 +114,9 @@ class ImagePreviewActivity : AppCompatActivity() {
             } else {
                 // The ViewPager will automatically show the next/previous item.
             }
+        } else {
+            Log.e("ImagePreview", "Failed to move file to trash")
+            Toast.makeText(this, "Не удалось переместить файл в корзину", Toast.LENGTH_SHORT).show()
         }
     }
 

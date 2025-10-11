@@ -605,14 +605,26 @@ class FileManagerActivity : AppCompatActivity() {
 
     fun deleteFile(file: File) {
         try {
+            Log.d("FileManager", "deleteFile: Attempting to delete '${file.absolutePath}'")
+            Log.d("FileManager", "deleteFile: File exists: ${file.exists()}")
+            Log.d("FileManager", "deleteFile: Trash directory: ${trashDirectory.absolutePath}")
+
             val movedToTrash = FileManagerUtils.moveToTrash(file, trashDirectory)
+            Log.d("FileManager", "deleteFile: moveToTrash result: $movedToTrash")
+
             if (!movedToTrash) {
                 Toast.makeText(this, "Не удалось переместить в корзину", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Файл перемещен в корзину", Toast.LENGTH_SHORT).show()
             }
             ImageOptimizer.clearImageCache(this)
             loadDirectoryContent(getCurrentDirectory())
         } catch (e: SecurityException) {
-            Log.e("FileManager", "SecurityException deleting file: ${e.message}")
+            Log.e("FileManager", "SecurityException deleting file: ${e.message}", e)
+            Toast.makeText(this, "Ошибка доступа: ${e.message}", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e("FileManager", "Exception deleting file: ${e.message}", e)
+            Toast.makeText(this, "Ошибка удаления: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 

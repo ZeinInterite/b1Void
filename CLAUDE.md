@@ -9,16 +9,16 @@ Inspector_appVX is an Android file management application designed for surveyors
 ## Build and Development Commands
 
 **Build Commands:**
-- `./gradlew assembleDebug` (Windows: `./gradlew.bat assembleDebug`) - Build debug APK
-- `./gradlew assembleRelease` - Build release APK with signing configuration
-- `./gradlew clean` - Clear build outputs when facing Gradle cache issues
+- `./gradlew.bat assembleDebug` - Build debug APK (Windows)
+- `./gradlew.bat assembleRelease` - Build release APK with signing configuration
+- `./gradlew.bat clean` - Clear build outputs when facing Gradle cache issues
 
 **Quality Assurance:**
-- `./gradlew lint` - Execute Android lint analysis (resolve warnings before merging)
-- `./gradlew test` - Run JVM unit tests
-- `./gradlew connectedAndroidTest` - Run instrumentation tests (requires connected device)
+- `./gradlew.bat lint` - Execute Android lint analysis (resolve warnings before merging)
+- `./gradlew.bat test` - Run JVM unit tests
+- `./gradlew.bat connectedAndroidTest` - Run instrumentation tests (requires connected device)
 
-**Note:** Do not use `./gradlew.bat compileDebugKotlin` - use the full build commands above.
+**Important:** Always use `./gradlew.bat` on Windows (not `./gradlew`). Do not use `./gradlew.bat compileDebugKotlin` - use the full build commands above.
 
 ## Architecture Overview
 
@@ -86,8 +86,26 @@ Inspector_appVX is an Android file management application designed for surveyors
 
 ## Important Notes
 
-- Target SDK 34, minimum SDK 25, compile SDK 35
-- Uses both Kotlin and Java - prefer Kotlin for new features
-- Dropbox integration requires proper ACCESS_TOKEN configuration
-- Camera permissions and external storage access are critical for core functionality
-- App is optimized for warehouse/industrial use with large touch targets and simplified workflows
+- **Platform:** Windows development environment (use `./gradlew.bat` not `./gradlew`)
+- **SDK Versions:** Target SDK 34, minimum SDK 25, compile SDK 35
+- **Language:** Uses both Kotlin (primary) and Java (legacy) - prefer Kotlin for new features
+- **Dropbox:** Integration requires ACCESS_TOKEN configuration in `B1VoidApplication.kt:25`
+- **Permissions:** Camera permissions and external storage access are critical for core functionality
+- **UX Focus:** App is optimized for warehouse/industrial use with large touch targets and simplified workflows for users wearing gloves
+
+## Common Issues and Solutions
+
+**Camera Issues:**
+- Resolution binding failures are handled automatically via `handleUnsupportedCaptureResolution()` in `CameraActivity.kt:692`
+- Invalid resolutions are tracked in `invalidCaptureResolutions` set and filtered from future attempts
+- Camera restart is managed by `scheduleCameraRestart()` with 500ms delay
+
+**Layout and Orientation:**
+- UI adapts between portrait and landscape modes via `updateLayoutForRotation()` in `CameraActivity.kt:937`
+- Controls auto-hide in landscape mode after 2.5s of inactivity
+- Orientation listener continuously monitors device rotation for smooth transitions
+
+**Memory Management:**
+- Low memory threshold: 50MB (defined in `B1VoidApplication.kt:50`)
+- Image compression: 80% quality, max size 1024px
+- Glide cache: 50MB disk cache with 2x screen size memory cache
