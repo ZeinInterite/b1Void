@@ -214,10 +214,49 @@ object FileManagerUtils {
     fun getSortedFiles(directory: File, ascending: Boolean): List<File> {
         val files = directory.listFiles()?.toList() ?: emptyList()
         return if (ascending) {
-            files.sortedBy { it.lastModified() }
+            files.sortedBy { getCreationTimeMillis(it) }
         } else {
-            files.sortedByDescending { it.lastModified() }
+            files.sortedByDescending { getCreationTimeMillis(it) }
         }
+    }
+
+    fun getCreationTimeMillis(file: File): Long {
+        // Prefer EXIF original date for images; otherwise fallback to file timestamps
+        if (file.isFile && isImageFile(file)) {
+            try {
+                // EXIF DateTimeOriginal or DateTime fallback
+                val exif = androidx.exifinterface.media.ExifInterface(file.absolutePath)
+                val dateStr = exif.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME_ORIGINAL)
+                    ?: exif.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME)
+                if (!dateStr.isNullOrBlank()) {
+                    // EXIF format: "yyyy:MM:dd HH:mm:ss"
+                    val parts = dateStr.trim()
+                    val sdf = java.text.SimpleDateFormat("yyyy:MM:dd HH:mm:ss", java.util.Locale.US)
+                    sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                    val date = sdf.parse(parts)
+                    if (date != null) return date.time
+                }
+            } catch (_: Exception) {
+                // Ignore and fallback
+            }
+        }
+
+        if (file.isDirectory) {
+            // For directories, approximate creation as the earliest timestamp among the
+            // directory itself and its immediate children (cheap heuristic).
+            var best = file.lastModified()
+            val children = file.listFiles()
+            if (children != null) {
+                for (child in children) {
+                    val t = if (child.isFile && isImageFile(child)) getCreationTimeMillis(child) else child.lastModified()
+                    if (t > 0 && t < best) best = t
+                }
+            }
+            return if (best > 0) best else file.lastModified()
+        }
+
+        // Fallback for non-image files
+        return file.lastModified()
     }
 
     fun zipDirectory(directory: File, zipFile: File) {

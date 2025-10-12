@@ -74,7 +74,8 @@ class FileManagerActivity : AppCompatActivity() {
     private val selectedFiles = mutableSetOf<File>()
 
     private var currentFileForMenu: File? = null
-    private var sortAscending = false
+    // Show older items first by default
+    private var sortAscending = true
 
     private var isSwipeSelectionActive = false
     private var lastTouchedPosition = -1
@@ -522,6 +523,13 @@ class FileManagerActivity : AppCompatActivity() {
 
     private fun getCurrentDirectory(): File = directoryStack.lastOrNull() ?: appDirectory
 
+    private fun categoryRank(file: File): Int = when {
+        file.isDirectory -> 0
+        FileManagerUtils.isVideoFile(file) -> 1
+        FileManagerUtils.isImageFile(file) -> 2
+        else -> 3
+    }
+
     private fun loadDirectoryContent(directory: File) {
         swipeRefreshLayout.isRefreshing = true
         thread {
@@ -531,11 +539,15 @@ class FileManagerActivity : AppCompatActivity() {
             } else {
                 filesAndDirs
             }
+            // Group order: Folders (0) → Videos (1) → Photos (2) → Others (3)
+            // Within each group, sort by creation time (ascending/descending by toggle)
             val sortedVisibleFiles = visibleFiles.sortedWith(
                 if (sortAscending) {
-                    compareBy<File> { !it.isDirectory }.thenBy { it.name.lowercase(Locale.ROOT) }
+                    compareBy<File> { categoryRank(it) }
+                        .thenBy { FileManagerUtils.getCreationTimeMillis(it) }
                 } else {
-                    compareBy<File> { !it.isDirectory }.thenByDescending { it.name.lowercase(Locale.ROOT) }
+                    compareBy<File> { categoryRank(it) }
+                        .thenByDescending { FileManagerUtils.getCreationTimeMillis(it) }
                 }
             )
             runOnUiThread {
