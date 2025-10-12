@@ -369,8 +369,8 @@ class CameraActivity : AppCompatActivity() {
         bottomControlsContainer = findViewById(R.id.bottomControls)
         topControlsSpacer = findViewById(R.id.topControlsSpacer)
         previewView = findViewById(R.id.previewView)
-        previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-        previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
+        previewView.implementationMode = PreviewView.ImplementationMode.PERFORMANCE
+        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
         captureButton = findViewById(R.id.shutterButton)
         modeSwitchButton = findViewById(R.id.mode_switch_button)
         flipCameraButton = findViewById(R.id.switchCameraButton)
@@ -1211,8 +1211,11 @@ class CameraActivity : AppCompatActivity() {
                     applyTargetRotations(rotation)
                 }
 
+                // Only update layout when display rotation actually changes
                 val displayRotation = getDisplayRotation()
-                updateLayoutForRotation(displayRotation)
+                if (displayRotation != lastLayoutRotation) {
+                    updateLayoutForRotation(displayRotation)
+                }
             }
         }
 
