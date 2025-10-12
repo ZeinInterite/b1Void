@@ -106,36 +106,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         tools:visibility="visible" />
 
-    <SeekBar
-        android:id="@+id/zoomSlider"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginEnd="24dp"
-        android:layout_marginBottom="16dp"
-        android:max="100"
-        android:progress="0"
-        android:visibility="gone"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/bottomControls"
-        tools:visibility="visible" />
-
-    <SeekBar
-        android:id="@+id/zoomSliderVertical"
-        android:layout_width="160dp"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="120dp"
-        android:max="100"
-        android:progress="0"
-        android:rotation="-90"
-        android:visibility="gone"
-        android:clickable="true"
-        android:focusable="true"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        tools:visibility="visible" />
+    <!-- Legacy SeekBar zoom controls removed -->
 
     <View
         android:id="@+id/focusIndicator"
@@ -187,6 +158,18 @@
 
         <!-- mode_switch_button removed: hold-to-record in PHOTO mode -->
     </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- Compose-based ZoomControl anchored above bottom controls -->
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/zoomCompose"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="12dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/bottomControls" />
 
     <ImageView
         android:id="@+id/thumbnailPreview"

@@ -118,10 +118,14 @@
     <activity
         android:name=".activities.WorkerActivity"
         android:exported="false" />
-    <activity
-        android:name=".activities.MainActivity"
-        android:exported="false">
-    </activity>
+        <activity
+            android:name=".activities.MainActivity"
+            android:exported="false">
+        </activity>
+        <activity
+            android:name=".activities.CameraComposeActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
             <activity
             android:name=".activities.CameraActivity"
             android:exported="false"

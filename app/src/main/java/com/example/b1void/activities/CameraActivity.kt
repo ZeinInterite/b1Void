@@ -45,9 +45,14 @@ import android.webkit.MimeTypeMap
 import android.widget.Chronometer
 import android.widget.ImageButton
 import android.widget.ImageView
-import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.camera.camera2.interop.Camera2CameraControl
@@ -73,10 +78,13 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.ViewModelProvider
 import com.bumptech.glide.Glide
 import com.example.b1void.R
 import com.example.b1void.data.CameraSettingsManager
 import com.example.b1void.ui.CameraSettingsDialogFragment
+import com.example.b1void.ui.camera.CameraViewModel as ComposeCameraViewModel
+import com.example.b1void.ui.camera.ZoomControl
 import androidx.transition.AutoTransition
 import androidx.transition.TransitionManager
 import kotlinx.coroutines.Job
@@ -113,14 +121,14 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var settingsButton: ImageButton
     private lateinit var torchButton: ImageButton
     private lateinit var autofocusButton: ImageButton
-    private lateinit var zoomSlider: SeekBar
-    private lateinit var zoomSliderVertical: SeekBar
+    // Legacy zoom SeekBars removed; using Compose ZoomControl instead
     private lateinit var focusIndicator: View
     private lateinit var captureAnimationView: ImageView
     private lateinit var rootLayout: ConstraintLayout
     private lateinit var topControlsContainer: LinearLayout
     private lateinit var bottomControlsContainer: ConstraintLayout
     private lateinit var topControlsSpacer: View
+    private lateinit var zoomCompose: ComposeView
 
     private enum class UiOrientation {
         PORTRAIT,
@@ -183,6 +191,7 @@ class CameraActivity : AppCompatActivity() {
     private var isZoomGesture = false
     private var shouldRestoreTorchState = false
     private var savedTorchState = false
+    private val useComposeZoom = true
     // Hold-to-record state
     private var isHoldRecordingActive = false
     private var holdStartRunnable: Runnable? = null
@@ -353,62 +362,7 @@ class CameraActivity : AppCompatActivity() {
             true
         }
 
-        zoomSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (!fromUser) return
-                val cam = camera ?: return
-                if (zoomSlider.max == 0) return
-                val zoomRange = maxZoomRatio - minZoomRatio
-                if (zoomRange <= 0f) return
-                val fraction = progress.toFloat() / zoomSlider.max
-                val newZoomRatio = minZoomRatio + fraction * zoomRange
-                cam.cameraControl.setZoomRatio(newZoomRatio)
-                // Sync vertical slider
-                zoomSliderVertical.progress = progress
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                // no-op
-            }
-
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                // no-op
-            }
-        })
-
-        zoomSliderVertical.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (!fromUser) return
-                Log.d(TAG, "Vertical zoom slider changed: progress=$progress, fromUser=$fromUser")
-                val cam = camera ?: run {
-                    Log.e(TAG, "Camera is null in vertical slider listener")
-                    return
-                }
-                if (zoomSliderVertical.max == 0) {
-                    Log.e(TAG, "Vertical slider max is 0")
-                    return
-                }
-                val zoomRange = maxZoomRatio - minZoomRatio
-                if (zoomRange <= 0f) {
-                    Log.e(TAG, "Invalid zoom range: $zoomRange (min=$minZoomRatio, max=$maxZoomRatio)")
-                    return
-                }
-                val fraction = progress.toFloat() / zoomSliderVertical.max
-                val newZoomRatio = minZoomRatio + fraction * zoomRange
-                Log.d(TAG, "Setting zoom ratio to: $newZoomRatio (fraction=$fraction)")
-                cam.cameraControl.setZoomRatio(newZoomRatio)
-                // Sync horizontal slider
-                zoomSlider.progress = progress
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                Log.d(TAG, "Vertical zoom slider touch started")
-            }
-
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                Log.d(TAG, "Vertical zoom slider touch stopped")
-            }
-        })
+        // Legacy SeekBar zoom listeners removed
     }
 
     private fun initializeViews() {
@@ -429,20 +383,40 @@ class CameraActivity : AppCompatActivity() {
         settingsButton = findViewById(R.id.settingsButton)
         torchButton = findViewById(R.id.torchButton)
         autofocusButton = findViewById(R.id.autofocusButton)
-        zoomSlider = findViewById(R.id.zoomSlider)
-        zoomSliderVertical = findViewById(R.id.zoomSliderVertical)
+        // Legacy zoom sliders removed from layouts
+        zoomCompose = findViewById(R.id.zoomCompose)
         focusIndicator = findViewById(R.id.focusIndicator)
         captureAnimationView = findViewById(R.id.captureAnimationView)
-        zoomSlider.isEnabled = false
-        zoomSliderVertical.isEnabled = false
+        // Hide legacy zoom sliders when using Compose zoom
+        if (useComposeZoom) {
+            // Legacy sliders are not present in layout anymore
+        }
         
-        // Set initial properties for vertical slider
-        zoomSliderVertical.max = 100
-        zoomSliderVertical.progress = 0
-        zoomSliderVertical.isClickable = true
-        zoomSliderVertical.isFocusable = true
-        
-        Log.d(TAG, "Initialized zoom sliders - vertical: enabled=${zoomSliderVertical.isEnabled}, clickable=${zoomSliderVertical.isClickable}")
+        // Set initial properties for vertical slider (legacy)
+        // No legacy slider init
+
+        // Set Compose zoom content if enabled
+        if (useComposeZoom) {
+            val vm = ViewModelProvider(this)[ComposeCameraViewModel::class.java]
+            zoomCompose.setContent {
+                val zoom by vm.zoomRatio.collectAsState()
+                val minZoom by vm.minZoomRatio.collectAsState()
+                val maxZoom by vm.maxZoomRatio.collectAsState()
+                val presets by vm.availablePresets.collectAsState()
+                MaterialTheme {
+                    ZoomControl(
+                        zoomRatio = zoom,
+                        minZoom = minZoom,
+                        maxZoom = maxZoom,
+                        availablePresets = presets,
+                        modifier = Modifier,
+                        leftHanded = false,
+                        onZoomChanged = { ratio -> vm.applyZoomRatio(ratio) },
+                        onPresetSelected = { preset -> vm.animateToPreset(preset) }
+                    )
+                }
+            }
+        }
 
         updateLayoutForRotation(getDisplayRotation(), animate = false)
     }
@@ -622,10 +596,17 @@ class CameraActivity : AppCompatActivity() {
                 camera = cameraProvider?.bindToLifecycle(
                     this, cameraSelector, useCaseGroupBuilder.build()
                 )
+                // Bind Compose zoom VM to CameraX for live zoom state
+                if (useComposeZoom) {
+                    try {
+                        val vm = ViewModelProvider(this)[ComposeCameraViewModel::class.java]
+                        camera?.let { vm.bindCamera(it) }
+                    } catch (_: Exception) { }
+                }
                 applyCamera2Defaults()
                 setupCameraStateObserver()
                 setupTorchObserver()
-                setupZoomObserver()
+                // Compose zoom used; no legacy zoom observer
                 val resolutionConfirmed = verifyBoundCaptureResolution(captureResolution)
                 if (!resolutionConfirmed) {
                     return@addListener
@@ -945,117 +926,7 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupZoomObserver() {
-        val cam = camera ?: run {
-            zoomSlider.visibility = View.GONE
-            zoomSlider.isEnabled = false
-            zoomSliderVertical.visibility = View.GONE
-            zoomSliderVertical.isEnabled = false
-            return
-        }
-        val zoomStateLiveData = cam.cameraInfo.zoomState
-        zoomStateLiveData.removeObservers(this)
-        zoomStateLiveData.observe(this) { state ->
-            minZoomRatio = state.minZoomRatio
-            maxZoomRatio = state.maxZoomRatio
-            val zoomRange = maxZoomRatio - minZoomRatio
-            val shouldShowZoom = zoomRange > 0.01f
-            val isLandscape = currentUiOrientation == UiOrientation.LANDSCAPE_RIGHT
-            
-            if (shouldShowZoom) {
-                if (isLandscape) {
-                    // Show vertical slider in landscape, hide horizontal
-                    zoomSlider.visibility = View.GONE
-                    zoomSliderVertical.visibility = View.VISIBLE
-                    zoomSliderVertical.isEnabled = true
-                    zoomSlider.isEnabled = false
-                } else {
-                    // Show horizontal slider in portrait, hide vertical
-                    zoomSlider.visibility = View.VISIBLE
-                    zoomSliderVertical.visibility = View.GONE
-                    zoomSlider.isEnabled = true
-                    zoomSliderVertical.isEnabled = false
-                }
-            } else {
-                // Hide both sliders
-                zoomSlider.visibility = View.GONE
-                zoomSliderVertical.visibility = View.GONE
-                zoomSlider.isEnabled = false
-                zoomSliderVertical.isEnabled = false
-            }
-            
-            Log.d(TAG, "Zoom observer - shouldShow: $shouldShowZoom, landscape: $isLandscape, orientation: $currentUiOrientation, horizontal: ${zoomSlider.visibility}, vertical: ${zoomSliderVertical.visibility}")
-            if (!shouldShowZoom) {
-                zoomSlider.progress = 0
-                zoomSliderVertical.progress = 0
-                return@observe
-            }
-
-            val fraction = if (zoomRange <= 0f) 0f else (state.zoomRatio - minZoomRatio) / zoomRange
-            val newProgress = (fraction.coerceIn(0f, 1f) * zoomSlider.max).roundToInt()
-            
-            // Update both sliders but avoid infinite recursion
-            if (zoomSlider.progress != newProgress) {
-                zoomSlider.progress = newProgress
-            }
-            if (zoomSliderVertical.progress != newProgress) {
-                zoomSliderVertical.progress = newProgress
-            }
-        }
-    }
-
-    private fun updateZoomSlidersVisibility() {
-        val isLandscape = currentUiOrientation == UiOrientation.LANDSCAPE_RIGHT
-        val cam = camera
-        
-        if (cam != null) {
-            val zoomState = cam.cameraInfo.zoomState.value
-            val shouldShowZoom = zoomState != null && (zoomState.maxZoomRatio - zoomState.minZoomRatio) > 0.01f
-            
-            Log.d(TAG, "Force update zoom sliders - landscape: $isLandscape, shouldShow: $shouldShowZoom, orientation: $currentUiOrientation")
-            
-            if (shouldShowZoom) {
-                if (isLandscape) {
-                    // Show vertical slider in landscape, hide horizontal
-                    zoomSlider.visibility = View.GONE
-                    zoomSliderVertical.visibility = View.VISIBLE
-                    zoomSliderVertical.isEnabled = true
-                    zoomSlider.isEnabled = false
-                    zoomSliderVertical.alpha = 1f
-                    zoomSliderVertical.isClickable = true
-                    zoomSliderVertical.isFocusable = true
-                    
-                    // Update the vertical slider with current zoom state
-                    val zoomState = cam.cameraInfo.zoomState.value
-                    if (zoomState != null) {
-                        val currentZoomRatio = zoomState.zoomRatio
-                        val zoomRange = zoomState.maxZoomRatio - zoomState.minZoomRatio
-                        val fraction = if (zoomRange <= 0f) 0f else (currentZoomRatio - zoomState.minZoomRatio) / zoomRange
-                        val progress = (fraction.coerceIn(0f, 1f) * zoomSliderVertical.max).roundToInt()
-                        zoomSliderVertical.progress = progress
-                        Log.d(TAG, "Updated vertical slider: progress=$progress, currentZoom=$currentZoomRatio, range=$zoomRange")
-                    }
-                    
-                    Log.d(TAG, "Showing vertical zoom slider in landscape - enabled=${zoomSliderVertical.isEnabled}, clickable=${zoomSliderVertical.isClickable}")
-                } else {
-                    // Show horizontal slider in portrait, hide vertical
-                    zoomSlider.visibility = View.VISIBLE
-                    zoomSliderVertical.visibility = View.GONE
-                    zoomSlider.isEnabled = true
-                    zoomSliderVertical.isEnabled = false
-                    zoomSlider.alpha = 1f
-                    Log.d(TAG, "Showing horizontal zoom slider in portrait")
-                }
-            } else {
-                // Hide both sliders
-                zoomSlider.visibility = View.GONE
-                zoomSliderVertical.visibility = View.GONE
-                zoomSlider.isEnabled = false
-                zoomSliderVertical.isEnabled = false
-                Log.d(TAG, "Hiding both zoom sliders - no zoom support")
-            }
-        }
-    }
+    // Legacy zoom slider observers removed (Compose ZoomControl is used)
 
     private fun focusAtPoint(x: Float, y: Float) {
         startFocusMeteringAt(x, y, showIndicator = true)
@@ -1445,15 +1316,7 @@ class CameraActivity : AppCompatActivity() {
             edgeMargin
         )
         rootSet.connect(R.id.topControls, ConstraintSet.TOP, R.id.thumbnailPreview, ConstraintSet.BOTTOM, verticalSpacing)
-
-
-        // Hide horizontal zoom slider in landscape mode - vertical slider is used instead
-        rootSet.constrainWidth(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
-        rootSet.constrainHeight(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
-        rootSet.clear(R.id.zoomSlider, ConstraintSet.START)
-        rootSet.clear(R.id.zoomSlider, ConstraintSet.END)
-        rootSet.clear(R.id.zoomSlider, ConstraintSet.TOP)
-        rootSet.clear(R.id.zoomSlider, ConstraintSet.BOTTOM)
+        // Legacy horizontal zoom slider removed
 
         rootSet.constrainWidth(R.id.bottomControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
         rootSet.constrainHeight(R.id.bottomControls, ConstraintLayout.LayoutParams.WRAP_CONTENT)
@@ -1483,7 +1346,25 @@ class CameraActivity : AppCompatActivity() {
 
         rootSet.applyTo(rootLayout)
 
-        // Note: Vertical zoom slider is used in landscape mode, horizontal is hidden
+        // Position Compose zoom control at side center (replacement for legacy vertical slider)
+        val rootSetZoom = ConstraintSet().apply { clone(rootLayout) }
+        rootSetZoom.constrainWidth(R.id.zoomCompose, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+        rootSetZoom.constrainHeight(R.id.zoomCompose, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+        rootSetZoom.clear(R.id.zoomCompose, ConstraintSet.START)
+        rootSetZoom.clear(R.id.zoomCompose, ConstraintSet.END)
+        rootSetZoom.clear(R.id.zoomCompose, ConstraintSet.TOP)
+        rootSetZoom.clear(R.id.zoomCompose, ConstraintSet.BOTTOM)
+        // Place zoom just to the left of the shutter column (bottomControls) by ~0.3dp
+        rootSetZoom.connect(
+            R.id.zoomCompose,
+            ConstraintSet.END,
+            R.id.bottomControls,
+            ConstraintSet.START,
+            dpToPxF(0.3f)
+        )
+        rootSetZoom.connect(R.id.zoomCompose, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+        rootSetZoom.connect(R.id.zoomCompose, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+        rootSetZoom.applyTo(rootLayout)
 
         val bottomSet = ConstraintSet().apply { clone(bottomControlsContainer) }
         bottomSet.clear(R.id.shutterButton, ConstraintSet.BOTTOM)
@@ -1500,21 +1381,16 @@ class CameraActivity : AppCompatActivity() {
         if (animate) {
             topControlsContainer.animate().alpha(1f).setDuration(180).start()
             bottomControlsContainer.animate().alpha(1f).setDuration(180).start()
-            if (zoomSliderVertical.visibility == View.VISIBLE) {
-                zoomSliderVertical.animate().alpha(1f).setDuration(180).start()
-            }
+            zoomCompose.animate().alpha(1f).setDuration(180).start()
         } else {
             topControlsContainer.alpha = 1f
             bottomControlsContainer.alpha = 1f
-            if (zoomSliderVertical.visibility == View.VISIBLE) {
-                zoomSliderVertical.alpha = 1f
-            }
+            zoomCompose.alpha = 1f
         }
 
         showControlsOnInteraction()
         
-        // Force update zoom sliders after landscape layout is applied
-        updateZoomSlidersVisibility()
+        // No legacy sliders when Compose zoom is enabled
     }
 
     private fun applyPortraitLayout(animate: Boolean, reversed: Boolean = false) {
@@ -1564,10 +1440,24 @@ class CameraActivity : AppCompatActivity() {
         rootSet.clear(R.id.bottomControls, ConstraintSet.TOP)
         rootSet.clear(R.id.bottomControls, ConstraintSet.BOTTOM)
 
-        rootSet.clear(R.id.zoomSlider, ConstraintSet.START)
-        rootSet.clear(R.id.zoomSlider, ConstraintSet.END)
-        rootSet.clear(R.id.zoomSlider, ConstraintSet.TOP)
-        rootSet.clear(R.id.zoomSlider, ConstraintSet.BOTTOM)
+        // Place Compose zoom control centered above bottom controls
+        rootSet.constrainWidth(R.id.zoomCompose, ConstraintLayout.LayoutParams.MATCH_CONSTRAINT)
+        rootSet.constrainHeight(R.id.zoomCompose, ConstraintLayout.LayoutParams.WRAP_CONTENT)
+        rootSet.clear(R.id.zoomCompose, ConstraintSet.START)
+        rootSet.clear(R.id.zoomCompose, ConstraintSet.END)
+        rootSet.clear(R.id.zoomCompose, ConstraintSet.TOP)
+        rootSet.clear(R.id.zoomCompose, ConstraintSet.BOTTOM)
+        rootSet.connect(R.id.zoomCompose, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, dpToPx(24))
+        rootSet.connect(R.id.zoomCompose, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, dpToPx(24))
+        // Position just above bottom controls; to move visually lower by ~0.7cm we allow slight overlap
+        // 11.5dp (previous) - 44.1dp = -32.6dp
+        rootSet.connect(
+            R.id.zoomCompose,
+            ConstraintSet.BOTTOM,
+            R.id.bottomControls,
+            ConstraintSet.TOP,
+            dpToPxF(-32.6f)
+        )
 
 
         rootSet.clear(R.id.recording_timer, ConstraintSet.START)
@@ -1592,12 +1482,7 @@ class CameraActivity : AppCompatActivity() {
             rootSet.connect(R.id.thumbnailPreview, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
             rootSet.connect(R.id.thumbnailPreview, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP, startMargin)
 
-            rootSet.constrainWidth(R.id.zoomSlider, ConstraintLayout.LayoutParams.MATCH_CONSTRAINT)
-            rootSet.constrainHeight(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
-            rootSet.connect(R.id.zoomSlider, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
-            rootSet.connect(R.id.zoomSlider, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, startMargin)
-            rootSet.connect(R.id.zoomSlider, ConstraintSet.TOP, R.id.bottomControls, ConstraintSet.BOTTOM, dpToPx(12))
-            rootSet.connect(R.id.zoomSlider, ConstraintSet.BOTTOM, R.id.topControls, ConstraintSet.TOP, dpToPx(12))
+            // Legacy zoomSlider constraints removed
 
 
             rootSet.connect(R.id.recording_timer, ConstraintSet.BOTTOM, R.id.topControls, ConstraintSet.TOP, dpToPx(8))
@@ -1620,11 +1505,7 @@ class CameraActivity : AppCompatActivity() {
             rootSet.connect(R.id.thumbnailPreview, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
             rootSet.connect(R.id.thumbnailPreview, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM, bottomMargin)
 
-            rootSet.constrainWidth(R.id.zoomSlider, ConstraintLayout.LayoutParams.MATCH_CONSTRAINT)
-            rootSet.constrainHeight(R.id.zoomSlider, ConstraintLayout.LayoutParams.WRAP_CONTENT)
-            rootSet.connect(R.id.zoomSlider, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, startMargin)
-            rootSet.connect(R.id.zoomSlider, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END, startMargin)
-            rootSet.connect(R.id.zoomSlider, ConstraintSet.BOTTOM, R.id.bottomControls, ConstraintSet.TOP, dpToPx(12))
+            // Legacy zoomSlider constraints removed
 
 
             rootSet.connect(R.id.recording_timer, ConstraintSet.TOP, R.id.topControls, ConstraintSet.BOTTOM, dpToPx(8))
@@ -1634,7 +1515,7 @@ class CameraActivity : AppCompatActivity() {
 
         rootSet.applyTo(rootLayout)
 
-        zoomSlider.rotation = 0f
+        // Legacy zoomSlider removed
 
         val bottomSet = ConstraintSet().apply { clone(bottomControlsContainer) }
         bottomSet.connect(R.id.shutterButton, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
@@ -1649,22 +1530,17 @@ class CameraActivity : AppCompatActivity() {
         if (animate) {
             topControlsContainer.animate().alpha(1f).setDuration(200).start()
             bottomControlsContainer.animate().alpha(1f).setDuration(200).start()
-            if (zoomSlider.visibility == View.VISIBLE) {
-                zoomSlider.animate().alpha(1f).setDuration(200).start()
-            }
+            // Compose zoom handled separately
         } else {
             topControlsContainer.alpha = 1f
             bottomControlsContainer.alpha = 1f
-            if (zoomSlider.visibility == View.VISIBLE) {
-                zoomSlider.alpha = 1f
-            }
+            zoomCompose.alpha = 1f
         }
 
         captureButton.scaleX = 1f
         captureButton.scaleY = 1f
         
-        // Force update zoom sliders after portrait layout is applied  
-        updateZoomSlidersVisibility()
+        // No legacy sliders when Compose zoom is enabled
     }
 
 
@@ -1674,10 +1550,7 @@ class CameraActivity : AppCompatActivity() {
         if (orientation != UiOrientation.LANDSCAPE_RIGHT) return
         topControlsContainer.animate().alpha(1f).setDuration(150).start()
         bottomControlsContainer.animate().alpha(1f).setDuration(150).start()
-        // Ensure vertical zoom slider is fully visible during interaction in landscape
-        if (zoomSliderVertical.visibility == View.VISIBLE) {
-            zoomSliderVertical.animate().alpha(1f).setDuration(150).start()
-        }
+        // Compose zoom has its own visibility
         clearControlsAutoHide()
         scheduleControlsAutoHide()
     }
@@ -1699,20 +1572,17 @@ class CameraActivity : AppCompatActivity() {
     private fun fadeControlsForLandscape() {
         topControlsContainer.animate().alpha(0.55f).setDuration(250).start()
         bottomControlsContainer.animate().alpha(0.8f).setDuration(250).start()
-        // Keep vertical zoom slider fully visible in landscape mode
-        if (zoomSliderVertical.visibility == View.VISIBLE) {
-            zoomSliderVertical.animate().alpha(1f).setDuration(250).start()
-        }
+        // Compose zoom has its own visibility
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         updateLayoutForRotation(getDisplayRotation())
-        // Force update zoom sliders visibility after orientation change
-        updateZoomSlidersVisibility()
+        // No legacy zoom sliders to update
     }
 
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).roundToInt()
+    private fun dpToPxF(dp: Float): Int = (dp * resources.displayMetrics.density).roundToInt()
 
     private fun applyTargetRotations(rotation: Int) {
         previewUseCase?.targetRotation = rotation
