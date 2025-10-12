@@ -33,6 +33,7 @@ import android.view.MotionEvent
 import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.ScaleGestureDetector
+import android.view.GestureDetector
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.AccelerateInterpolator
@@ -123,6 +124,8 @@ class CameraActivity : AppCompatActivity() {
     private var autofocusButton: ImageButton? = null
     // Legacy zoom SeekBars removed; using Compose ZoomControl instead
     private lateinit var focusIndicator: View
+    private lateinit var lockIcon: ImageView
+    private lateinit var evOverlay: View
     private lateinit var captureAnimationView: ImageView
     private lateinit var rootLayout: ConstraintLayout
     private lateinit var topControlsContainer: LinearLayout
@@ -171,6 +174,7 @@ class CameraActivity : AppCompatActivity() {
 
     // Gesture detector
     private lateinit var scaleGestureDetector: ScaleGestureDetector
+    private lateinit var tapGestureDetector: GestureDetector
 
     // Settings
     private lateinit var settingsManager: CameraSettingsManager
@@ -204,12 +208,23 @@ class CameraActivity : AppCompatActivity() {
         focusIndicator.animate().cancel()
         focusIndicator.visibility = View.GONE
     }
+    private var focusLastX: Float? = null
+    private var focusLastY: Float? = null
+    private var evHideRunnable: Runnable? = null
+    private var evController: com.example.b1void.camera.ev.EvController? = null
+
+    // Focus coordination
+    private var focusCoordinator: com.example.b1void.camera.focus.FocusCoordinator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_camera)
 
         settingsManager = CameraSettingsManager(this)
+        // Request camera permissions on first launch
+        if (!allPermissionsGranted()) {
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
+        }
         if (savedInstanceState == null) {
             lifecycleScope.launch {
                 settingsManager.setResolution("${DEFAULT_PHOTO_RESOLUTION.width}x${DEFAULT_PHOTO_RESOLUTION.height}")
@@ -339,12 +354,51 @@ class CameraActivity : AppCompatActivity() {
             }
         }
 
-        autofocusButton?.setOnClickListener {
-            triggerManualAutofocus()
+        autofocusButton?.setOnClickListener { triggerManualAutofocus() }
+
+        tapGestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                showControlsOnInteraction()
+                focusCoordinator?.onSingleTap(e.x, e.y)
+                return true
+            }
+            override fun onLongPress(e: MotionEvent) {
+                focusCoordinator?.onLongPress(e.x, e.y)
+            }
+            override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
+                // EV: vertical swipe near last focus point
+                if (focusLastX != null && focusLastY != null) {
+                    val dx = e2.x - focusLastX!!
+                    val dy = e2.y - focusLastY!!
+                    val near = kotlin.math.hypot(dx.toDouble(), dy.toDouble()) <= 160.0
+                    if (near) {
+                        ensureEvController()
+                        evController?.begin()
+                        evController?.adjustByDrag(distanceY)
+                        scheduleHideEvOverlay()
+                        return true
+                    }
+                }
+                return false
+            }
+        }).apply {
+            setOnDoubleTapListener(object : GestureDetector.OnDoubleTapListener {
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    focusCoordinator?.resetToCenter()
+                    return true
+                }
+                override fun onDoubleTapEvent(e: MotionEvent): Boolean = false
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean = false
+            })
         }
 
         previewView.setOnTouchListener { view, event ->
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                return@setOnTouchListener false
+            }
             scaleGestureDetector.onTouchEvent(event)
+            val handled = tapGestureDetector.onTouchEvent(event)
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     isZoomGesture = false
@@ -352,14 +406,9 @@ class CameraActivity : AppCompatActivity() {
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> isZoomGesture = true
                 MotionEvent.ACTION_CANCEL -> isZoomGesture = false
-                MotionEvent.ACTION_UP -> {
-                    view.performClick()
-                    if (!isZoomGesture && !scaleGestureDetector.isInProgress && event.pointerCount == 1) {
-                        focusAtPoint(event.x, event.y)
-                    }
-                }
+                MotionEvent.ACTION_UP -> view.performClick()
             }
-            true
+            handled || true
         }
 
         // Legacy SeekBar zoom listeners removed
@@ -386,6 +435,8 @@ class CameraActivity : AppCompatActivity() {
         // Legacy zoom sliders removed from layouts
         zoomCompose = findViewById(R.id.zoomCompose)
         focusIndicator = findViewById(R.id.focusIndicator)
+        lockIcon = findViewById(R.id.lockIcon)
+        evOverlay = findViewById(R.id.evOverlay)
         captureAnimationView = findViewById(R.id.captureAnimationView)
         // Hide legacy zoom sliders when using Compose zoom
         if (useComposeZoom) {
@@ -611,6 +662,29 @@ class CameraActivity : AppCompatActivity() {
                 if (!resolutionConfirmed) {
                     return@addListener
                 }
+                // Initialize modern focus coordinator via feature module provider
+                camera?.let { cam ->
+                    focusCoordinator = com.example.b1void.camera.focus.FocusProvider.create(
+                        previewView = previewView,
+                        camera = cam,
+                        mainExecutor = ContextCompat.getMainExecutor(this),
+                        callbacks = object : com.example.b1void.camera.focus.FocusCoordinator.Callbacks {
+                            override fun showIndicator(x: Float, y: Float) { showFocusIndicator(x, y); focusLastX = x; focusLastY = y }
+                            override fun hideIndicator() { focusIndicator.post(hideFocusIndicatorRunnable) }
+                            override fun onFocusResult(success: Boolean) {
+                                val delay = if (success) 600L else 300L
+                                focusIndicator.removeCallbacks(hideFocusIndicatorRunnable)
+                                focusIndicator.postDelayed(hideFocusIndicatorRunnable, delay)
+                                if (success) previewView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                            }
+                            override fun onLockChanged(locked: Boolean) {
+                                if (!locked) focusIndicator.post(hideFocusIndicatorRunnable)
+                                toggleLockIcon(locked)
+                            }
+                        }
+                    )
+                    ensureEvController()
+                }
                 focusAtCenter()
 
                 // Restore torch state if needed (with slight delay to ensure camera is ready)
@@ -670,6 +744,11 @@ class CameraActivity : AppCompatActivity() {
         extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
         extender.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
         extender.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
+        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, CaptureRequest.CONTROL_AE_ANTIBANDING_MODE_AUTO)
+    }
+
+    private fun allPermissionsGranted(): Boolean = REQUIRED_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
     }
 
     @androidx.camera.camera2.interop.ExperimentalCamera2Interop
@@ -680,6 +759,7 @@ class CameraActivity : AppCompatActivity() {
         extender.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
         extender.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
         extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
+        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, CaptureRequest.CONTROL_AE_ANTIBANDING_MODE_AUTO)
     }
 
     @androidx.camera.camera2.interop.ExperimentalCamera2Interop
@@ -687,13 +767,14 @@ class CameraActivity : AppCompatActivity() {
         val cam = camera ?: return
         val camera2Control = Camera2CameraControl.from(cam.cameraControl)
         camera2Control.clearCaptureRequestOptions()
-        val optionsBuilder = CaptureRequestOptions.Builder()
-            .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
-            .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
-            .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0)
+            val optionsBuilder = CaptureRequestOptions.Builder()
+                .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0)
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, CaptureRequest.CONTROL_AE_ANTIBANDING_MODE_AUTO)
             
         // Enhanced autofocus settings
         try {
@@ -852,7 +933,9 @@ class CameraActivity : AppCompatActivity() {
             val width = previewView.width
             val height = previewView.height
             if (width <= 0 || height <= 0) return@post
-            startFocusMeteringAt(width / 2f, height / 2f, showIndicator = false)
+            focusLastX = width / 2f
+            focusLastY = height / 2f
+            focusCoordinator?.resetToCenter()
         }
     }
 
@@ -874,8 +957,8 @@ class CameraActivity : AppCompatActivity() {
             }
             ?.start()
             
-        // Use enhanced autofocus method
-        enhancedAutofocus()
+        // Use coordinator: focus at center with visual feedback
+        focusCoordinator?.resetToCenter()
     }
 
 
@@ -929,6 +1012,8 @@ class CameraActivity : AppCompatActivity() {
     // Legacy zoom slider observers removed (Compose ZoomControl is used)
 
     private fun focusAtPoint(x: Float, y: Float) {
+        focusLastX = x
+        focusLastY = y
         startFocusMeteringAt(x, y, showIndicator = true)
     }
 
@@ -992,41 +1077,40 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun startFocusMeteringAt(x: Float, y: Float, showIndicator: Boolean) {
-        val cam = camera ?: return
-        val factory = previewView.meteringPointFactory
-        val afPoint = factory.createPoint(x, y)
-        val aePoint = factory.createPoint(x, y)
+        // Backward-compat wrapper: delegate to coordinator
+        if (showIndicator) showFocusIndicator(x, y)
+        focusCoordinator?.onSingleTap(x, y)
+    }
 
-        val action = FocusMeteringAction.Builder(afPoint, FocusMeteringAction.FLAG_AF)
-            .addPoint(aePoint, FocusMeteringAction.FLAG_AE)
-            .setAutoCancelDuration(3, TimeUnit.SECONDS)
-            .build()
-
-        if (showIndicator) {
-            showFocusIndicator(x, y)
+    private fun toggleLockIcon(locked: Boolean) {
+        lockIcon.animate().cancel()
+        if (locked) {
+            lockIcon.alpha = 0f
+            lockIcon.visibility = View.VISIBLE
+            lockIcon.animate().alpha(1f).setDuration(120).start()
+        } else {
+            lockIcon.animate().alpha(0f).setDuration(120).withEndAction {
+                lockIcon.visibility = View.GONE
+            }.start()
         }
+    }
 
-        if (!cam.cameraInfo.isFocusMeteringSupported(action)) {
-            if (showIndicator) {
-                focusIndicator.postDelayed(hideFocusIndicatorRunnable, 600)
+    private fun ensureEvController() {
+        if (evController == null) {
+            camera?.let { cam ->
+                evController = com.example.b1void.camera.ev.EvController(
+                    onOverlayVisibility = { visible -> evOverlay.visibility = if (visible) View.VISIBLE else View.GONE },
+                    onOverlayValue = { /* future: draw gradation on overlay or bubble */ }
+                ).also { it.attach(cam) }
             }
-            return
         }
+    }
 
-        val future = cam.cameraControl.startFocusAndMetering(action)
-        future.addListener({
-            try {
-                val result = future.get()
-                if (showIndicator) {
-                    val delay = if (result.isFocusSuccessful) 600L else 200L
-                    focusIndicator.postDelayed(hideFocusIndicatorRunnable, delay)
-                }
-            } catch (e: Exception) {
-                if (showIndicator) {
-                    focusIndicator.post(hideFocusIndicatorRunnable)
-                }
-            }
-        }, ContextCompat.getMainExecutor(this))
+    private fun scheduleHideEvOverlay() {
+        evHideRunnable?.let { evOverlay.removeCallbacks(it) }
+        val r = Runnable { evOverlay.visibility = View.GONE }
+        evHideRunnable = r
+        evOverlay.postDelayed(r, 1500)
     }
 
     private fun showFocusIndicator(x: Float, y: Float) {
@@ -1085,6 +1169,18 @@ class CameraActivity : AppCompatActivity() {
                         .start()
                 }
                 .start()
+        }
+        // Move lock icon next to ring
+        lockIcon.apply {
+            translationX = clampedX + indicatorWidth + 8f
+            translationY = clampedY - 8f
+            elevation = focusIndicator.elevation + 1f
+            visibility = if (focusCoordinator?.isLocked() == true) View.VISIBLE else View.GONE
+        }
+        // Place EV overlay alongside
+        evOverlay.apply {
+            translationX = clampedX - 16f
+            translationY = (clampedY - height / 2f).coerceAtLeast(0f)
         }
     }
 
@@ -1964,10 +2060,6 @@ class CameraActivity : AppCompatActivity() {
             // modeSwitchButton removed
             flipCameraButton.isEnabled = true
         }
-    }
-
-    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
-        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun parseResolution(resString: String): Size? {

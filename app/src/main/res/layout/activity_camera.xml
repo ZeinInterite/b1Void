@@ -110,6 +110,32 @@
         tools:visibility="gone" />
 
     <ImageView
+        android:id="@+id/lockIcon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_lock"
+        android:tint="@android:color/white"
+        android:elevation="7dp"
+        android:visibility="gone"
+        android:contentDescription="@string/cd_af_ae_lock"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="gone" />
+
+    <View
+        android:id="@+id/evOverlay"
+        android:layout_width="4dp"
+        android:layout_height="140dp"
+        android:background="@android:color/white"
+        android:alpha="0.7"
+        android:elevation="6dp"
+        android:visibility="gone"
+        android:contentDescription="@string/cd_exposure_overlay"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
+
+    <ImageView
         android:id="@+id/captureAnimationView"
         android:layout_width="220dp"
         android:layout_height="220dp"

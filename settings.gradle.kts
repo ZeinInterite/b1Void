@@ -22,4 +22,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "b1Void"
 include(":app")
+include(":feature:camera")
  

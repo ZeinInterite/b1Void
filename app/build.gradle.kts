@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.b1void"
-        minSdk = 25
+        minSdk = 27
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -112,6 +112,7 @@ dependencies {
     implementation ("androidx.fragment:fragment-ktx:1.8.5")
     implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation ("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
+    implementation(project(":feature:camera"))
 
     implementation("com.google.android.gms:play-services-auth:21.3.0")
 
