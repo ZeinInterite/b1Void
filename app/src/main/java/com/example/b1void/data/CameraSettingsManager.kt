@@ -18,7 +18,8 @@ class CameraSettingsManager(private val context: Context) {
     companion object {
         val FLASH_ENABLED_KEY = intPreferencesKey("flash_mode")
         val RESOLUTION_KEY = stringPreferencesKey("resolution")
-        
+        val TORCH_ENABLED_KEY = booleanPreferencesKey("torch_enabled")
+
         // Orientation layout preferences
         val THUMBNAIL_POSITION_LANDSCAPE_KEY = stringPreferencesKey("thumbnail_position_landscape")
         val AUTO_HIDE_DELAY_KEY = intPreferencesKey("auto_hide_delay")
@@ -49,7 +50,19 @@ class CameraSettingsManager(private val context: Context) {
             it[RESOLUTION_KEY] = resolution
         }
     }
-    
+
+    fun getTorchEnabled(): Flow<Boolean> {
+        return context.dataStore.data.map {
+            it[TORCH_ENABLED_KEY] ?: false // Default to OFF
+        }
+    }
+
+    suspend fun setTorchEnabled(enabled: Boolean) {
+        context.dataStore.edit {
+            it[TORCH_ENABLED_KEY] = enabled
+        }
+    }
+
     // Orientation layout preference methods
     
     /**

@@ -82,6 +82,7 @@ import androidx.transition.TransitionManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -106,7 +107,6 @@ class CameraActivity : AppCompatActivity() {
     // View references
     private lateinit var previewView: PreviewView
     private lateinit var captureButton: ImageButton
-    private lateinit var modeSwitchButton: ImageButton
     private lateinit var flipCameraButton: ImageButton
     private lateinit var recordingTimer: Chronometer
     private lateinit var thumbnailPreview: ImageView
@@ -181,6 +181,16 @@ class CameraActivity : AppCompatActivity() {
     private var minZoomRatio = 1f
     private var maxZoomRatio = 1f
     private var isZoomGesture = false
+    private var shouldRestoreTorchState = false
+    private var savedTorchState = false
+    // Hold-to-record state
+    private var isHoldRecordingActive = false
+    private var holdStartRunnable: Runnable? = null
+    private val holdToRecordDelayMs = 200L
+    private var stopHoldRunnable: Runnable? = null
+    private val stopHoldDelayMs = 500L
+    private var pressDownUptime: Long = 0L
+    private val quickTapThresholdMs = 150L
     private val hideFocusIndicatorRunnable = Runnable {
         focusIndicator.animate().cancel()
         focusIndicator.visibility = View.GONE
@@ -232,19 +242,52 @@ class CameraActivity : AppCompatActivity() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupListeners() {
+        // Click is used for VIDEO mode toggle. PHOTO mode tap is handled in onTouch.
         captureButton.setOnClickListener {
-            if (currentMode == CaptureMode.PHOTO) {
-                takePhoto()
-            } else {
+            if (currentMode == CaptureMode.VIDEO) {
                 toggleVideoRecording()
             }
         }
 
-        modeSwitchButton.setOnClickListener {
-            currentMode = if (currentMode == CaptureMode.PHOTO) CaptureMode.VIDEO else CaptureMode.PHOTO
-            updateCameraUI()
-            startCamera()
+        captureButton.setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    if (currentMode == CaptureMode.PHOTO) {
+                        v.isPressed = true
+                        pressDownUptime = SystemClock.uptimeMillis()
+                        // If a delayed stop is pending (grace period), cancel it to continue recording seamlessly
+                        cancelScheduledStopVideoRecordingForHold()
+                        // If already recording due to prior hold, keep going; otherwise schedule start
+                        if (!isHoldRecordingActive && !isRecording) {
+                            scheduleHoldRecordingStart()
+                        }
+                        return@setOnTouchListener true
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (currentMode == CaptureMode.PHOTO) {
+                        v.isPressed = false
+                        cancelHoldRecordingStartIfPending()
+                        val elapsed = SystemClock.uptimeMillis() - pressDownUptime
+                        val isQuickTap = elapsed <= quickTapThresholdMs
+                        if (isQuickTap && !isHoldRecordingActive && !isRecording) {
+                            // Only quick taps produce photos
+                            takePhoto()
+                        } else {
+                            // Consider this a video gesture: ensure recording, then schedule delayed stop
+                            if (!isRecording) {
+                                startVideoRecordingForHold()
+                            }
+                            scheduleStopVideoRecordingForHold()
+                        }
+                        return@setOnTouchListener true
+                    }
+                }
+            }
+            false
         }
+
+        // Removed mode switch button; mode remains PHOTO with hold-to-record.
 
         flipCameraButton.setOnClickListener {
             cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
@@ -277,7 +320,12 @@ class CameraActivity : AppCompatActivity() {
             camera?.let {
                 if (it.cameraInfo.hasFlashUnit()) {
                     val isTorchOn = it.cameraInfo.torchState.value == TorchState.ON
-                    it.cameraControl.enableTorch(!isTorchOn)
+                    val newTorchState = !isTorchOn
+                    it.cameraControl.enableTorch(newTorchState)
+                    // Save torch state to persistent storage
+                    lifecycleScope.launch {
+                        settingsManager.setTorchEnabled(newTorchState)
+                    }
                 }
             }
         }
@@ -372,7 +420,7 @@ class CameraActivity : AppCompatActivity() {
         previewView.implementationMode = PreviewView.ImplementationMode.PERFORMANCE
         previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
         captureButton = findViewById(R.id.shutterButton)
-        modeSwitchButton = findViewById(R.id.mode_switch_button)
+        // modeSwitchButton removed from layout
         flipCameraButton = findViewById(R.id.switchCameraButton)
         recordingTimer = findViewById(R.id.recording_timer)
         thumbnailPreview = findViewById(R.id.thumbnailPreview)
@@ -423,6 +471,11 @@ class CameraActivity : AppCompatActivity() {
                 }
             }
         }
+        lifecycleScope.launch {
+            settingsManager.getTorchEnabled().collect { enabled ->
+                savedTorchState = enabled
+            }
+        }
     }
 
     private fun onThumbnailClicked(file: File) {
@@ -454,22 +507,19 @@ class CameraActivity : AppCompatActivity() {
 
     private fun updateCameraUI() {
         runOnUiThread {
-            if (currentMode == CaptureMode.VIDEO) {
-                modeSwitchButton.setImageResource(R.drawable.ic_switch_to_photo)
-                if (!isRecording) {
-                    captureButton.setBackgroundResource(R.drawable.bg_capture_button_recording)
-                    captureButton.setImageResource(R.drawable.ic_videocam)
-                }
-            } else {
-                modeSwitchButton.setImageResource(R.drawable.ic_switch_to_video)
-                captureButton.setBackgroundResource(R.drawable.bg_capture_button_photo)
-                captureButton.setImageResource(R.drawable.camera)
-            }
+            // Mode switch removed; default UI reflects PHOTO mode.
+            captureButton.setBackgroundResource(R.drawable.bg_capture_button_photo)
+            captureButton.setImageResource(R.drawable.camera)
         }
     }
 
     @SuppressLint("UnsafeOptInUsageError")
     private fun startCamera() {
+        // Prevent re-binding camera while recording video to avoid stopping the session
+        if (isRecording) {
+            Log.d(TAG, "startCamera() ignored: recording in progress")
+            return
+        }
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
             cameraProvider = cameraProviderFuture.get()
@@ -550,17 +600,21 @@ class CameraActivity : AppCompatActivity() {
             imageCapture = newImageCapture
             useCaseGroupBuilder.addUseCase(newImageCapture)
 
-            if (currentMode == CaptureMode.VIDEO) {
+            // Always bind VideoCapture to support hold-to-record in PHOTO mode
+            run {
                 val recorder = Recorder.Builder()
-                    .setQualitySelector(QualitySelector.from(Quality.HD))
+                    .setQualitySelector(
+                        QualitySelector.from(
+                            Quality.HD,
+                            FallbackStrategy.higherQualityOrLowerThan(Quality.SD)
+                        )
+                    )
                     .build()
                 val newVideoCapture = VideoCapture.withOutput(recorder).apply {
                     targetRotation = currentTargetRotation
                 }
                 videoCapture = newVideoCapture
                 useCaseGroupBuilder.addUseCase(newVideoCapture)
-            } else {
-                videoCapture = null
             }
 
             try {
@@ -577,6 +631,20 @@ class CameraActivity : AppCompatActivity() {
                     return@addListener
                 }
                 focusAtCenter()
+
+                // Restore torch state if needed (with slight delay to ensure camera is ready)
+                Log.d(TAG, "Camera binding complete - shouldRestoreTorchState=$shouldRestoreTorchState, savedTorchState=$savedTorchState")
+                if (shouldRestoreTorchState) {
+                    lifecycleScope.launch {
+                        Log.d(TAG, "Waiting 100ms before restoring torch state...")
+                        delay(100) // Small delay to ensure camera is fully initialized
+                        restoreTorchState()
+                        shouldRestoreTorchState = false
+                        Log.d(TAG, "Torch state restoration complete, shouldRestoreTorchState set to false")
+                    }
+                } else {
+                    Log.d(TAG, "Skipping torch restoration - shouldRestoreTorchState is false")
+                }
             } catch (exc: IllegalArgumentException) {
                 Log.w(TAG, "Binding failed for resolution ${captureResolution.width}x${captureResolution.height}", exc)
                 handleUnsupportedCaptureResolution(captureResolution)
@@ -837,6 +905,43 @@ class CameraActivity : AppCompatActivity() {
             } else {
                 torchButton.clearColorFilter()
             }
+
+            // Save torch state when it changes (to handle system changes)
+            val isTorchOn = state == TorchState.ON
+            if (isTorchOn != savedTorchState) {
+                lifecycleScope.launch {
+                    settingsManager.setTorchEnabled(isTorchOn)
+                }
+            }
+        }
+    }
+
+    private fun restoreTorchState() {
+        Log.d(TAG, "restoreTorchState() called - savedTorchState=$savedTorchState, camera=$camera")
+        val cam = camera ?: run {
+            Log.w(TAG, "Cannot restore torch state: camera is null")
+            return
+        }
+
+        // Only restore torch state if camera has flash unit and is back camera
+        if (!cam.cameraInfo.hasFlashUnit()) {
+            Log.d(TAG, "Cannot restore torch state: no flash unit available")
+            return
+        }
+
+        // Don't restore torch on front camera
+        if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
+            Log.d(TAG, "Cannot restore torch state: front camera selected")
+            return
+        }
+
+        // Restore the saved torch state
+        if (savedTorchState) {
+            Log.d(TAG, "Restoring torch state: ON - calling enableTorch(true)")
+            cam.cameraControl.enableTorch(true)
+            Log.d(TAG, "Torch enableTorch(true) called successfully")
+        } else {
+            Log.d(TAG, "Torch state is OFF, no restoration needed")
         }
     }
 
@@ -1386,12 +1491,7 @@ class CameraActivity : AppCompatActivity() {
         bottomSet.connect(R.id.shutterButton, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
         bottomSet.connect(R.id.shutterButton, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
 
-        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.START)
-        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.END)
-        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.BOTTOM)
-        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.TOP, R.id.shutterButton, ConstraintSet.BOTTOM, verticalSpacing)
-        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
-        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+        // Mode switch removed; no constraints needed.
         bottomSet.applyTo(bottomControlsContainer)
 
         captureButton.scaleX = 1f
@@ -1543,13 +1643,7 @@ class CameraActivity : AppCompatActivity() {
         bottomSet.connect(R.id.shutterButton, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
         bottomSet.setHorizontalBias(R.id.shutterButton, 0.5f)
 
-        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.START)
-        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.END)
-        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.TOP)
-        bottomSet.clear(R.id.mode_switch_button, ConstraintSet.BOTTOM)
-        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.START, R.id.shutterButton, ConstraintSet.END, dpToPx(16))
-        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.TOP, R.id.shutterButton, ConstraintSet.TOP)
-        bottomSet.connect(R.id.mode_switch_button, ConstraintSet.BOTTOM, R.id.shutterButton, ConstraintSet.BOTTOM)
+        // Mode switch removed; no constraints needed.
         bottomSet.applyTo(bottomControlsContainer)
 
         if (animate) {
@@ -1623,7 +1717,10 @@ class CameraActivity : AppCompatActivity() {
     private fun applyTargetRotations(rotation: Int) {
         previewUseCase?.targetRotation = rotation
         imageCapture?.targetRotation = rotation
-        videoCapture?.targetRotation = rotation
+        // Avoid reconfiguring video capture while recording to prevent unintended stops
+        if (!isRecording) {
+            videoCapture?.targetRotation = rotation
+        }
     }
 
     private fun getDisplayRotation(): Int {
@@ -1806,6 +1903,79 @@ class CameraActivity : AppCompatActivity() {
             }
     }
 
+    private fun scheduleHoldRecordingStart() {
+        // Cancel any pending start
+        holdStartRunnable?.let { mainHandler.removeCallbacks(it) }
+        holdStartRunnable = Runnable {
+            holdStartRunnable = null
+            startVideoRecordingForHold()
+            isHoldRecordingActive = true
+        }
+        mainHandler.postDelayed(holdStartRunnable!!, holdToRecordDelayMs)
+    }
+
+    private fun cancelHoldRecordingStartIfPending() {
+        holdStartRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            holdStartRunnable = null
+        }
+    }
+
+    private fun startVideoRecordingForHold() {
+        val vc = this.videoCapture ?: return
+        if (isRecording) return
+        isRecording = true
+        isHoldRecordingActive = true
+        startRecordingIndicator()
+
+        val savePath = intent.getStringExtra(EXTRA_SAVE_PATH) ?: externalMediaDirs.firstOrNull()?.absolutePath ?: return
+        val videoFile = File(savePath, "VID_${System.currentTimeMillis()}.mp4")
+        lastSavedFile = videoFile
+        val outputOptions = FileOutputOptions.Builder(videoFile).build()
+
+        recording = vc.output
+            .prepareRecording(this, outputOptions)
+            .withAudioEnabled()
+            .start(ContextCompat.getMainExecutor(this)) { recordEvent ->
+                when (recordEvent) {
+                    is VideoRecordEvent.Start -> {}
+                    is VideoRecordEvent.Finalize -> {
+                        isRecording = false
+                        stopRecordingIndicator()
+                        if (!recordEvent.hasError()) {
+                            processVideoStamp(videoFile)
+                        } else {
+                            Log.e(TAG, "Video capture error: ${recordEvent.error}")
+                            videoFile.delete()
+                        }
+                    }
+                }
+            }
+    }
+
+    private fun stopVideoRecordingForHoldNow() {
+        if (!isRecording) return
+        isHoldRecordingActive = false
+        recording?.stop()
+        recording = null
+    }
+
+    private fun scheduleStopVideoRecordingForHold() {
+        stopHoldRunnable?.let { mainHandler.removeCallbacks(it) }
+        stopHoldRunnable = Runnable {
+            stopHoldRunnable = null
+            stopVideoRecordingForHoldNow()
+        }
+        mainHandler.postDelayed(stopHoldRunnable!!, stopHoldDelayMs)
+    }
+
+    private fun cancelScheduledStopVideoRecordingForHold() {
+        stopHoldRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            stopHoldRunnable = null
+        }
+    }
+
     private fun updateThumbnail(uri: Uri) {
         runOnUiThread {
             adjustThumbnailSize(uri)
@@ -1905,7 +2075,7 @@ class CameraActivity : AppCompatActivity() {
             recordingTimer.visibility = View.VISIBLE
             recordingTimer.base = SystemClock.elapsedRealtime()
             recordingTimer.start()
-            modeSwitchButton.isEnabled = false
+            // modeSwitchButton removed
             flipCameraButton.isEnabled = false
         }
     }
@@ -1913,10 +2083,15 @@ class CameraActivity : AppCompatActivity() {
     private fun stopRecordingIndicator() {
         runOnUiThread {
             captureButton.clearAnimation()
-            captureButton.setBackgroundResource(R.drawable.bg_capture_button_recording)
+            if (currentMode == CaptureMode.VIDEO) {
+                captureButton.setBackgroundResource(R.drawable.bg_capture_button_recording)
+            } else {
+                captureButton.setBackgroundResource(R.drawable.bg_capture_button_photo)
+                captureButton.setImageResource(R.drawable.camera)
+            }
             recordingTimer.stop()
             recordingTimer.visibility = View.GONE
-            modeSwitchButton.isEnabled = true
+            // modeSwitchButton removed
             flipCameraButton.isEnabled = true
         }
     }
@@ -1974,12 +2149,24 @@ class CameraActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        cancelHoldRecordingStartIfPending()
+        cancelScheduledStopVideoRecordingForHold()
         recording?.stop()
         recording = null
         orientationEventListener?.disable()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         releaseWakeLock()
         clearControlsAutoHide()
+
+        // Save current torch state before pausing
+        camera?.let { cam ->
+            val currentTorchState = cam.cameraInfo.torchState.value == TorchState.ON
+            savedTorchState = currentTorchState
+            lifecycleScope.launch {
+                settingsManager.setTorchEnabled(currentTorchState)
+            }
+            Log.d(TAG, "Saved torch state on pause: $currentTorchState")
+        }
     }
 
     override fun onResume() {
@@ -1989,6 +2176,14 @@ class CameraActivity : AppCompatActivity() {
         acquireWakeLock()
         updateLayoutForRotation(getDisplayRotation(), animate = false)
         loadLatestPhotoThumbnail()
+
+        // Load and restore torch state after camera initializes
+        lifecycleScope.launch {
+            val enabled = settingsManager.getTorchEnabled().first()
+            savedTorchState = enabled
+            shouldRestoreTorchState = true
+            Log.d(TAG, "onResume: Loaded torch state from DataStore: $savedTorchState, will restore after camera initialization")
+        }
     }
 
     override fun onDestroy() {

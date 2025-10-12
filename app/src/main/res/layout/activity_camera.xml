@@ -185,18 +185,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <ImageButton
-            android:id="@+id/mode_switch_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_switch_to_video"
-            android:contentDescription="Switch capture mode"
-            app:tint="@color/white"
-            app:layout_constraintTop_toTopOf="@id/shutterButton"
-            app:layout_constraintBottom_toBottomOf="@id/shutterButton"
-            app:layout_constraintStart_toEndOf="@id/shutterButton"
-            android:layout_marginStart="16dp" />
+        <!-- mode_switch_button removed: hold-to-record in PHOTO mode -->
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <ImageView
