@@ -75,16 +75,6 @@
             android:contentDescription="Switch camera"
             android:src="@android:drawable/ic_menu_revert"
             app:tint="@color/white" />
-
-        <ImageButton
-            android:id="@+id/autofocusButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="16dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Autofocus"
-            android:src="@android:drawable/ic_menu_view"
-            app:tint="@color/white" />
     </LinearLayout>
 
 

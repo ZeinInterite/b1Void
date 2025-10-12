@@ -120,7 +120,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var thumbnailPreview: ImageView
     private lateinit var settingsButton: ImageButton
     private lateinit var torchButton: ImageButton
-    private lateinit var autofocusButton: ImageButton
+    private var autofocusButton: ImageButton? = null
     // Legacy zoom SeekBars removed; using Compose ZoomControl instead
     private lateinit var focusIndicator: View
     private lateinit var captureAnimationView: ImageView
@@ -339,7 +339,7 @@ class CameraActivity : AppCompatActivity() {
             }
         }
 
-        autofocusButton.setOnClickListener {
+        autofocusButton?.setOnClickListener {
             triggerManualAutofocus()
         }
 
@@ -382,7 +382,7 @@ class CameraActivity : AppCompatActivity() {
         thumbnailPreview.adjustViewBounds = true
         settingsButton = findViewById(R.id.settingsButton)
         torchButton = findViewById(R.id.torchButton)
-        autofocusButton = findViewById(R.id.autofocusButton)
+        // No autofocus button in layout anymore
         // Legacy zoom sliders removed from layouts
         zoomCompose = findViewById(R.id.zoomCompose)
         focusIndicator = findViewById(R.id.focusIndicator)
@@ -861,18 +861,18 @@ class CameraActivity : AppCompatActivity() {
         previewView.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
         
         // Visual feedback for autofocus button
-        autofocusButton.animate()
-            .scaleX(1.2f)
-            .scaleY(1.2f)
-            .setDuration(100)
-            .withEndAction {
-                autofocusButton.animate()
-                    .scaleX(1f)
-                    .scaleY(1f)
-                    .setDuration(100)
-                    .start()
+        autofocusButton?.animate()
+            ?.scaleX(1.2f)
+            ?.scaleY(1.2f)
+            ?.setDuration(100)
+            ?.withEndAction {
+                autofocusButton?.animate()
+                    ?.scaleX(1f)
+                    ?.scaleY(1f)
+                    ?.setDuration(100)
+                    ?.start()
             }
-            .start()
+            ?.start()
             
         // Use enhanced autofocus method
         enhancedAutofocus()
@@ -966,24 +966,24 @@ class CameraActivity : AppCompatActivity() {
                     runOnUiThread {
                         // Update autofocus button color based on focus success
                         if (result.isFocusSuccessful) {
-                            autofocusButton.setColorFilter(ContextCompat.getColor(this@CameraActivity, android.R.color.holo_green_light))
+                            autofocusButton?.setColorFilter(ContextCompat.getColor(this@CameraActivity, android.R.color.holo_green_light))
                             focusIndicator.postDelayed(hideFocusIndicatorRunnable, 1000)
                         } else {
-                            autofocusButton.setColorFilter(ContextCompat.getColor(this@CameraActivity, android.R.color.holo_red_light))
+                            autofocusButton?.setColorFilter(ContextCompat.getColor(this@CameraActivity, android.R.color.holo_red_light))
                             focusIndicator.postDelayed(hideFocusIndicatorRunnable, 500)
                         }
                         
                         // Clear button color after delay
-                        autofocusButton.postDelayed({
-                            autofocusButton.clearColorFilter()
+                        autofocusButton?.postDelayed({
+                            autofocusButton?.clearColorFilter()
                         }, 1500)
                     }
                 } catch (e: Exception) {
                     runOnUiThread {
-                        autofocusButton.setColorFilter(ContextCompat.getColor(this@CameraActivity, android.R.color.holo_orange_light))
+                        autofocusButton?.setColorFilter(ContextCompat.getColor(this@CameraActivity, android.R.color.holo_orange_light))
                         focusIndicator.post(hideFocusIndicatorRunnable)
-                        autofocusButton.postDelayed({
-                            autofocusButton.clearColorFilter()
+                        autofocusButton?.postDelayed({
+                            autofocusButton?.clearColorFilter()
                         }, 1000)
                     }
                 }
