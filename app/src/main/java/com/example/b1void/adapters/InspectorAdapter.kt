@@ -1,7 +1,6 @@
 package com.example.b1void.adapters
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -44,18 +43,16 @@ class InspectorAdapter(private var inspectors: List<Inspector>, private val long
         holder.tvName.text = currentInspector.name
         holder.tvCode.text = currentInspector.code
 
-        if(currentInspector.localPhotoPath != null){
-            val bitmap = loadBitmapFromPath(currentInspector.localPhotoPath)
-            if(bitmap != null){
-                Glide.with(holder.itemView.context)
-                    .load(bitmap)
-                    .placeholder(R.drawable.def_insp_img)
-                    .error(R.drawable.def_insp_img)
-                    .into(holder.ivPhoto)
-            } else{
-                holder.ivPhoto.setImageResource(R.drawable.def_insp_img)
-            }
-        } else{
+        if (currentInspector.localPhotoPath != null) {
+            val file = File(currentInspector.localPhotoPath)
+            Glide.with(holder.itemView.context)
+                .load(file)
+                .thumbnail(0.25f)
+                .centerCrop()
+                .placeholder(R.drawable.def_insp_img)
+                .error(R.drawable.def_insp_img)
+                .into(holder.ivPhoto)
+        } else {
             holder.ivPhoto.setImageResource(R.drawable.def_insp_img)
         }
 
@@ -69,14 +66,8 @@ class InspectorAdapter(private var inspectors: List<Inspector>, private val long
     }
 
     private fun loadBitmapFromPath(path: String): Bitmap? {
-        return try {
-            val file = File(path)
-            val inputStream = FileInputStream(file)
-            BitmapFactory.decodeStream(inputStream)
-        } catch (e: IOException){
-            e.printStackTrace()
-            null
-        }
+        // No longer used; keep stub to avoid API break if referenced elsewhere
+        return null
     }
 
 

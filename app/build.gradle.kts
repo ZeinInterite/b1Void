@@ -100,7 +100,6 @@ dependencies {
 
     implementation ("com.github.bumptech.glide:glide:4.16.0")
     implementation("com.google.firebase:firebase-storage-ktx:21.0.1")
-    implementation("com.google.firebase:firebase-storage:21.0.1")
     implementation("androidx.datastore:datastore-core-android:1.1.1")
     implementation("com.google.firebase:firebase-crashlytics-buildtools:3.0.3")
     annotationProcessor ("com.github.bumptech.glide:compiler:4.16.0")
@@ -119,7 +118,7 @@ dependencies {
     implementation ("com.dropbox.core:dropbox-core-sdk:7.0.0")
     implementation ("com.dropbox.core:dropbox-android-sdk:7.0.0")
 
-    implementation ("com.squareup.picasso:picasso:2.71828")
+    // Removed unused Picasso to reduce size
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     implementation("com.google.firebase:firebase-database:21.0.0")
     implementation("com.google.firebase:firebase-auth:23.2.0")
@@ -128,9 +127,7 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 
-
-
-    implementation("androidx.activity:activity-ktx:1.10.1")
+    // Remove duplicate activity-ktx declaration
 
     implementation("com.github.yukuku:ambilwarna:2.0.1")
 

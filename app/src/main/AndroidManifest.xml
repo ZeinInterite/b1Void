@@ -15,7 +15,6 @@
         tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:name=".B1VoidApplication"
@@ -27,7 +26,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.B1Void"
-        android:largeHeap="true"
+        
         android:hardwareAccelerated="true"
         tools:targetApi="31">
 

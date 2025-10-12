@@ -348,10 +348,16 @@ class AdmActivity : AppCompatActivity(), InspectorAdapter.OnItemLongClickListene
         editEtInspectorName.setText(inspector.name)
         editEtInspectorCode.setText(inspector.code)
 
-        if(inspector.localPhotoPath != null){
-            val bitmap = BitmapFactory.decodeFile(inspector.localPhotoPath)
-            Glide.with(this).load(bitmap).into(editIvInspectorPreview)
-        }else{
+        if (inspector.localPhotoPath != null) {
+            val file = File(inspector.localPhotoPath)
+            Glide.with(this)
+                .load(file)
+                .thumbnail(0.25f)
+                .centerCrop()
+                .placeholder(R.drawable.def_insp_img)
+                .error(R.drawable.def_insp_img)
+                .into(editIvInspectorPreview)
+        } else {
             Glide.with(this).load(R.drawable.def_insp_img).into(editIvInspectorPreview)
         }
 
