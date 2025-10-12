@@ -49,8 +49,11 @@ class FileAdapter(
 
         when {
             file.isDirectory -> {
-                holder.fileIcon.scaleType = ImageView.ScaleType.CENTER_INSIDE
-                holder.fileIcon.setImageResource(R.drawable.ic_folder_large)
+                holder.fileIcon.scaleType = ImageView.ScaleType.CENTER_CROP
+                Glide.with(context)
+                    .load(R.drawable.ic_folder_large)
+                    .centerCrop()
+                    .into(holder.fileIcon)
             }
             isImage(file) -> {
                 holder.fileIcon.scaleType = ImageView.ScaleType.CENTER_CROP
