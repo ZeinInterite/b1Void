@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:id="@+id/sort_mode_group" android:checkableBehavior="single">
+        <item
+            android:id="@+id/sort_date_asc"
+            android:title="От старых к новым"
+            android:checkable="true" />
+        <item
+            android:id="@+id/sort_date_desc"
+            android:title="От новых к старым"
+            android:checkable="true" />
+        <item
+            android:id="@+id/sort_name_asc"
+            android:title="По имени (возрастание)"
+            android:checkable="true" />
+        <item
+            android:id="@+id/sort_name_desc"
+            android:title="По имени (убывание)"
+            android:checkable="true" />
+    </group>
+    
+</menu>

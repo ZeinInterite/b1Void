@@ -85,6 +85,9 @@ class FileManagerActivity : AppCompatActivity() {
     private val MIN_SPAN_COUNT = 2
     private val MAX_SPAN_COUNT = 6
 
+    private enum class SortMode { DATE_ASC, DATE_DESC, NAME_ASC, NAME_DESC }
+    private var sortMode: SortMode = SortMode.DATE_ASC
+
     private enum class SwipeSelectionMode { NONE, ADD, REMOVE }
     private var swipeSelectionMode = SwipeSelectionMode.NONE
 
@@ -156,7 +159,8 @@ class FileManagerActivity : AppCompatActivity() {
         val sortButton: ImageButton = findViewById(R.id.sort_button)
         val uploadButton = findViewById<View>(R.id.upload_button)
 
-        sortButton.setOnClickListener { toggleSortOrder() }
+        // Tap: open sort menu with options
+        sortButton.setOnClickListener { showSortMenu(it) }
         openTrashButton.setOnClickListener { openTrashDirectory() }
         clearTrashButton.setOnClickListener { showClearTrashConfirmation() }
 
@@ -540,16 +544,24 @@ class FileManagerActivity : AppCompatActivity() {
                 filesAndDirs
             }
             // Group order: Folders (0) → Videos (1) → Photos (2) → Others (3)
-            // Within each group, sort by creation time (ascending/descending by toggle)
-            val sortedVisibleFiles = visibleFiles.sortedWith(
-                if (sortAscending) {
-                    compareBy<File> { categoryRank(it) }
-                        .thenBy { FileManagerUtils.getCreationTimeMillis(it) }
-                } else {
-                    compareBy<File> { categoryRank(it) }
-                        .thenByDescending { FileManagerUtils.getCreationTimeMillis(it) }
+            // Inside each group, apply selected sort mode
+            val sortedVisibleFiles = visibleFiles.sortedWith { a, b ->
+                val cr = categoryRank(a).compareTo(categoryRank(b))
+                if (cr != 0) return@sortedWith cr
+
+                fun cmpDate(x: File, y: File): Int =
+                    FileManagerUtils.getCreationTimeMillis(x).compareTo(FileManagerUtils.getCreationTimeMillis(y))
+                fun cmpName(x: File, y: File): Int =
+                    x.name.lowercase(Locale.ROOT).compareTo(y.name.lowercase(Locale.ROOT))
+
+                val cmp = when (sortMode) {
+                    SortMode.DATE_ASC -> cmpDate(a, b)
+                    SortMode.DATE_DESC -> -cmpDate(a, b)
+                    SortMode.NAME_ASC -> cmpName(a, b)
+                    SortMode.NAME_DESC -> -cmpName(a, b)
                 }
-            )
+                cmp
+            }
             runOnUiThread {
                 if (!this::fileAdapter.isInitialized) {
                     fileAdapter = FileAdapter(
@@ -574,6 +586,41 @@ class FileManagerActivity : AppCompatActivity() {
                 swipeRefreshLayout.isRefreshing = false
             }
         }
+    }
+
+    private fun showSortMenu(anchor: View) {
+        val popup = PopupMenu(this, anchor)
+        popup.menuInflater.inflate(R.menu.sort_mode_menu, popup.menu)
+
+        // Reflect current selection with a checkmark
+        val checkedId = when (sortMode) {
+            SortMode.DATE_ASC -> R.id.sort_date_asc
+            SortMode.DATE_DESC -> R.id.sort_date_desc
+            SortMode.NAME_ASC -> R.id.sort_name_asc
+            SortMode.NAME_DESC -> R.id.sort_name_desc
+        }
+        popup.menu.setGroupCheckable(R.id.sort_mode_group, true, true)
+        popup.menu.findItem(checkedId)?.isChecked = true
+
+        popup.setOnMenuItemClickListener { item ->
+            val newMode = when (item.itemId) {
+                R.id.sort_date_asc -> SortMode.DATE_ASC
+                R.id.sort_date_desc -> SortMode.DATE_DESC
+                R.id.sort_name_asc -> SortMode.NAME_ASC
+                R.id.sort_name_desc -> SortMode.NAME_DESC
+                else -> null
+            }
+            if (newMode != null) {
+                sortMode = newMode
+                item.isChecked = true
+                // Update icon orientation for visual hint: asc → upside-down
+                val asc = (sortMode == SortMode.DATE_ASC || sortMode == SortMode.NAME_ASC)
+                findViewById<ImageView>(R.id.sort_button).scaleY = if (asc) -1f else 1f
+                loadDirectoryContent(getCurrentDirectory())
+                true
+            } else false
+        }
+        popup.show()
     }
 
     private fun onItemClick(file: File) {
