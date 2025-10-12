@@ -40,6 +40,7 @@ import android.view.ScaleGestureDetector
 import android.view.animation.AnimationUtils
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
+import com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBar
 
 class FileManagerActivity : AppCompatActivity() {
 
@@ -55,6 +56,10 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var titleTextView: TextView
     private lateinit var sharedPreferences: SharedPreferences
+    private lateinit var seekbarWrapper: View
+    private lateinit var sizeSeekBar: VerticalSeekBar
+    private val uiHandler: Handler = Handler(Looper.getMainLooper())
+    private val hideSeekbarRunnable = Runnable { seekbarWrapper.visibility = View.GONE }
 
     // --- Новый UI для режима выделения ---
     private lateinit var selectionTopToolbar: LinearLayout
@@ -95,6 +100,7 @@ class FileManagerActivity : AppCompatActivity() {
         setupButtons()
         setupRecyclerView()
         setupGestureDetector()
+        setupSizeSeekbar()
         setupDirectories()
         maybeAutoClearTrash()
         setupMoveResultListener() // Добавляем листенер
@@ -136,6 +142,8 @@ class FileManagerActivity : AppCompatActivity() {
         openTrashButton = findViewById(R.id.open_trash_button)
         clearTrashButton = findViewById(R.id.clear_trash_button)
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
+        seekbarWrapper = findViewById(R.id.seekbar_wrapper)
+        sizeSeekBar = findViewById(R.id.progressBar)
 
         selectionTopToolbar = findViewById(R.id.selection_top_toolbar)
         selectionCountTextView = findViewById(R.id.selection_count_text)
@@ -204,6 +212,7 @@ class FileManagerActivity : AppCompatActivity() {
 
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
             swipeRefreshLayout.isEnabled = false
+            showSizeSeekbar()
             return true
         }
 
@@ -214,17 +223,21 @@ class FileManagerActivity : AppCompatActivity() {
             if (scaleFactor > 1.2f && spanCount > MIN_SPAN_COUNT) {
                 spanCount--
                 updateGridLayout()
+                updateSeekbarFromSpan()
                 scaleFactor = 1.0f
             } else if (scaleFactor < 0.8f && spanCount < MAX_SPAN_COUNT) {
                 spanCount++
                 updateGridLayout()
+                updateSeekbarFromSpan()
                 scaleFactor = 1.0f
             }
+            showSizeSeekbar()
             return true
         }
 
         override fun onScaleEnd(detector: ScaleGestureDetector) {
             swipeRefreshLayout.isEnabled = true
+            scheduleHideSizeSeekbar()
         }
     }
 
@@ -274,6 +287,52 @@ class FileManagerActivity : AppCompatActivity() {
             override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
             override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
         })
+    }
+
+    private fun setupSizeSeekbar() {
+        updateSeekbarFromSpan()
+        sizeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (!fromUser) return
+                val max = seekBar?.max ?: 100
+                val fraction = progress.toFloat() / max.toFloat()
+                val mapped = (MAX_SPAN_COUNT - Math.round(fraction * (MAX_SPAN_COUNT - MIN_SPAN_COUNT)))
+                    .coerceIn(MIN_SPAN_COUNT, MAX_SPAN_COUNT)
+                if (mapped != spanCount) {
+                    spanCount = mapped
+                    updateGridLayout()
+                }
+                showSizeSeekbar()
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                showSizeSeekbar()
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                scheduleHideSizeSeekbar()
+            }
+        })
+    }
+
+    private fun updateSeekbarFromSpan() {
+        val max = sizeSeekBar.max.takeIf { it > 0 } ?: 100
+        val denom = (MAX_SPAN_COUNT - MIN_SPAN_COUNT).takeIf { it != 0 } ?: 1
+        val fraction = (MAX_SPAN_COUNT - spanCount).toFloat() / denom.toFloat()
+        val progress = (fraction * max).toInt().coerceIn(0, max)
+        sizeSeekBar.progress = progress
+    }
+
+    private fun showSizeSeekbar() {
+        uiHandler.removeCallbacks(hideSeekbarRunnable)
+        if (seekbarWrapper.visibility != View.VISIBLE) {
+            seekbarWrapper.visibility = View.VISIBLE
+        }
+    }
+
+    private fun scheduleHideSizeSeekbar(delayMs: Long = 1500L) {
+        uiHandler.removeCallbacks(hideSeekbarRunnable)
+        uiHandler.postDelayed(hideSeekbarRunnable, delayMs)
     }
 
     private fun setupGestureDetector() {

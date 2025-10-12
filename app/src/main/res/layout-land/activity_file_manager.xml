@@ -211,14 +211,14 @@
         app:layout_constraintTop_toBottomOf="@id/appbar"
         app:layout_constraintBottom_toTopOf="@id/buttons_menu"
         app:layout_constraintEnd_toEndOf="parent"
-        android:visibility="visible">
+        android:visibility="gone">
 
         <com.h6ah4i.android.widget.verticalseekbar.VerticalSeekBar
             android:id="@+id/progressBar"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:max="150"
-            android:progress="75"
+            android:max="100"
+            android:progress="50"
             style="@style/VerticalSeekBarStyle"
             android:padding="8dp"
             android:splitTrack="false"
