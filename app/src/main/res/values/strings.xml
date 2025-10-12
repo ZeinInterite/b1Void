@@ -55,6 +55,12 @@
     <string name="camera_resolution_close">������� ������ ����������</string>
 
     <string name="trash_cleared_automatically">������� ������������� �������</string>
+    <!-- Context menu actions -->
+    <string name="action_move">Переместить</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_share">Поделиться</string>
+    <string name="action_rename">Переименовать</string>
+    <string name="action_select_multiple">Выбрать несколько</string>
 </resources>
 
 

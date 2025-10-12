@@ -379,8 +379,12 @@ class FileManagerActivity : AppCompatActivity() {
                     val position = recyclerView.getChildAdapterPosition(childView)
                     if (position != RecyclerView.NO_POSITION) {
                         val file = fileAdapter.files[position]
-                        startSelectionMode(file, position)
-                        startSwipeSelection(position, SwipeSelectionMode.ADD)
+                        val isMedia = !file.isDirectory && (fileAdapter.isImage(file) || fileAdapter.isVideo(file))
+                        if (isMedia) {
+                            startSelectionMode(file, position)
+                            startSwipeSelection(position, SwipeSelectionMode.ADD)
+                        }
+                        // If not media (e.g., folder), do not start selection here.
                     }
                 }
             }
@@ -503,8 +507,8 @@ class FileManagerActivity : AppCompatActivity() {
     private fun showPopupMenu(file: File, view: View) {
         currentFileForMenu = file
         PopupMenu(this, view).apply {
-            menuInflater.inflate(R.menu.file_actions_menu, menu)
-            
+            val menuRes = if (file.isDirectory) R.menu.file_context_menu else R.menu.file_actions_menu
+            menuInflater.inflate(menuRes, menu)
 
             setOnMenuItemClickListener { item ->
                 onContextItemSelected(item)
@@ -519,6 +523,8 @@ class FileManagerActivity : AppCompatActivity() {
             R.id.action_move -> { showMoveDialogForFile(file); true }
             R.id.action_delete -> { deleteFile(file); true }
             R.id.action_share -> { shareFile(file); true }
+            R.id.action_share_single -> { shareFile(file); true }
+            R.id.action_rename -> { showRenameDialog(file); true }
             
             R.id.action_select_multiple -> { startSelectionMode(file); true }
             else -> super.onContextItemSelected(item)
