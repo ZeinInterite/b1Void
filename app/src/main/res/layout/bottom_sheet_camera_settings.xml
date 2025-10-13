@@ -10,56 +10,46 @@
         android:layout_height="wrap_content"
         android:text="Настройки камеры"
         android:textSize="20sp"
-        android:textStyle="bold" 
+        android:textStyle="bold"
         android:layout_marginBottom="16dp"/>
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <Button
+        android:id="@+id/flash_settings_button"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
         android:text="Режим вспышки"
-        android:textSize="16sp"/>
-
-    <RadioGroup
-        android:id="@+id/flash_mode_group"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginBottom="16dp">
-
-        <RadioButton
-            android:id="@+id/flash_mode_auto"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Авто"/>
-
-        <RadioButton
-            android:id="@+id/flash_mode_on"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Вкл"/>
-
-        <RadioButton
-            android:id="@+id/flash_mode_off"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Выкл"/>
-
-    </RadioGroup>
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Разрешение камеры"
+        android:textAlignment="textStart"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:background="?attr/selectableItemBackground"
+        android:textAllCaps="false"
         android:textSize="16sp"
-        android:layout_marginTop="8dp"/>
+        android:layout_marginBottom="8dp"/>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/resolution_recycler_view"
+    <Button
+        android:id="@+id/resolution_settings_button"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="16dp"
-        android:maxHeight="200dp"
-        android:scrollbars="vertical"/>
+        android:layout_height="56dp"
+        android:text="Разрешение камеры"
+        android:textAlignment="textStart"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:background="?attr/selectableItemBackground"
+        android:textAllCaps="false"
+        android:textSize="16sp"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/video_delay_settings_button"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Задержка записи видео"
+        android:textAlignment="textStart"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:background="?attr/selectableItemBackground"
+        android:textAllCaps="false"
+        android:textSize="16sp"
+        android:layout_marginBottom="8dp"/>
 
 </LinearLayout>

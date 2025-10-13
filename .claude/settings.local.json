@@ -7,7 +7,9 @@
       "Bash(./gradlew.bat:*)",
       "Bash(timeout:*)",
       "Bash(.gradlew.bat assembleDebug)",
-      "Bash(./gradlew:*)"
+      "Bash(./gradlew:*)",
+      "Bash(where java)",
+      "Bash(dir:*)"
     ],
     "deny": []
   }

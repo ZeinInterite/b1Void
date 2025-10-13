@@ -45,6 +45,7 @@ import android.webkit.MimeTypeMap
 import android.widget.Chronometer
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.material3.MaterialTheme
@@ -197,11 +198,10 @@ class CameraActivity : AppCompatActivity() {
     // Hold-to-record state
     private var isHoldRecordingActive = false
     private var holdStartRunnable: Runnable? = null
-    private val holdToRecordDelayMs = 200L
-    private var stopHoldRunnable: Runnable? = null
-    private val stopHoldDelayMs = 500L
+    private var holdToRecordDelayMs = 800L  // Загружается из настроек, по умолчанию 0.8 сек
     private var pressDownUptime: Long = 0L
     private val quickTapThresholdMs = 150L
+    private var waitingForStopTap = false  // Флаг: палец отпущен после старта записи, ждем следующий тап для остановки
     private val hideFocusIndicatorRunnable = Runnable {
         focusIndicator.animate().cancel()
         focusIndicator.visibility = View.GONE
@@ -276,10 +276,12 @@ class CameraActivity : AppCompatActivity() {
                     if (currentMode == CaptureMode.PHOTO) {
                         v.isPressed = true
                         pressDownUptime = SystemClock.uptimeMillis()
-                        // If a delayed stop is pending (grace period), cancel it to continue recording seamlessly
-                        cancelScheduledStopVideoRecordingForHold()
-                        // If already recording due to prior hold, keep going; otherwise schedule start
-                        if (!isHoldRecordingActive && !isRecording) {
+
+                        if (waitingForStopTap) {
+                            // Запись идет, пользователь нажал кнопку для остановки - ничего не делаем в ACTION_DOWN
+                            // Остановка произойдет в ACTION_UP
+                        } else if (!isHoldRecordingActive && !isRecording) {
+                            // Запись не идет - начинаем отсчет 0.8 сек
                             scheduleHoldRecordingStart()
                         }
                         return@setOnTouchListener true
@@ -288,18 +290,25 @@ class CameraActivity : AppCompatActivity() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     if (currentMode == CaptureMode.PHOTO) {
                         v.isPressed = false
-                        cancelHoldRecordingStartIfPending()
                         val elapsed = SystemClock.uptimeMillis() - pressDownUptime
                         val isQuickTap = elapsed <= quickTapThresholdMs
-                        if (isQuickTap && !isHoldRecordingActive && !isRecording) {
-                            // Only quick taps produce photos
-                            takePhoto()
+
+                        if (waitingForStopTap) {
+                            // Запись идет, пользователь отпустил кнопку - останавливаем запись
+                            stopVideoRecordingForHoldNow()
+                            waitingForStopTap = false
+                        } else if (isRecording || isHoldRecordingActive) {
+                            // Запись только что началась (палец все еще на кнопке или только что отпущен)
+                            // Устанавливаем флаг, что ждем следующий тап для остановки
+                            waitingForStopTap = true
                         } else {
-                            // Consider this a video gesture: ensure recording, then schedule delayed stop
-                            if (!isRecording) {
-                                startVideoRecordingForHold()
+                            // Запись не идет и не начиналась
+                            cancelHoldRecordingStartIfPending()
+                            if (isQuickTap) {
+                                // Быстрый тап - делаем фото
+                                takePhoto()
                             }
-                            scheduleStopVideoRecordingForHold()
+                            // Если удержание было 0.15-0.8 сек - ничего не делаем
                         }
                         return@setOnTouchListener true
                     }
@@ -1842,7 +1851,6 @@ class CameraActivity : AppCompatActivity() {
         holdStartRunnable = Runnable {
             holdStartRunnable = null
             startVideoRecordingForHold()
-            isHoldRecordingActive = true
         }
         mainHandler.postDelayed(holdStartRunnable!!, holdToRecordDelayMs)
     }
@@ -1874,6 +1882,8 @@ class CameraActivity : AppCompatActivity() {
                     is VideoRecordEvent.Start -> {}
                     is VideoRecordEvent.Finalize -> {
                         isRecording = false
+                        isHoldRecordingActive = false
+                        waitingForStopTap = false
                         stopRecordingIndicator()
                         if (!recordEvent.hasError()) {
                             processVideoStamp(videoFile)
@@ -1889,24 +1899,9 @@ class CameraActivity : AppCompatActivity() {
     private fun stopVideoRecordingForHoldNow() {
         if (!isRecording) return
         isHoldRecordingActive = false
+        waitingForStopTap = false
         recording?.stop()
         recording = null
-    }
-
-    private fun scheduleStopVideoRecordingForHold() {
-        stopHoldRunnable?.let { mainHandler.removeCallbacks(it) }
-        stopHoldRunnable = Runnable {
-            stopHoldRunnable = null
-            stopVideoRecordingForHoldNow()
-        }
-        mainHandler.postDelayed(stopHoldRunnable!!, stopHoldDelayMs)
-    }
-
-    private fun cancelScheduledStopVideoRecordingForHold() {
-        stopHoldRunnable?.let {
-            mainHandler.removeCallbacks(it)
-            stopHoldRunnable = null
-        }
     }
 
     private fun updateThumbnail(uri: Uri) {
@@ -2079,7 +2074,8 @@ class CameraActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         cancelHoldRecordingStartIfPending()
-        cancelScheduledStopVideoRecordingForHold()
+        waitingForStopTap = false
+        isHoldRecordingActive = false
         recording?.stop()
         recording = null
         orientationEventListener?.disable()
@@ -2112,6 +2108,10 @@ class CameraActivity : AppCompatActivity() {
             savedTorchState = enabled
             shouldRestoreTorchState = true
             Log.d(TAG, "onResume: Loaded torch state from DataStore: $savedTorchState, will restore after camera initialization")
+
+            // Load video recording delay setting
+            holdToRecordDelayMs = settingsManager.getVideoRecordDelay().first().toLong()
+            Log.d(TAG, "onResume: Loaded video record delay: ${holdToRecordDelayMs}ms")
         }
     }
 

@@ -25,6 +25,9 @@ class CameraSettingsManager(private val context: Context) {
         val AUTO_HIDE_DELAY_KEY = intPreferencesKey("auto_hide_delay")
         val TRANSITION_SPEED_KEY = intPreferencesKey("transition_speed")
         val CAPTURE_BUTTON_SIZE_LANDSCAPE_KEY = booleanPreferencesKey("capture_button_size_landscape")
+
+        // Video recording delay preference
+        val VIDEO_RECORD_DELAY_KEY = intPreferencesKey("video_record_delay")
     }
 
     fun getFlashMode(): Flow<Int> {
@@ -126,6 +129,22 @@ class CameraSettingsManager(private val context: Context) {
     suspend fun setCaptureButtonSizeLandscapeEnabled(isEnabled: Boolean) {
         context.dataStore.edit {
             it[CAPTURE_BUTTON_SIZE_LANDSCAPE_KEY] = isEnabled
+        }
+    }
+
+    /**
+     * Get video recording delay in milliseconds
+     * @return delay in ms (default: 800)
+     */
+    fun getVideoRecordDelay(): Flow<Int> {
+        return context.dataStore.data.map {
+            it[VIDEO_RECORD_DELAY_KEY] ?: 800
+        }
+    }
+
+    suspend fun setVideoRecordDelay(delayMs: Int) {
+        context.dataStore.edit {
+            it[VIDEO_RECORD_DELAY_KEY] = delayMs
         }
     }
 }
