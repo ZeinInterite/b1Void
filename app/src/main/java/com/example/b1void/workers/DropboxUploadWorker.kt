@@ -33,10 +33,11 @@ class DropboxUploadWorker(
             val dbxClient: DbxClientV2 = DropboxClientFactory.getClient()
 
             withContext(Dispatchers.IO) {
-                val inputStream = FileInputStream(file)
-                dbxClient.files().uploadBuilder(dropboxPath)
-                    .withMode(WriteMode.OVERWRITE)
-                    .uploadAndFinish(inputStream)
+                FileInputStream(file).use { inputStream ->
+                    dbxClient.files().uploadBuilder(dropboxPath)
+                        .withMode(WriteMode.OVERWRITE)
+                        .uploadAndFinish(inputStream)
+                }
             }
 
             Result.success()

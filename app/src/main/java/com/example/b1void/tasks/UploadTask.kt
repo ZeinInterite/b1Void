@@ -24,10 +24,11 @@ class UploadTask(
 
     override fun doInBackground(vararg params: Void?): Void? {
         try {
-            val inputStream = FileInputStream(file)
-            dbxClient.files().uploadBuilder(dropboxPath)
-                .withMode(WriteMode.OVERWRITE)
-                .uploadAndFinish(inputStream)
+            FileInputStream(file).use { inputStream ->
+                dbxClient.files().uploadBuilder(dropboxPath)
+                    .withMode(WriteMode.OVERWRITE)
+                    .uploadAndFinish(inputStream)
+            }
         } catch (e: DbxException) {
             error = e
         } catch (e: IOException) {

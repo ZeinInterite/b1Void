@@ -25,8 +25,10 @@ class DownloadTask(
     override fun doInBackground(vararg params: Void?): Void? {
         try {
             val downloadResult = dbxClient.files().download(dropboxPath)
-            FileOutputStream(localFile).use { outputStream ->
-                downloadResult.inputStream.copyTo(outputStream)
+            downloadResult.inputStream.use { inputStream ->
+                FileOutputStream(localFile).use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
             }
         } catch (e: DbxException) {
             error = e

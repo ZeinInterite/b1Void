@@ -288,14 +288,18 @@ object FileManagerUtils {
             }
             return
         }
-        FileInputStream(fileToZip).use { fis ->
-            val zipEntry = ZipEntry(fileName)
+        BufferedInputStream(FileInputStream(fileToZip)).use { bis ->
+            val zipEntry = ZipEntry(fileName).apply {
+                time = fileToZip.lastModified()
+                method = ZipEntry.DEFLATED
+            }
             zipOut.putNextEntry(zipEntry)
-            val bytes = ByteArray(1024)
+            val bytes = ByteArray(8192)
             var length: Int
-            while (fis.read(bytes).also { length = it } >= 0) {
+            while (bis.read(bytes).also { length = it } >= 0) {
                 zipOut.write(bytes, 0, length)
             }
+            zipOut.closeEntry()
         }
     }
 } 
