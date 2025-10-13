@@ -101,7 +101,7 @@ fun ZoomControl(
             ) {
                 ZoomRail(
                     position = position,
-                    length = 240.dp,
+                    length = 200.dp,
                     thickness = railThickness,
                     handle = handleSize,
                     orientation = Orientation.Horizontal,
@@ -133,11 +133,11 @@ fun ZoomControl(
                 contentAlignment = railAlignment
             ) {
                 ZoomRail(
-                    position = position,
-                    length = 240.dp,
-                    thickness = railThickness,
-                    handle = handleSize,
-                    orientation = Orientation.Vertical,
+                      position = position,
+                      length = 200.dp,
+                      thickness = railThickness,
+                      handle = handleSize,
+                      orientation = Orientation.Vertical,
                     onPositionChanged = { t -> onZoomChanged(lerp(minZoom, maxZoom, t)) },
                     contentDescription = "Zoom"
                 )

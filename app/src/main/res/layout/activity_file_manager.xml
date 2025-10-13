@@ -95,7 +95,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/file_manager_selection_initial"
-                android:textColor="@android:color/white"
+                android:textColor="@color/black"
                 android:textSize="18sp" />
 
             <Button
