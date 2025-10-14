@@ -1,36 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Основные цвета Material Design -->
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
+    <!-- Legacy Material colors remapped to brand palette -->
+    <!-- Primary shades -->
+    <color name="purple_200">#E0E7FF</color> <!-- primaryContainer (light) -->
+    <color name="purple_500">#1E3A8A</color> <!-- primary (light) -->
+    <color name="purple_700">#162C6A</color> <!-- primary (darker) -->
+    <!-- Secondary shades -->
+    <color name="teal_200">#0EA5E9</color> <!-- secondary (light accent) -->
+    <color name="teal_700">#0369A1</color> <!-- secondary (darker) -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
     <!-- Восстановленные цвета, необходимые для сборки -->
-    <color name="back">#F5F5F5</color> <!-- Стандартный светлый фон -->
+    <color name="back">#F8FAFC</color> <!-- Light background -->
     <color name="colorPrimary">@color/purple_500</color>
-    <color name="selection_toolbar_background">#E0E0E0</color> <!-- Светло-серый для тулбара -->
-    <color name="delete_red">#D32F2F</color> <!-- Насыщенный красный для удаления -->
+    <color name="selection_toolbar_background">#EEF2F6</color> <!-- Surface variant (light) -->
+    <color name="delete_red">#DC2626</color> <!-- Error/destructive -->
 
     <!-- Стандартные цвета -->
-    <color name="blue">#0000FF</color>
-    <color name="gray">#808080</color>
-    <color name="red">#FF0000</color>
-    <color name="yellow">#FFFF00</color>
-    <color name="green">#00FF00</color>
+    <color name="blue">#1E3A8A</color>
+    <color name="gray">#E5E7EB</color>
+    <color name="red">#DC2626</color>
+    <color name="yellow">#F59E0B</color>
+    <color name="green">#10B981</color>
 
     <!-- Новый цвет для подсветки выделения -->
     <!-- Highlight colors for move dialog -->
-    <color name="move_folder_item_background">#FFE8EAF6</color>
-    <color name="move_folder_item_selected_background">#33FF0000</color>
-    <color name="move_folder_item_text">#FF212121</color>
+    <color name="move_folder_item_background">#E0E7FF</color>
+    <color name="move_folder_item_selected_background">#331E3A8A</color>
+    <color name="move_folder_item_text">#111827</color>
     <color name="file_selection_overlay">#66000000</color>
-    <color name="file_selection_badge_background">#FF2962FF</color>
-    <color name="button_background_color">#B0858585</color>
-    <color name="camera_popup_background">#CC1E1E1E</color>
+    <color name="file_selection_badge_background">#0EA5E9</color>
+    <color name="button_background_color">#B01E3A8A</color>
+    <color name="camera_popup_background">#CC111827</color>
+
+    <!-- Brand palette for Material3 theme mapping (light) -->
+    <color name="brand_primary">#1E3A8A</color>
+    <color name="brand_on_primary">#FFFFFF</color>
+    <color name="brand_primary_container">#E0E7FF</color>
+    <color name="brand_on_primary_container">#0B1220</color>
+
+    <color name="brand_secondary">#0EA5E9</color>
+    <color name="brand_on_secondary">#001018</color>
+    <color name="brand_secondary_container">#E0F2FE</color>
+    <color name="brand_on_secondary_container">#031017</color>
+
+    <color name="brand_tertiary">#10B981</color>
+    <color name="brand_on_tertiary">#002017</color>
+
+    <color name="brand_background">#F8FAFC</color>
+    <color name="brand_on_background">#0B1220</color>
+    <color name="brand_surface">#FFFFFF</color>
+    <color name="brand_on_surface">#0B1220</color>
+    <color name="brand_surface_variant">#EEF2F6</color>
+    <color name="brand_outline">#93A3B8</color>
+
+    <color name="brand_error">#DC2626</color>
+    <color name="brand_on_error">#FFFFFF</color>
 </resources>
 
 
