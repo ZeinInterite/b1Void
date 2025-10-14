@@ -74,6 +74,61 @@ object FileManagerUtils {
         return savedFiles
     }
 
+    fun importUrisToDirectoryModern(context: Context, directory: File, uris: List<Uri>): List<File> {
+        if (!directory.exists()) {
+            directory.mkdirs()
+        }
+        val resolver = context.contentResolver
+        val savedFiles = mutableListOf<File>()
+
+        uris.forEach { uri ->
+            try {
+                val mimeType = resolver.getType(uri)
+
+                val originalName: String? = try {
+                    resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                        if (c.moveToFirst()) c.getString(0) else null
+                    }
+                } catch (_: Exception) { null }
+
+                val extFromMime = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
+                val extFromPath = (uri.lastPathSegment ?: "").let { path ->
+                    val i = path.lastIndexOf('.')
+                    if (i >= 0 && i < path.length - 1) path.substring(i + 1) else null
+                }
+
+                val baseName = originalName?.takeIf { it.isNotBlank() } ?: run {
+                    val ext = extFromMime ?: extFromPath ?: "bin"
+                    "File-${System.currentTimeMillis()}.$ext"
+                }
+
+                var targetFile = File(directory, baseName)
+                if (targetFile.exists()) {
+                    val dot = baseName.lastIndexOf('.')
+                    val nameOnly = if (dot > 0) baseName.substring(0, dot) else baseName
+                    val ext = if (dot > 0) baseName.substring(dot) else ""
+                    var idx = 1
+                    while (targetFile.exists()) {
+                        targetFile = File(directory, "$nameOnly ($idx)$ext")
+                        idx++
+                    }
+                }
+
+                resolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(targetFile).use { output ->
+                        input.copyTo(output)
+                    }
+                } ?: throw IOException("Не удалось открыть поток: $uri")
+
+                savedFiles.add(targetFile)
+            } catch (e: Exception) {
+                Log.e("FileManager", "Ошибка импорта $uri: ${e.message}", e)
+            }
+        }
+
+        return savedFiles
+    }
+
     private fun createDirectoryIfNotExists(directory: File, directoryName: String, context: Context) {
         if (!directory.exists()) {
             try {

@@ -13,6 +13,9 @@
     <string name="share_photos">Поделиться фото</string>
     <string name="share_videos">Поделиться видео</string>
     <string name="share_archive">Поделиться архивом</string>
+    <string name="add_files_from">Добавить файлы</string>
+    <string name="add_from_gallery">Галерея</string>
+    <string name="add_from_files">Файловый менеджер</string>
     <string name="open_trash">Корзина</string>
     <string name="clear_trash">Очистить корзину</string>
     <string name="confirm_clear_trash_title">Очистить корзину?</string>

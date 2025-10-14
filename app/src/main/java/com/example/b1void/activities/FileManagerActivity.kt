@@ -165,35 +165,19 @@ class FileManagerActivity : AppCompatActivity() {
         clearTrashButton.setOnClickListener { showClearTrashConfirmation() }
 
         uploadButton.setOnClickListener {
-            val galleryIntent = Intent(
-                Intent.ACTION_PICK,
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-            ).apply {
-                type = "image/*"
-                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-            }
-
-            try {
-                val chooserTitle = getString(R.string.select_images_from_gallery)
-                startActivityForResult(
-                    Intent.createChooser(galleryIntent, chooserTitle),
-                    OPEN_FILE
-                )
-            } catch (e: ActivityNotFoundException) {
-                val fallbackIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                    type = "image/*"
-                    putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            val options = arrayOf(
+                getString(R.string.add_from_gallery),
+                getString(R.string.add_from_files)
+            )
+            AlertDialog.Builder(this)
+                .setTitle(R.string.add_files_from)
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> launchGalleryPicker()
+                        1 -> launchFileManagerPicker()
+                    }
                 }
-                try {
-                    startActivityForResult(fallbackIntent, OPEN_FILE)
-                } catch (fallbackError: ActivityNotFoundException) {
-                    Toast.makeText(
-                        this,
-                        R.string.gallery_app_not_found,
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
+                .show()
         }
 
         captureButton.setOnClickListener {
@@ -210,6 +194,58 @@ class FileManagerActivity : AppCompatActivity() {
 
         selectAllToggleButton.setOnClickListener { toggleSelectAll() }
         confirmSelectionButton.setOnClickListener { showActionsMenu() }
+    }
+
+    private fun launchGalleryPicker() {
+        // Prefer native gallery via ACTION_PICK, allow multiple selection when supported
+        val galleryIntent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI).apply {
+            type = "image/*"
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        }
+        val chooserTitle = try { getString(R.string.select_images_from_gallery) } catch (_: Exception) { "Выберите из галереи" }
+        try {
+            startActivityForResult(Intent.createChooser(galleryIntent, chooserTitle), OPEN_FILE)
+        } catch (_: ActivityNotFoundException) {
+            // Fallback to system picker with images and videos
+            val fallback = Intent(Intent.ACTION_GET_CONTENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*"))
+                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            }
+            try {
+                startActivityForResult(Intent.createChooser(fallback, chooserTitle), OPEN_FILE)
+            } catch (_: ActivityNotFoundException) {
+                Toast.makeText(this, R.string.gallery_app_not_found, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun launchFileManagerPicker() {
+        val mimeTypes = arrayOf(
+            "image/*",
+            "video/*",
+            "application/pdf",
+            "text/plain",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        )
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        }
+        val chooserTitle = try { getString(R.string.select_images_from_gallery) } catch (_: Exception) { "Select files" }
+        try {
+            startActivityForResult(Intent.createChooser(intent, chooserTitle), OPEN_FILE)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, R.string.gallery_app_not_found, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private inner class ScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -480,7 +516,7 @@ class FileManagerActivity : AppCompatActivity() {
 
     private fun saveMediaToDirectory(directory: File, uris: List<Uri>) {
         thread {
-            FileManagerUtils.importUrisToDirectory(this, directory, uris)
+            FileManagerUtils.importUrisToDirectoryModern(this, directory, uris)
             runOnUiThread {
                 loadDirectoryContent(directory)
             }
@@ -638,6 +674,8 @@ class FileManagerActivity : AppCompatActivity() {
             openImagePreview(file)
         } else if (fileAdapter.isVideo(file)) {
             playVideo(file)
+        } else {
+            openFile(file)
         }
     }
 
@@ -651,6 +689,24 @@ class FileManagerActivity : AppCompatActivity() {
             startActivity(intent)
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(this, "Не найдено приложение для воспроизведения видео", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun openFile(file: File) {
+        val uri = FileProvider.getUriForFile(this, "${packageName}.provider", file)
+        val mime = try {
+            val ext = file.extension.lowercase(Locale.getDefault())
+            if (ext.isNotEmpty()) android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) else null
+        } catch (_: Exception) { null } ?: "application/octet-stream"
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mime)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, "Нет приложений для открытия данного файла", Toast.LENGTH_SHORT).show()
         }
     }
 
