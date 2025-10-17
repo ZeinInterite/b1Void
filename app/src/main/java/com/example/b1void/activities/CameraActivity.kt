@@ -81,6 +81,8 @@ import android.content.res.Configuration as AndroidConfiguration
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.ViewModelProvider
 import com.bumptech.glide.Glide
@@ -218,6 +220,11 @@ class CameraActivity : AppCompatActivity() {
 
     // Focus coordination
     private var focusCoordinator: com.example.b1void.camera.focus.FocusCoordinator? = null
+
+    // Debounce rebind on orientation change to keep transition smooth
+    private var rebindAfterRotationRunnable: Runnable? = null
+    private val rebindDebounceMs = 160L
+    private var isRebinding = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -576,6 +583,13 @@ class CameraActivity : AppCompatActivity() {
             Log.d(TAG, "startCamera() ignored: recording in progress")
             return
         }
+        // Ensure PreviewView is measured to avoid building ViewPort with wrong size
+        val pvW = previewView.width.takeIf { it > 0 } ?: previewView.measuredWidth
+        val pvH = previewView.height.takeIf { it > 0 } ?: previewView.measuredHeight
+        if (pvW <= 0 || pvH <= 0) {
+            previewView.post { startCamera() }
+            return
+        }
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
             cameraProvider = cameraProviderFuture.get()
@@ -625,16 +639,29 @@ class CameraActivity : AppCompatActivity() {
             currentTargetRotation = rotation
 
             // ViewPort под реальные размеры PreviewView, чтобы в landscape занять весь экран
-            val viewW = previewView.width.takeIf { it > 0 } ?: previewView.measuredWidth
-            val viewH = previewView.height.takeIf { it > 0 } ?: previewView.measuredHeight
+            var viewW = previewView.width.takeIf { it > 0 } ?: previewView.measuredWidth
+            var viewH = previewView.height.takeIf { it > 0 } ?: previewView.measuredHeight
+            // Align viewport to the safe visible area (exclude system bars) to keep preview truly centered
+            kotlin.runCatching {
+                val insets = androidx.core.view.ViewCompat
+                    .getRootWindowInsets(previewView)
+                    ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+                if (insets != null) {
+                    val safeW = (viewW - insets.left - insets.right).coerceAtLeast(1)
+                    val safeH = (viewH - insets.top - insets.bottom).coerceAtLeast(1)
+                    viewW = safeW
+                    viewH = safeH
+                }
+            }
             val isLandscape = (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270)
             val viewPort = ViewPort.Builder(
                 android.util.Rational(if (viewW > 0) viewW else captureResolution.width,
                                        if (viewH > 0) viewH else captureResolution.height),
                 rotation
             )
-                // Используем FIT для согласования границ всех use-cases;
-                // заполнение экрана обеспечит PreviewView.ScaleType.FILL_CENTER в landscape
+                // Используем FILL в landscape, FIT в portrait.
+                // На CameraX 1.3.1 константа ViewPort.FILL может быть недоступна как символ,
+                // поэтому передаём int-флаги напрямую: 0 = FIT, 1 = FILL.
                 .setScaleType(ViewPort.FIT)
                 .build()
 
@@ -735,6 +762,13 @@ class CameraActivity : AppCompatActivity() {
 
                 // Set surface provider after binding to ensure proper initialization
                 preview.setSurfaceProvider(previewView.surfaceProvider)
+
+                // After bind, switch ImplementationMode back to COMPATIBLE to maximize fidelity
+                previewView.postDelayed({
+                    if (!isFinishing && !isDestroyed) {
+                        previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                    }
+                }, 250)
 
                 // Reset digital zoom to 1.0 to ensure no hidden zoom is applied
                 camera?.cameraControl?.setZoomRatio(1.0f)
@@ -1002,7 +1036,8 @@ class CameraActivity : AppCompatActivity() {
     private fun aspectRatio(size: Size): Float = size.width.toFloat() / size.height
 
     private fun restartCameraSession() {
-        if (isFinishing || isDestroyed) return
+        if (isFinishing || isDestroyed || isRebinding) return
+        isRebinding = true
         try {
             cameraProvider?.unbindAll()
         } catch (exc: Exception) {
@@ -1014,9 +1049,9 @@ class CameraActivity : AppCompatActivity() {
             val h = previewView.height
             if (w <= 0 || h <= 0) {
                 // если размеры ещё не готовы — отложим на следующий кадр
-                previewView.post { startCamera() }
+                previewView.post { startCamera(); isRebinding = false }
             } else {
-                startCamera()
+                startCamera(); isRebinding = false
             }
         }
     }
@@ -1777,7 +1812,8 @@ class CameraActivity : AppCompatActivity() {
         // fix: rebind camera on orientation change to remove black bars
         // Обновить UI-раскладку под новый rotation
         val displayRotation = getDisplayRotation()
-        updateLayoutForRotation(displayRotation)
+        // Disable UI fade/slide during orientation changes to prevent "floating" feel
+        updateLayoutForRotation(displayRotation, animate = false)
 
         // Переключить режим масштабирования превью: в landscape заполняем экран без полос
         previewView.scaleType = if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE)
@@ -1785,7 +1821,16 @@ class CameraActivity : AppCompatActivity() {
 
         // Обновить targetRotation и перебиндить use-cases с актуальным ViewPort
         currentTargetRotation = previewView.display?.rotation ?: Surface.ROTATION_0
-        restartCameraSession()
+        // Для плавности используем SurfaceView-режим
+        previewView.implementationMode = PreviewView.ImplementationMode.PERFORMANCE
+        // Единоразовый быстрый перебинд с актуальным ViewPort
+        // Debounce rebind slightly so layout can settle and PreviewView gets final size
+        rebindAfterRotationRunnable?.let { previewView.removeCallbacks(it) }
+        rebindAfterRotationRunnable = Runnable {
+            // fix: rebind camera on orientation change to remove black bars
+            restartCameraSession()
+        }
+        previewView.postDelayed(rebindAfterRotationRunnable!!, rebindDebounceMs)
     }
 
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).roundToInt()
