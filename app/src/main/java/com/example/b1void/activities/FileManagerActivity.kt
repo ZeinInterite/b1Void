@@ -68,6 +68,9 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var confirmSelectionButton: Button
     // ----------------------------------------->
 
+    // Click guard timestamp to prevent triggering two actions on a single tap
+    private var lastClickAt: Long = 0L
+
     private val OPEN_FILE = 1
 
     private var isSelectionMode = false
@@ -156,6 +159,14 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     private fun setupButtons() {
+        // Guard to prevent accidental double-actions when user taps once
+        fun clickAllowed(): Boolean {
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (now - lastClickAt < 600L) return false
+            lastClickAt = now
+            return true
+        }
+
         val sortButton: ImageButton = findViewById(R.id.sort_button)
         val uploadButton = findViewById<View>(R.id.upload_button)
 
@@ -165,6 +176,7 @@ class FileManagerActivity : AppCompatActivity() {
         clearTrashButton.setOnClickListener { showClearTrashConfirmation() }
 
         uploadButton.setOnClickListener {
+            if (!clickAllowed()) return@setOnClickListener
             val options = arrayOf(
                 getString(R.string.add_from_gallery),
                 getString(R.string.add_from_files)
@@ -181,6 +193,7 @@ class FileManagerActivity : AppCompatActivity() {
         }
 
         captureButton.setOnClickListener {
+            if (!clickAllowed()) return@setOnClickListener
             val intent = Intent(this, CameraActivity::class.java)
             intent.putExtra(CameraActivity.EXTRA_SAVE_PATH, getCurrentDirectory().absolutePath)
             startActivity(intent)
