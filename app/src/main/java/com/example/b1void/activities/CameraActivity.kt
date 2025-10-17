@@ -461,8 +461,7 @@ class CameraActivity : AppCompatActivity() {
         // Default preview scaling. В портретной ориентации избегаем кропа (FIT_CENTER),
         // в альбомной — заполняем экран без чёрных полос (FILL_CENTER).
         previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-        previewView.scaleType = if (resources.configuration.orientation == AndroidConfiguration.ORIENTATION_LANDSCAPE)
-            PreviewView.ScaleType.FILL_CENTER else PreviewView.ScaleType.FIT_CENTER
+        previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
         captureButton = findViewById(R.id.shutterButton)
         // modeSwitchButton removed from layout
         flipCameraButton = findViewById(R.id.switchCameraButton)
@@ -636,7 +635,8 @@ class CameraActivity : AppCompatActivity() {
                 ?: availableCaptureResolutions.firstOrNull()
                 ?: DEFAULT_PHOTO_RESOLUTION
 
-            val previewResolution = findBestPreviewResolutionFor(captureResolution)
+            // Use the same resolution for both Preview and ImageCapture to keep crop/viewport in sync
+            val previewResolution: Size? = captureResolution
 
             Log.d(TAG, "=== Resolution Configuration ===")
             Log.d(TAG, "Capture resolution: ${captureResolution.width}x${captureResolution.height}")
