@@ -10,17 +10,17 @@
         android:id="@+id/action_share"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Поделиться"
+        android:text="@string/action_share"
         android:padding="12dp"
         android:textSize="18sp"
-        android:textColor="@android:color/white"
+        android:textColor="@color/brand_on_surface"
         android:background="?attr/selectableItemBackground"/>
 
     <TextView
         android:id="@+id/action_delete"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Удалить"
+        android:text="@string/action_delete"
         android:padding="12dp"
         android:textSize="18sp"
         android:textColor="@color/delete_red"
@@ -30,10 +30,11 @@
         android:id="@+id/action_move"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Переместить"
+        android:text="@string/action_move"
         android:padding="12dp"
         android:textSize="18sp"
-        android:textColor="@android:color/white"
+        android:textColor="@color/brand_on_surface"
         android:background="?attr/selectableItemBackground"/>
 
 </LinearLayout>
+
