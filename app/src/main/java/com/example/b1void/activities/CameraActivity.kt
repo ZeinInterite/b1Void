@@ -138,7 +138,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var rootLayout: ConstraintLayout
     private lateinit var topControlsContainer: LinearLayout
     private lateinit var bottomControlsContainer: ConstraintLayout
-    private lateinit var topControlsSpacer: View
+    private var topControlsSpacer: View? = null
     private lateinit var zoomCompose: ComposeView
 
     private enum class UiOrientation {
@@ -392,27 +392,12 @@ class CameraActivity : AppCompatActivity() {
                 focusCoordinator?.onLongPress(e.x, e.y)
             }
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-                // EV: vertical swipe near last focus point
-                if (focusLastX != null && focusLastY != null) {
-                    val dx = e2.x - focusLastX!!
-                    val dy = e2.y - focusLastY!!
-                    val near = kotlin.math.hypot(dx.toDouble(), dy.toDouble()) <= 160.0
-                    if (near) {
-                        ensureEvController()
-                        evController?.begin()
-                        evController?.adjustByDrag(distanceY)
-                        scheduleHideEvOverlay()
-                        return true
-                    }
-                }
+                // Exposure adjustment disabled
                 return false
             }
         }).apply {
             setOnDoubleTapListener(object : GestureDetector.OnDoubleTapListener {
-                override fun onDoubleTap(e: MotionEvent): Boolean {
-                    focusCoordinator?.resetToCenter()
-                    return true
-                }
+                override fun onDoubleTap(e: MotionEvent): Boolean = false
                 override fun onDoubleTapEvent(e: MotionEvent): Boolean = false
                 override fun onSingleTapConfirmed(e: MotionEvent): Boolean = false
             })
@@ -436,8 +421,8 @@ class CameraActivity : AppCompatActivity() {
                     if (!isZoomGesture) {
                         startFocusMeteringAt(event.x, event.y, showIndicator = true)
                         // Через 5 секунд возвращаемся в автофокус по центру
-                        previewView.removeCallbacks(refocusToCenterRunnable)
-                        previewView.postDelayed(refocusToCenterRunnable, TimeUnit.SECONDS.toMillis(5))
+                        
+                        
                     }
                     view.performClick()
                 }
@@ -452,6 +437,7 @@ class CameraActivity : AppCompatActivity() {
         rootLayout = findViewById(R.id.main_container)
         topControlsContainer = findViewById(R.id.topControls)
         bottomControlsContainer = findViewById(R.id.bottomControls)
+        // Present only in portrait layout; absent in landscape override
         topControlsSpacer = findViewById(R.id.topControlsSpacer)
         previewView = findViewById(R.id.previewView)
         // Default preview scaling. В портретной ориентации избегаем кропа (FIT_CENTER),
@@ -856,13 +842,13 @@ class CameraActivity : AppCompatActivity() {
                         },
                         // Автоотмена ручного фокуса через 5 секунд
                         config = com.example.b1void.camera.focus.FocusCoordinator.Config(
-                            tapAutoCancelSeconds = 5,
+                            tapAutoCancelSeconds = 0,
                             showIndicatorOnCenter = false,
                             focusTimeoutMs = 3000L,
                             cafReturnDelayMs = 1800L
                         )
                     )
-                    ensureEvController()
+                    
                 }
                 focusAtCenter()
 
@@ -1220,7 +1206,6 @@ class CameraActivity : AppCompatActivity() {
             
             // Create multiple focus points for better coverage
             val action = FocusMeteringAction.Builder(centerPoint, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
-                .setAutoCancelDuration(5, TimeUnit.SECONDS) // Longer duration for manual focus
                 .build()
             
             showFocusIndicator(width / 2f, height / 2f)
@@ -1267,8 +1252,8 @@ class CameraActivity : AppCompatActivity() {
         if (showIndicator) showFocusIndicator(x, y)
         focusCoordinator?.onSingleTap(x, y)
         // Плановый возврат в автофокус по центру через 5 секунд
-        previewView.removeCallbacks(refocusToCenterRunnable)
-        previewView.postDelayed(refocusToCenterRunnable, TimeUnit.SECONDS.toMillis(5))
+        
+        
     }
 
     private fun toggleLockIcon(locked: Boolean) {
@@ -1515,7 +1500,7 @@ class CameraActivity : AppCompatActivity() {
         topControlsContainer.orientation = LinearLayout.VERTICAL
         topControlsContainer.setPadding(columnPadding, dpToPx(20), columnPadding, dpToPx(20))
         topControlsContainer.setBackgroundColor(Color.TRANSPARENT)
-        topControlsSpacer.visibility = View.GONE
+        topControlsSpacer?.visibility = View.GONE
 
         bottomControlsContainer.setPadding(columnPadding, columnPadding, columnPadding, columnPadding)
         bottomControlsContainer.setBackgroundColor(Color.TRANSPARENT)
@@ -1646,7 +1631,7 @@ class CameraActivity : AppCompatActivity() {
         topControlsContainer.orientation = LinearLayout.HORIZONTAL
         topControlsContainer.setPadding(dpToPx(16), dpToPx(20), dpToPx(16), dpToPx(12))
         topControlsContainer.setBackgroundColor(Color.TRANSPARENT)
-        topControlsSpacer.visibility = View.VISIBLE
+        topControlsSpacer?.visibility = View.VISIBLE
 
         bottomControlsContainer.setPadding(dpToPx(24), dpToPx(24), dpToPx(24), dpToPx(24))
         bottomControlsContainer.setBackgroundColor(Color.TRANSPARENT)
@@ -1793,8 +1778,7 @@ class CameraActivity : AppCompatActivity() {
 
     private fun showControlsOnInteraction() {
         if (!layoutOrientationInitialized) return
-        val orientation = currentUiOrientation
-        if (orientation != UiOrientation.LANDSCAPE_RIGHT) return
+        if (!isLandscapeUi) return
         topControlsContainer.animate().alpha(1f).setDuration(150).start()
         bottomControlsContainer.animate().alpha(1f).setDuration(150).start()
         // Compose zoom has its own visibility
@@ -1803,8 +1787,7 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun scheduleControlsAutoHide() {
-        val orientation = currentUiOrientation
-        if (orientation != UiOrientation.LANDSCAPE_RIGHT) {
+        if (!isLandscapeUi) {
             clearControlsAutoHide()
             return
         }
