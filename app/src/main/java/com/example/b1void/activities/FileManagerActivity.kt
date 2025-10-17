@@ -593,10 +593,11 @@ class FileManagerActivity : AppCompatActivity() {
         swipeRefreshLayout.isRefreshing = true
         thread {
             val filesAndDirs = directory.listFiles()?.toList() ?: emptyList()
+            // Фильтруем служебные файлы (.nomedia и другие скрытые файлы)
             val visibleFiles = if (directory == appDirectory) {
-                filesAndDirs.filterNot { it == trashDirectory }
+                filesAndDirs.filterNot { it == trashDirectory || it.name.startsWith(".") || it.isHidden }
             } else {
-                filesAndDirs
+                filesAndDirs.filterNot { it.name.startsWith(".") || it.isHidden }
             }
             // Group order: Folders (0) → Videos (1) → Photos (2) → Others (3)
             // Inside each group, apply selected sort mode

@@ -590,32 +590,31 @@ class CameraActivity : AppCompatActivity() {
         cameraProviderFuture.addListener({
             cameraProvider = cameraProviderFuture.get()
 
+            // Получаем информацию о производителе и модели
+            val manufacturer = com.example.b1void.utils.DeviceInfo.manufacturer
+            val model = com.example.b1void.utils.DeviceInfo.model
+            Log.d(TAG, "Device: $manufacturer $model")
+
             val resolvedCameraId = resolveCameraId()
             if (resolvedCameraId != null) {
                 activeCameraId = resolvedCameraId
                 refreshCameraCharacteristics(resolvedCameraId)
                 updateSelectableCaptureResolutions()
-                // Update supported resolutions with real camera data
-                supportedResolutions = com.example.b1void.utils.CameraOptimizer.getSupportedResolutions(this, resolvedCameraId)
+                // Update supported resolutions with manufacturer-specific filtering
+                supportedResolutions = getSupportedResolutionsForDevice(resolvedCameraId, manufacturer)
             } else {
                 availableCaptureResolutions = emptyList()
                 availablePreviewResolutions = emptyList()
                 selectableCaptureResolutions = emptyList()
-                // Use fallback resolutions if no camera ID
-                supportedResolutions = com.example.b1void.utils.CameraOptimizer.getSupportedResolutions(this)
+                supportedResolutions = getDefaultResolutions()
             }
 
-            // Use selected resolution or fallback to default
-            val captureResolution = selectedResolution?.let {
-                when {
-                    selectableCaptureResolutions.contains(it) -> it
-                    availableCaptureResolutions.contains(it) -> it
-                    else -> null
-                }
-            }
-                ?: selectableCaptureResolutions.firstOrNull()
-                ?: availableCaptureResolutions.firstOrNull()
-                ?: DEFAULT_PHOTO_RESOLUTION
+            // Выбираем разрешение с учетом особенностей устройства
+            val captureResolution = selectBestResolution(
+                selectedResolution,
+                manufacturer,
+                model
+            )
 
             // Use the same resolution for both Preview and ImageCapture to keep crop/viewport in sync
             val previewResolution: Size? = captureResolution
@@ -902,64 +901,238 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
-    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
-    private fun applyCamera2Defaults(previewBuilder: Preview.Builder) {
-        val extender = Camera2Interop.Extender(previewBuilder)
-        extender.setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
-        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, CaptureRequest.CONTROL_AE_ANTIBANDING_MODE_AUTO)
-    }
-
     private fun allPermissionsGranted(): Boolean = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
     }
 
     @androidx.camera.camera2.interop.ExperimentalCamera2Interop
-    private fun applyCamera2Defaults(imageCaptureBuilder: ImageCapture.Builder) {
-        val extender = Camera2Interop.Extender(imageCaptureBuilder)
-        extender.setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
-        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
-        extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, CaptureRequest.CONTROL_AE_ANTIBANDING_MODE_AUTO)
-    }
-
-    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
     private fun applyCamera2Defaults() {
         val cam = camera ?: return
-        val camera2Control = Camera2CameraControl.from(cam.cameraControl)
-        camera2Control.clearCaptureRequestOptions()
-            val optionsBuilder = CaptureRequestOptions.Builder()
-                .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
-                .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
-                .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0)
-                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, CaptureRequest.CONTROL_AE_ANTIBANDING_MODE_AUTO)
-            
-        // Enhanced autofocus settings
+
         try {
-            // Add face detection for better autofocus
-            optionsBuilder.setCaptureRequestOption(CaptureRequest.STATISTICS_FACE_DETECT_MODE, CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE)
-            
-            // Enable lens stabilization if available
-            optionsBuilder.setCaptureRequestOption(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON)
-            
-            // Set autofocus trigger for better responsiveness
-            optionsBuilder.setCaptureRequestOption(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE)
-            
-            // Enable scene detection for better autofocus
-            optionsBuilder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
-            
+            val camera2Control = Camera2CameraControl.from(cam.cameraControl)
+            val camera2Info = Camera2CameraInfo.from(cam.cameraInfo)
+            val characteristics = camera2Info.getCameraCharacteristic(
+                CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES
+            )
+
+            // Проверяем доступность базовых возможностей
+            val hasManualSensor = characteristics?.contains(
+                CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR
+            ) == true
+
+            val hasManualPostProcessing = characteristics?.contains(
+                CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_POST_PROCESSING
+            ) == true
+
+            camera2Control.clearCaptureRequestOptions()
+            val optionsBuilder = CaptureRequestOptions.Builder()
+
+            // Базовые настройки, поддерживаемые всеми устройствами
+            try {
+                optionsBuilder
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 1)
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, CaptureRequest.CONTROL_AE_ANTIBANDING_MODE_AUTO)
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "Basic camera controls not fully supported", e)
+            }
+
+            // Опциональные улучшенные настройки
+            try {
+                // Проверяем поддержку OIS
+                val availableOIS = camera2Info.getCameraCharacteristic(
+                    CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION
+                )
+                if (availableOIS?.contains(CameraCharacteristics.LENS_OPTICAL_STABILIZATION_MODE_ON) == true) {
+                    optionsBuilder.setCaptureRequestOption(
+                        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
+                        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON
+                    )
+                    Log.d(TAG, "OIS enabled")
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "OIS not supported: ${e.message}")
+            }
+
+            try {
+                // Проверяем поддержку распознавания лиц
+                val maxFaceCount = camera2Info.getCameraCharacteristic(
+                    CameraCharacteristics.STATISTICS_INFO_MAX_FACE_COUNT
+                )
+                if (maxFaceCount != null && maxFaceCount > 0) {
+                    optionsBuilder.setCaptureRequestOption(
+                        CaptureRequest.STATISTICS_FACE_DETECT_MODE,
+                        CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE
+                    )
+                    Log.d(TAG, "Face detection enabled (max faces: $maxFaceCount)")
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "Face detection not supported: ${e.message}")
+            }
+
+            try {
+                // Проверяем поддержку режимов сцены
+                val availableSceneModes = camera2Info.getCameraCharacteristic(
+                    CameraCharacteristics.CONTROL_AVAILABLE_SCENE_MODES
+                )
+                if (availableSceneModes?.contains(CameraCharacteristics.CONTROL_SCENE_MODE_DISABLED) == true) {
+                    optionsBuilder.setCaptureRequestOption(
+                        CaptureRequest.CONTROL_SCENE_MODE,
+                        CaptureRequest.CONTROL_SCENE_MODE_DISABLED
+                    )
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "Scene modes not configurable: ${e.message}")
+            }
+
+            try {
+                // Autofocus trigger
+                optionsBuilder.setCaptureRequestOption(
+                    CaptureRequest.CONTROL_AF_TRIGGER,
+                    CaptureRequest.CONTROL_AF_TRIGGER_IDLE
+                )
+            } catch (e: Exception) {
+                Log.d(TAG, "AF trigger not supported: ${e.message}")
+            }
+
+            // Применяем только успешно сконфигурированные опции
+            camera2Control.setCaptureRequestOptions(optionsBuilder.build())
+
         } catch (e: Exception) {
-            Log.d(TAG, "Some enhanced autofocus features not supported: ${e.message}")
+            Log.e(TAG, "Failed to apply Camera2 defaults, using CameraX defaults", e)
+            // Откат к стандартным настройкам CameraX
+        }
+    }
+
+    /**
+     * Выбирает оптимальное разрешение для текущего устройства
+     */
+    private fun selectBestResolution(
+        requested: Size?,
+        manufacturer: String,
+        model: String
+    ): Size {
+        // Если запрошенное разрешение поддерживается, используем его
+        if (requested != null &&
+            (selectableCaptureResolutions.contains(requested) ||
+                    availableCaptureResolutions.contains(requested))) {
+            return requested
         }
 
-        camera2Control.setCaptureRequestOptions(optionsBuilder.build())
+        // Иначе выбираем наилучшее для данного устройства
+        val available = selectableCaptureResolutions.ifEmpty {
+            availableCaptureResolutions.ifEmpty { supportedResolutions }
+        }
+
+        // Получаем рекомендации для производителя
+        val quirks = com.example.b1void.utils.ManufacturerCompatibility.getCameraQuirks()
+        val maxRecommended = quirks.getMaxRecommendedResolution()
+
+        return when {
+            manufacturer == "samsung" && model.contains("galaxy s") -> {
+                // Флагманские Samsung - можем использовать высокое разрешение
+                available.firstOrNull { it.width >= 1920 } ?: available.firstOrNull() ?: DEFAULT_PHOTO_RESOLUTION
+            }
+            manufacturer == "xiaomi" && model.contains("redmi") -> {
+                // Бюджетные Xiaomi - консервативный выбор
+                available.firstOrNull { it.width in 1280..1920 } ?: available.firstOrNull() ?: Size(1280, 720)
+            }
+            manufacturer == "huawei" -> {
+                // Huawei - предпочитаем 4:3
+                available.firstOrNull {
+                    val ratio = it.width.toFloat() / it.height
+                    kotlin.math.abs(ratio - 1.333f) < 0.1f
+                } ?: available.firstOrNull() ?: DEFAULT_PHOTO_RESOLUTION
+            }
+            maxRecommended != null -> {
+                // Используем рекомендацию производителя
+                available.firstOrNull {
+                    it.width <= maxRecommended.width && it.height <= maxRecommended.height
+                } ?: available.firstOrNull() ?: DEFAULT_PHOTO_RESOLUTION
+            }
+            else -> {
+                // Безопасное разрешение для всех устройств
+                available.firstOrNull { it.width == 1920 && it.height == 1080 }
+                    ?: available.firstOrNull { it.width == 1280 && it.height == 720 }
+                    ?: available.firstOrNull()
+                    ?: Size(1280, 720) // Fallback на 720p
+            }
+        }
+    }
+
+    /**
+     * Получает поддерживаемые разрешения для конкретного устройства
+     */
+    private fun getSupportedResolutionsForDevice(cameraId: String, manufacturer: String): List<Size> {
+        try {
+            val cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+
+            val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            val outputFormats = map?.outputFormats ?: return getDefaultResolutions()
+
+            // Получаем все поддерживаемые разрешения
+            val allSizes = outputFormats.flatMap { format ->
+                map.getOutputSizes(format)?.toList() ?: emptyList()
+            }.distinct().sortedByDescending { it.width * it.height }
+
+            // Фильтруем с учетом производителя
+            return when (manufacturer) {
+                "samsung" -> {
+                    // Samsung поддерживает широкий диапазон, но иногда имеет проблемы с 4K
+                    allSizes.filter { size ->
+                        size.width <= 3840 && size.height <= 2160 && // Max 4K
+                                (size.width >= 640 && size.height >= 480)    // Min VGA
+                    }
+                }
+                "xiaomi", "redmi" -> {
+                    // Xiaomi бюджетные модели иногда имеют проблемы с высокими разрешениями
+                    allSizes.filter { size ->
+                        size.width <= 1920 && size.height <= 1080 // Max FHD для стабильности
+                    }
+                }
+                "huawei", "honor" -> {
+                    // Huawei имеют собственные оптимизации
+                    allSizes.filter { size ->
+                        // Предпочитаем стандартные aspect ratios
+                        val aspectRatio = size.width.toFloat() / size.height
+                        aspectRatio in 1.3f..1.8f // 4:3 до 16:9
+                    }
+                }
+                "oneplus" -> {
+                    // OnePlus обычно хорошо поддерживают высокие разрешения
+                    allSizes
+                }
+                "motorola", "lenovo" -> {
+                    // Motorola/Lenovo могут иметь ограничения
+                    allSizes.filter { size ->
+                        size.width <= 2560 && size.height <= 1440
+                    }
+                }
+                else -> {
+                    // Для неизвестных производителей используем консервативный подход
+                    allSizes.filter { size ->
+                        size.width <= 1920 && size.height <= 1080
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting supported resolutions", e)
+            return getDefaultResolutions()
+        }
+    }
+
+    private fun getDefaultResolutions(): List<Size> {
+        return listOf(
+            Size(1920, 1080), // FHD
+            Size(1280, 720),  // HD
+            Size(640, 480)    // VGA
+        )
     }
 
     private fun scheduleCameraRestart(reason: String? = null) {

@@ -2,6 +2,8 @@ package com.example.b1void.utils
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
 import android.util.Log
 import android.webkit.MimeTypeMap
 import android.widget.Toast
@@ -21,17 +23,56 @@ object FileManagerUtils {
         val trashDirectory: File
     )
 
-    
+    /**
+     * Проверяет доступность external storage
+     */
+    fun isStorageAvailable(context: Context): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Проверяем доступ к external files dir
+                val dir = context.getExternalFilesDir(null)
+                dir != null && (dir.exists() || dir.mkdirs())
+            } else {
+                @Suppress("DEPRECATION")
+                val state = Environment.getExternalStorageState()
+                state == Environment.MEDIA_MOUNTED
+            }
+        } catch (e: Exception) {
+            Log.e("FileManagerUtils", "Error checking storage availability", e)
+            false
+        }
+    }
+
     fun createAppDirectories(context: Context): AppDirectories {
-        val filesDir = context.filesDir
-        val appDirectory = File(filesDir, "InspectorAppFolder")
-        val zipDirectory = File(filesDir, "zipFolder")
+        // Определяем правильное расположение в зависимости от версии Android
+        val baseDirectory = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10+ (Scoped Storage)
+            // Используем getExternalFilesDir для приватного хранилища с возможностью sharing
+            context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+                ?: context.filesDir // Fallback на internal storage
+        } else {
+            // Android 9 и ниже - можем использовать public directory
+            @Suppress("DEPRECATION")
+            val publicDir = Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_PICTURES
+            )
+            if (publicDir != null && (publicDir.exists() || publicDir.mkdirs())) {
+                publicDir
+            } else {
+                context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: context.filesDir
+            }
+        }
+
+        val appDirectory = File(baseDirectory, "InspectorAppFolder")
+        val zipDirectory = File(baseDirectory, "zipFolder")
         val trashDirectory = File(appDirectory, "Trash")
-        
+
         createDirectoryIfNotExists(appDirectory, "папка приложения", context)
         createDirectoryIfNotExists(zipDirectory, "папка zip-файлов", context)
         createDirectoryIfNotExists(trashDirectory, "Trash", context)
-        
+
+        Log.d("FileManagerUtils", "App directories created at: ${appDirectory.absolutePath}")
+
         return AppDirectories(appDirectory, zipDirectory, trashDirectory)
     }
 
@@ -75,21 +116,49 @@ object FileManagerUtils {
     }
 
     fun importUrisToDirectoryModern(context: Context, directory: File, uris: List<Uri>): List<File> {
-        if (!directory.exists()) {
-            directory.mkdirs()
+        // Проверяем доступность storage
+        if (!isStorageAvailable(context)) {
+            Log.e("FileManagerUtils", "Storage not available")
+            Toast.makeText(context, "Хранилище недоступно", Toast.LENGTH_SHORT).show()
+            return emptyList()
         }
+
+        if (!directory.exists()) {
+            val created = directory.mkdirs()
+            if (!created) {
+                Log.e("FileManagerUtils", "Failed to create directory: ${directory.absolutePath}")
+                return emptyList()
+            }
+        }
+
         val resolver = context.contentResolver
         val savedFiles = mutableListOf<File>()
 
         uris.forEach { uri ->
             try {
+                // Проверяем, что URI доступен
+                val canRead = try {
+                    resolver.openInputStream(uri)?.use { true } ?: false
+                } catch (e: SecurityException) {
+                    Log.e("FileManagerUtils", "No permission to read URI: $uri")
+                    false
+                }
+
+                if (!canRead) {
+                    Log.w("FileManagerUtils", "Skipping inaccessible URI: $uri")
+                    return@forEach
+                }
+
                 val mimeType = resolver.getType(uri)
 
                 val originalName: String? = try {
                     resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
                         if (c.moveToFirst()) c.getString(0) else null
                     }
-                } catch (_: Exception) { null }
+                } catch (e: Exception) {
+                    Log.w("FileManagerUtils", "Failed to query file name for $uri", e)
+                    null
+                }
 
                 val extFromMime = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
                 val extFromPath = (uri.lastPathSegment ?: "").let { path ->
@@ -108,21 +177,35 @@ object FileManagerUtils {
                     val nameOnly = if (dot > 0) baseName.substring(0, dot) else baseName
                     val ext = if (dot > 0) baseName.substring(dot) else ""
                     var idx = 1
-                    while (targetFile.exists()) {
+                    while (targetFile.exists() && idx < 1000) { // Защита от бесконечного цикла
                         targetFile = File(directory, "$nameOnly ($idx)$ext")
                         idx++
                     }
                 }
 
+                // Копируем файл с обработкой ошибок
                 resolver.openInputStream(uri)?.use { input ->
                     FileOutputStream(targetFile).use { output ->
-                        input.copyTo(output)
+                        input.copyTo(output, bufferSize = 8192)
                     }
                 } ?: throw IOException("Не удалось открыть поток: $uri")
 
-                savedFiles.add(targetFile)
+                // Проверяем, что файл действительно создан и не пустой
+                if (targetFile.exists() && targetFile.length() > 0) {
+                    savedFiles.add(targetFile)
+                    Log.d("FileManagerUtils", "Successfully imported: ${targetFile.name} (${targetFile.length()} bytes)")
+                } else {
+                    Log.w("FileManagerUtils", "File created but empty or missing: ${targetFile.name}")
+                    targetFile.delete()
+                }
+
+            } catch (e: SecurityException) {
+                Log.e("FileManagerUtils", "Security error importing $uri: ${e.message}", e)
+                Toast.makeText(context, "Нет доступа к файлу", Toast.LENGTH_SHORT).show()
+            } catch (e: IOException) {
+                Log.e("FileManagerUtils", "IO error importing $uri: ${e.message}", e)
             } catch (e: Exception) {
-                Log.e("FileManager", "Ошибка импорта $uri: ${e.message}", e)
+                Log.e("FileManagerUtils", "Unexpected error importing $uri: ${e.message}", e)
             }
         }
 
@@ -132,17 +215,39 @@ object FileManagerUtils {
     private fun createDirectoryIfNotExists(directory: File, directoryName: String, context: Context) {
         if (!directory.exists()) {
             try {
-                if (directory.mkdirs()) {
-                    Toast.makeText(context, "$directoryName создана", Toast.LENGTH_SHORT).show()
+                val created = directory.mkdirs()
+                if (created) {
+                    Log.d("FileManagerUtils", "$directoryName создана: ${directory.absolutePath}")
+
+                    // Для Android 10+ создаем .nomedia файл чтобы медиасканер не индексировал
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        try {
+                            val nomediaFile = File(directory, ".nomedia")
+                            if (!nomediaFile.exists()) {
+                                nomediaFile.createNewFile()
+                            }
+                        } catch (e: IOException) {
+                            Log.w("FileManagerUtils", "Failed to create .nomedia file", e)
+                        }
+                    }
                 } else {
-                    Toast.makeText(context, "Не удалось создать $directoryName", Toast.LENGTH_SHORT).show()
+                    Log.e("FileManagerUtils", "Не удалось создать $directoryName")
+                    Toast.makeText(context, "Ошибка создания $directoryName", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: SecurityException) {
-                Log.e("FileManager", "SecurityException creating directory: ${e.message}")
-                Toast.makeText(context, "Ошибка: Недостаточно прав для создания $directoryName", Toast.LENGTH_SHORT).show()
+                Log.e("FileManagerUtils", "SecurityException creating directory: ${e.message}")
+                Toast.makeText(
+                    context,
+                    "Недостаточно прав для создания $directoryName. Проверьте разрешения.",
+                    Toast.LENGTH_LONG
+                ).show()
             } catch (e: IOException) {
-                Log.e("FileManager", "IOException creating directory: ${e.message}")
-                Toast.makeText(context, "Ошибка ввода/вывода при создании $directoryName", Toast.LENGTH_SHORT).show()
+                Log.e("FileManagerUtils", "IOException creating directory: ${e.message}")
+                Toast.makeText(
+                    context,
+                    "Ошибка ввода/вывода при создании $directoryName",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -324,7 +429,8 @@ object FileManagerUtils {
     }
 
     private fun addFileToZip(fileToZip: File, fileName: String, zipOut: ZipOutputStream) {
-        if (fileToZip.isHidden) {
+        // Пропускаем скрытые файлы (.nomedia и другие)
+        if (fileToZip.isHidden || fileToZip.name.startsWith(".")) {
             return
         }
         if (fileToZip.isDirectory) {

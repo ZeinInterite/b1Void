@@ -48,14 +48,14 @@ object MemoryManager {
      */
     fun clearMemoryIfNeeded(context: Context) {
         val availableMemory = getAvailableMemory(context)
-        
-        if (availableMemory < B1VoidApplication.LOW_MEMORY_THRESHOLD) {
+
+        if (availableMemory < B1VoidApplication.getLowMemoryThreshold(context)) {
             Log.w(TAG, "Мало памяти, очищаем кэш")
-            
+
             CoroutineScope(Dispatchers.IO).launch {
                 // Очищаем кэш изображений
                 ImageOptimizer.clearImageCache(context)
-                
+
                 // Принудительно вызываем сборщик мусора
                 System.gc()
             }

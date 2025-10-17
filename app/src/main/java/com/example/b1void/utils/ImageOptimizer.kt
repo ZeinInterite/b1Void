@@ -133,8 +133,8 @@ object ImageOptimizer {
         val usedMemory = runtime.totalMemory() - runtime.freeMemory()
         val maxMemory = runtime.maxMemory()
         val availableMemory = maxMemory - usedMemory
-        
-        return availableMemory > B1VoidApplication.LOW_MEMORY_THRESHOLD
+
+        return availableMemory > B1VoidApplication.getLowMemoryThreshold(context)
     }
 
     /**
