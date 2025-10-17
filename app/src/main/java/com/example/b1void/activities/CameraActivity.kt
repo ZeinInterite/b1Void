@@ -198,6 +198,8 @@ class CameraActivity : AppCompatActivity() {
     private var savedTorchState = false
     private val useComposeZoom = true
     // Hold-to-record state
+    // Возврат автофокуса в центр через 5 секунд после ручного тапа
+    private val refocusToCenterRunnable = Runnable { focusCoordinator?.resetToCenter() }
     private var isHoldRecordingActive = false
     private var holdStartRunnable: Runnable? = null
     private var holdToRecordDelayMs = 800L  // Загружается из настроек, по умолчанию 0.8 сек
@@ -372,8 +374,8 @@ class CameraActivity : AppCompatActivity() {
         tapGestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean = true
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                // Легкий тап обрабатывается в ACTION_UP, здесь только показываем UI
                 showControlsOnInteraction()
-                focusCoordinator?.onSingleTap(e.x, e.y)
                 return true
             }
             override fun onLongPress(e: MotionEvent) {
@@ -419,7 +421,16 @@ class CameraActivity : AppCompatActivity() {
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> isZoomGesture = true
                 MotionEvent.ACTION_CANCEL -> isZoomGesture = false
-                MotionEvent.ACTION_UP -> view.performClick()
+                MotionEvent.ACTION_UP -> {
+                    // Лёгкое нажатие (короткий тап) – фокусируемся в точке отпускания
+                    if (!isZoomGesture) {
+                        startFocusMeteringAt(event.x, event.y, showIndicator = true)
+                        // Через 5 секунд возвращаемся в автофокус по центру
+                        previewView.removeCallbacks(refocusToCenterRunnable)
+                        previewView.postDelayed(refocusToCenterRunnable, TimeUnit.SECONDS.toMillis(5))
+                    }
+                    view.performClick()
+                }
             }
             handled || true
         }
@@ -781,7 +792,14 @@ class CameraActivity : AppCompatActivity() {
                                 if (!locked) focusIndicator.post(hideFocusIndicatorRunnable)
                                 toggleLockIcon(locked)
                             }
-                        }
+                        },
+                        // Автоотмена ручного фокуса через 5 секунд
+                        config = com.example.b1void.camera.focus.FocusCoordinator.Config(
+                            tapAutoCancelSeconds = 5,
+                            showIndicatorOnCenter = false,
+                            focusTimeoutMs = 3000L,
+                            cafReturnDelayMs = 1800L
+                        )
                     )
                     ensureEvController()
                 }
@@ -1176,6 +1194,9 @@ class CameraActivity : AppCompatActivity() {
         // Backward-compat wrapper: delegate to coordinator
         if (showIndicator) showFocusIndicator(x, y)
         focusCoordinator?.onSingleTap(x, y)
+        // Плановый возврат в автофокус по центру через 5 секунд
+        previewView.removeCallbacks(refocusToCenterRunnable)
+        previewView.postDelayed(refocusToCenterRunnable, TimeUnit.SECONDS.toMillis(5))
     }
 
     private fun toggleLockIcon(locked: Boolean) {

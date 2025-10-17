@@ -9,7 +9,8 @@ class FocusCoordinator(
     private val telemetry: TelemetryLogger = TelemetryLogger.NOOP
 ) {
     data class Config(
-        val tapAutoCancelSeconds: Int = 2,
+        // Автоотмена ручного тапа: по умолчанию 5 сек
+        val tapAutoCancelSeconds: Int = 5,
         val showIndicatorOnCenter: Boolean = false,
         val focusTimeoutMs: Long = 3000L,
         val cafReturnDelayMs: Long = 1800L

@@ -2,6 +2,8 @@ package com.example.b1void.camera.focus
 
 import androidx.camera.core.Camera
 import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.MeteringPointFactory
+import androidx.camera.core.SurfaceOrientedMeteringPointFactory
 import androidx.camera.view.PreviewView
 import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.CaptureRequestOptions
@@ -18,7 +20,11 @@ internal class CameraXFocusEngine(
 ) : FocusCoordinator.FocusEngine {
 
     override fun isSupportedAt(x: Float, y: Float, includeAeAwb: Boolean): Boolean {
-        val factory = previewView.meteringPointFactory
+        // Используем систему координат превью, ориентированную по поверхности
+        val factory: MeteringPointFactory = SurfaceOrientedMeteringPointFactory(
+            previewView.width.toFloat(),
+            previewView.height.toFloat()
+        )
         val af = factory.createPoint(x, y)
         val builder = FocusMeteringAction.Builder(af, FocusMeteringAction.FLAG_AF)
         if (includeAeAwb) {
@@ -36,7 +42,11 @@ internal class CameraXFocusEngine(
         autoCancelSeconds: Int,
         onResult: (Boolean) -> Unit
     ) {
-        val factory = previewView.meteringPointFactory
+        // Используем SurfaceOrientedMeteringPointFactory для точного соответствия
+        val factory: MeteringPointFactory = SurfaceOrientedMeteringPointFactory(
+            previewView.width.toFloat(),
+            previewView.height.toFloat()
+        )
         val af = factory.createPoint(x, y)
         val builder = FocusMeteringAction.Builder(af, FocusMeteringAction.FLAG_AF)
         if (includeAeAwb) {
