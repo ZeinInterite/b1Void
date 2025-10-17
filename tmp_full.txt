@@ -309,22 +309,28 @@ class CameraActivity : AppCompatActivity() {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     if (currentMode == CaptureMode.PHOTO) {
-                    if (currentMode == CaptureMode.PHOTO) {
                         v.isPressed = false
+                        val elapsed = SystemClock.uptimeMillis() - pressDownUptime
+                        val isQuickTap = elapsed <= quickTapThresholdMs
 
                         if (waitingForStopTap) {
-                            // Stop recording on the next tap release
+                            // Запись идет, пользователь отпустил кнопку - останавливаем запись
                             stopVideoRecordingForHoldNow()
                             waitingForStopTap = false
                         } else if (isRecording || isHoldRecordingActive) {
-                            // Do not stop on release; wait for next tap
+                            // Запись только что началась (палец все еще на кнопке или только что отпущен)
+                            // Устанавливаем флаг, что ждем следующий тап для остановки
                             waitingForStopTap = true
                         } else {
-                            // Released before hold threshold — cancel scheduled video start
+                            // Запись не идет и не начиналась
                             cancelHoldRecordingStartIfPending()
+                            if (isQuickTap) {
+                                // Быстрый тап - делаем фото
+                                takePhoto()
+                            }
+                            // Если удержание было 0.15-0.8 сек - ничего не делаем
                         }
                         return@setOnTouchListener true
-                    }
                     }
                 }
             }
@@ -2331,6 +2337,7 @@ class CameraActivity : AppCompatActivity() {
         private const val ASPECT_RATIO_TOLERANCE = 0.02f
     }
 }
+
 
 
 

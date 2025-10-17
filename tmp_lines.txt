@@ -1,0 +1,7 @@
+                        if (waitingForStopTap) {
+                            // Запись идет, пользователь нажал кнопку для остановки - ничего не делаем в ACTION_DOWN
+                            // Остановка произойдет в ACTION_UP
+                        } else if (!isHoldRecordingActive && !isRecording) {
+                            // Запись не идет - начинаем отсчет 0.8 сек
+                            scheduleHoldRecordingStart()
+                        }
