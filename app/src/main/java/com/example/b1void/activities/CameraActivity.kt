@@ -110,6 +110,9 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 import kotlin.math.abs
+import android.view.TouchDelegate
+import android.graphics.Rect
+import com.example.b1void.utils.dpToPx
 
 class CameraActivity : AppCompatActivity() {
 
@@ -479,6 +482,18 @@ class CameraActivity : AppCompatActivity() {
         // Hide legacy zoom sliders when using Compose zoom
         if (useComposeZoom) {
             // Legacy sliders are not present in layout anymore
+        }
+
+        // Increase touch area around the shutter button for better accessibility
+        // and easier tapping without changing visual shape beyond layout size.
+        (captureButton.parent as? View)?.post {
+            try {
+                val extra = 24.dpToPx(this)
+                val rect = Rect()
+                captureButton.getHitRect(rect)
+                rect.inset(-extra, -extra)
+                (captureButton.parent as View).touchDelegate = TouchDelegate(rect, captureButton)
+            } catch (_: Throwable) { /* no-op if parent not available */ }
         }
         
         // Set initial properties for vertical slider (legacy)
