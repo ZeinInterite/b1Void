@@ -397,7 +397,7 @@
         errorLine2="                ~~~~~~~">
         <location
             file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="93"
+            line="103"
             column="17"/>
     </issue>
 
@@ -413,7 +413,7 @@
         errorLine2="                                               ~~~~">
         <location
             file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="93"
+            line="103"
             column="48"/>
     </issue>
 
@@ -429,7 +429,7 @@
         errorLine2="                ~~~~~~~">
         <location
             file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="94"
+            line="104"
             column="17"/>
     </issue>
 
@@ -445,7 +445,7 @@
         errorLine2="                                                ~~~~~~~">
         <location
             file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="94"
+            line="104"
             column="49"/>
     </issue>
 
@@ -461,7 +461,7 @@
         errorLine2="                 ~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="95"
+            line="105"
             column="18"/>
     </issue>
 
@@ -477,7 +477,7 @@
         errorLine2="                 ~~~~~">
         <location
             file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="96"
+            line="106"
             column="18"/>
     </issue>
 
@@ -493,7 +493,7 @@
         errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="97"
+            line="107"
             column="21"/>
     </issue>
 

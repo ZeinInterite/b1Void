@@ -672,8 +672,8 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
             <annotate
                 description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
@@ -681,18 +681,18 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
         </fix-alternatives>
         <location
             file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="93"
+            line="103"
             column="17"
-            startOffset="3389"
-            endLine="93"
+            startOffset="3900"
+            endLine="103"
             endColumn="24"
-            endOffset="3396"/>
+            endOffset="3907"/>
     </incident>
 
     <incident
@@ -706,8 +706,8 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
             <annotate
                 description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
@@ -715,18 +715,18 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
         </fix-alternatives>
         <location
             file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="93"
+            line="103"
             column="48"
-            startOffset="3420"
-            endLine="93"
+            startOffset="3931"
+            endLine="103"
             endColumn="52"
-            endOffset="3424"/>
+            endOffset="3935"/>
     </incident>
 
     <incident
@@ -740,8 +740,8 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
             <annotate
                 description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
@@ -749,18 +749,18 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
         </fix-alternatives>
         <location
             file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="94"
+            line="104"
             column="17"
-            startOffset="3463"
-            endLine="94"
+            startOffset="3974"
+            endLine="104"
             endColumn="24"
-            endOffset="3470"/>
+            endOffset="3981"/>
     </incident>
 
     <incident
@@ -774,8 +774,8 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
             <annotate
                 description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
@@ -783,18 +783,18 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
         </fix-alternatives>
         <location
             file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="94"
+            line="104"
             column="49"
-            startOffset="3495"
-            endLine="94"
+            startOffset="4006"
+            endLine="104"
             endColumn="56"
-            endOffset="3502"/>
+            endOffset="4013"/>
     </incident>
 
     <incident
@@ -808,8 +808,8 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
             <annotate
                 description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
@@ -817,18 +817,18 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
         </fix-alternatives>
         <location
             file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="95"
+            line="105"
             column="18"
-            startOffset="3522"
-            endLine="95"
+            startOffset="4033"
+            endLine="105"
             endColumn="41"
-            endOffset="3545"/>
+            endOffset="4056"/>
     </incident>
 
     <incident
@@ -842,8 +842,8 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
             <annotate
                 description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
@@ -851,18 +851,18 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
         </fix-alternatives>
         <location
             file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="96"
+            line="106"
             column="18"
-            startOffset="3603"
-            endLine="96"
+            startOffset="4114"
+            endLine="106"
             endColumn="23"
-            endOffset="3608"/>
+            endOffset="4119"/>
     </incident>
 
     <incident
@@ -876,8 +876,8 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
             <annotate
                 description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
@@ -885,18 +885,18 @@
                 replace="true">
                 <range
                     file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3317"
-                    endOffset="3765"/>
+                    startOffset="3828"
+                    endOffset="4276"/>
             </annotate>
         </fix-alternatives>
         <location
             file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="97"
+            line="107"
             column="21"
-            startOffset="3631"
-            endLine="97"
+            startOffset="4142"
+            endLine="107"
             endColumn="45"
-            endOffset="3655"/>
+            endOffset="4166"/>
     </incident>
 
 </incidents>

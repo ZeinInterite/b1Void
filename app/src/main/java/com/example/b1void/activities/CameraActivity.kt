@@ -669,6 +669,10 @@ class CameraActivity : AppCompatActivity() {
                 }
             }
             val isLandscape = (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270)
+            val viewPortScaleType = when (previewView.scaleType) {
+                PreviewView.ScaleType.FILL_CENTER -> 1 // ViewPort.FILL
+                else -> 0 // ViewPort.FIT
+            }
             val viewPort = ViewPort.Builder(
                 android.util.Rational(if (viewW > 0) viewW else captureResolution.width,
                                        if (viewH > 0) viewH else captureResolution.height),
@@ -677,7 +681,7 @@ class CameraActivity : AppCompatActivity() {
                 // Используем FILL в landscape, FIT в portrait.
                 // На CameraX 1.3.1 константа ViewPort.FILL может быть недоступна как символ,
                 // поэтому передаём int-флаги напрямую: 0 = FIT, 1 = FILL.
-                .setScaleType(ViewPort.FIT)
+                .setScaleType(viewPortScaleType)
                 .build()
 
             // Use dynamic AspectRatioStrategy matching the capture resolution (4:3 or 16:9)

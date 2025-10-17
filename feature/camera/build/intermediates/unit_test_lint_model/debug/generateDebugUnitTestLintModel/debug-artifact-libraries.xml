@@ -1,9 +1,9 @@
 <libraries>
   <library
       name=":@@:feature:camera::debug"
-      jars="C:\Users\Администратор\.gradle\caches\8.11.1\transforms\63fcbc2859f160cc8bd35eaac153959c\transformed\out\jars\classes.jar;C:\Users\Администратор\.gradle\caches\8.11.1\transforms\63fcbc2859f160cc8bd35eaac153959c\transformed\out\jars\libs\R.jar"
+      jars="C:\Users\Администратор\.gradle\caches\8.11.1\transforms\b8e159d26fe2c095f0a8da9633776557\transformed\out\jars\classes.jar;C:\Users\Администратор\.gradle\caches\8.11.1\transforms\b8e159d26fe2c095f0a8da9633776557\transformed\out\jars\libs\R.jar"
       resolved="b1Void.feature:camera:unspecified"
-      folder="C:\Users\Администратор\.gradle\caches\8.11.1\transforms\63fcbc2859f160cc8bd35eaac153959c\transformed\out"
+      folder="C:\Users\Администратор\.gradle\caches\8.11.1\transforms\b8e159d26fe2c095f0a8da9633776557\transformed\out"
       manifest="AndroidManifest.xml"
       resFolder="res"
       assetsFolder="assets"
