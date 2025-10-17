@@ -1,0 +1,19 @@
+<lint-module
+    format="1"
+    dir="D:\Code\projects\document_llc_prog\feature\camera"
+    name=":feature:camera"
+    type="LIBRARY"
+    maven="b1Void.feature:camera:unspecified"
+    agpVersion="8.9.2"
+    buildFolder="build"
+    bootClassPath="D:\Code\android_sdk\platforms\android-35\android.jar;D:\Code\android_sdk\build-tools\35.0.0\core-lambda-stubs.jar"
+    javaSourceLevel="11"
+    compileTarget="android-35"
+    neverShrinking="true">
+  <lintOptions
+      abortOnError="true"
+      absolutePaths="true"
+      checkReleaseBuilds="true"
+      explainIssues="true"/>
+  <variant name="debug"/>
+</lint-module>

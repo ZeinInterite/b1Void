@@ -70,6 +70,8 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.TorchState
 import androidx.camera.core.UseCaseGroup
+import androidx.camera.core.ViewPort
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -338,7 +340,12 @@ class CameraActivity : AppCompatActivity() {
 
         settingsButton.setOnClickListener {
             val settingsDialog = CameraSettingsDialogFragment()
-            settingsDialog.setSupportedResolutions(supportedResolutions) { newResolution ->
+            val resForSettings = when {
+                selectableCaptureResolutions.isNotEmpty() -> selectableCaptureResolutions
+                availableCaptureResolutions.isNotEmpty() -> availableCaptureResolutions
+                else -> supportedResolutions
+            }
+            settingsDialog.setSupportedResolutions(resForSettings) { newResolution ->
                 selectedResolution = newResolution
                 // Restart camera with new resolution
                 startCamera()
@@ -426,8 +433,9 @@ class CameraActivity : AppCompatActivity() {
         bottomControlsContainer = findViewById(R.id.bottomControls)
         topControlsSpacer = findViewById(R.id.topControlsSpacer)
         previewView = findViewById(R.id.previewView)
-        previewView.implementationMode = PreviewView.ImplementationMode.PERFORMANCE
-        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
+        // Ensure no implicit crop/zoom in preview: use COMPATIBLE + FIT_CENTER
+        previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+        previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
         captureButton = findViewById(R.id.shutterButton)
         // modeSwitchButton removed from layout
         flipCameraButton = findViewById(R.id.switchCameraButton)
@@ -570,6 +578,7 @@ class CameraActivity : AppCompatActivity() {
                 supportedResolutions = com.example.b1void.utils.CameraOptimizer.getSupportedResolutions(this)
             }
 
+            // Use selected resolution or fallback to default
             val captureResolution = selectedResolution?.let {
                 when {
                     selectableCaptureResolutions.contains(it) -> it
@@ -583,6 +592,10 @@ class CameraActivity : AppCompatActivity() {
 
             val previewResolution = findBestPreviewResolutionFor(captureResolution)
 
+            Log.d(TAG, "=== Resolution Configuration ===")
+            Log.d(TAG, "Capture resolution: ${captureResolution.width}x${captureResolution.height}")
+            Log.d(TAG, "Preview resolution: ${previewResolution?.let { "${it.width}x${it.height}" } ?: "same as capture"}")
+
             if (selectedResolution != captureResolution) {
                 lifecycleScope.launch {
                     settingsManager.setResolution("${captureResolution.width}x${captureResolution.height}")
@@ -590,21 +603,49 @@ class CameraActivity : AppCompatActivity() {
             }
             selectedResolution = captureResolution
 
+            // Derive rotation directly from PreviewView display to keep use cases aligned
+            val rotation = previewView.display?.rotation ?: Surface.ROTATION_0
+            currentTargetRotation = rotation
+
+            // Create shared ViewPort matching capture aspect and FIT to avoid hidden crop/zoom
+            val viewPort = ViewPort.Builder(
+                android.util.Rational(captureResolution.width, captureResolution.height),
+                rotation
+            )
+                .setScaleType(ViewPort.FIT)
+                .build()
+
+            // Use dynamic AspectRatioStrategy matching the capture resolution (4:3 or 16:9)
+            val diff16by9 = abs(captureResolution.width * 9 - captureResolution.height * 16)
+            val diff4by3 = abs(captureResolution.width * 3 - captureResolution.height * 4)
+            val targetAspect = if (diff16by9 < diff4by3) {
+                androidx.camera.core.AspectRatio.RATIO_16_9
+            } else {
+                androidx.camera.core.AspectRatio.RATIO_4_3
+            }
+            val aspectRatioStrategy = AspectRatioStrategy(
+                targetAspect,
+                AspectRatioStrategy.FALLBACK_RULE_AUTO
+            )
+
             val imageCaptureSelector = ResolutionSelector.Builder()
+                .setAspectRatioStrategy(aspectRatioStrategy)
                 .setResolutionStrategy(
                     ResolutionStrategy(
                         captureResolution,
-                        ResolutionStrategy.FALLBACK_RULE_NONE
+                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
                     )
                 )
                 .build()
 
             val useCaseGroupBuilder = UseCaseGroup.Builder()
+                .setViewPort(viewPort)
 
             val previewBuilder = Preview.Builder()
-                .setTargetRotation(currentTargetRotation)
+                .setTargetRotation(rotation)
 
             val previewSelector = ResolutionSelector.Builder()
+                .setAspectRatioStrategy(aspectRatioStrategy)
                 .setResolutionStrategy(
                     ResolutionStrategy(
                         previewResolution ?: captureResolution,
@@ -614,22 +655,37 @@ class CameraActivity : AppCompatActivity() {
                 .build()
             previewBuilder.setResolutionSelector(previewSelector)
 
-            val preview = previewBuilder.build().also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
-            }
+            val preview = previewBuilder.build()
             previewUseCase = preview
             useCaseGroupBuilder.addUseCase(preview)
 
             val imageCaptureBuilder = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                 .setFlashMode(flashMode)
-                .setTargetRotation(currentTargetRotation)
+                .setTargetRotation(rotation)
 
             imageCaptureBuilder.setResolutionSelector(imageCaptureSelector)
 
             val newImageCapture = imageCaptureBuilder.build()
             imageCapture = newImageCapture
             useCaseGroupBuilder.addUseCase(newImageCapture)
+
+            // DEBUG: Log preview and capture configuration
+            Log.d(TAG, "=== CameraX Configuration ===")
+            Log.d(TAG, "ViewPort: ${captureResolution.width}:${captureResolution.height} FIT, rotation=$rotation")
+            Log.d(
+                TAG,
+                "Preview target resolution: " + (
+                    previewResolution?.let { "${it.width}x${it.height}" }
+                        ?: "${captureResolution.width}x${captureResolution.height}"
+                    )
+            )
+            Log.d(TAG, "ImageCapture target resolution: ${captureResolution.width}x${captureResolution.height}")
+            Log.d(TAG, "SYNC CHECK: Preview and Capture using SAME resolution = ${previewResolution == captureResolution}")
+            Log.d(TAG, "PreviewView ScaleType: ${previewView.scaleType}")
+            Log.d(TAG, "PreviewView ImplementationMode: ${previewView.implementationMode}")
+            Log.d(TAG, "AspectRatioStrategy: ${if (targetAspect == androidx.camera.core.AspectRatio.RATIO_16_9) "RATIO_16_9" else "RATIO_4_3"} (shared)")
+            Log.d(TAG, "TargetRotation (Preview/ImageCapture): $rotation / $rotation")
 
             // Always bind VideoCapture to support hold-to-record in PHOTO mode
             run {
@@ -642,7 +698,7 @@ class CameraActivity : AppCompatActivity() {
                     )
                     .build()
                 val newVideoCapture = VideoCapture.withOutput(recorder).apply {
-                    targetRotation = currentTargetRotation
+                    targetRotation = rotation
                 }
                 videoCapture = newVideoCapture
                 useCaseGroupBuilder.addUseCase(newVideoCapture)
@@ -653,6 +709,44 @@ class CameraActivity : AppCompatActivity() {
                 camera = cameraProvider?.bindToLifecycle(
                     this, cameraSelector, useCaseGroupBuilder.build()
                 )
+
+                // Set surface provider after binding to ensure proper initialization
+                preview.setSurfaceProvider(previewView.surfaceProvider)
+
+                // Reset digital zoom to 1.0 to ensure no hidden zoom is applied
+                camera?.cameraControl?.setZoomRatio(1.0f)
+
+                // DEBUG: Log actual resolved dimensions and zoom state after binding
+                camera?.cameraInfo?.let { info ->
+                    var previewResActual: Size? = null
+                    var captureResActual: Size? = null
+
+                    preview.resolutionInfo?.let { resInfo ->
+                        previewResActual = resInfo.resolution
+                        Log.d(TAG, "Preview resolved resolution: ${previewResActual!!.width}x${previewResActual!!.height}, " +
+                                "aspect ratio: ${previewResActual!!.width.toFloat() / previewResActual!!.height}")
+                    }
+                    newImageCapture.resolutionInfo?.let { resInfo ->
+                        captureResActual = resInfo.resolution
+                        Log.d(TAG, "ImageCapture resolved resolution: ${captureResActual!!.width}x${captureResActual!!.height}, " +
+                                "aspect ratio: ${captureResActual!!.width.toFloat() / captureResActual!!.height}")
+                    }
+
+                    // CRITICAL CHECK: Verify preview and capture use same resolution
+                    if (previewResActual != null && captureResActual != null) {
+                        val isMatching = previewResActual == captureResActual
+                        Log.d(TAG, "=== RESOLUTION SYNC STATUS: ${if (isMatching) "✓ MATCHED" else "✗ MISMATCH"} ===")
+                        if (!isMatching) {
+                            Log.w(TAG, "WARNING: Preview and Capture resolutions don't match!")
+                            Log.w(TAG, "This will cause preview to show different area than captured photo")
+                        }
+                    }
+
+                    info.zoomState.value?.let { zoom ->
+                        Log.d(TAG, "Initial zoom ratio: ${zoom.zoomRatio} (min: ${zoom.minZoomRatio}, max: ${zoom.maxZoomRatio})")
+                    }
+                }
+
                 // Bind Compose zoom VM to CameraX for live zoom state
                 if (useComposeZoom) {
                     try {

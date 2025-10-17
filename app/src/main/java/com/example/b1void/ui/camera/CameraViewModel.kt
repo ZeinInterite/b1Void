@@ -23,7 +23,7 @@ class CameraViewModel : ViewModel() {
     private var camera: Camera? = null
     private var zoomCollectJob: Job? = null
 
-    private val _zoomRatio = MutableStateFlow(1f)
+    private val _zoomRatio = MutableStateFlow(0.5f)
     val zoomRatio: StateFlow<Float> = _zoomRatio.asStateFlow()
 
     private val _minZoomRatio = MutableStateFlow(0.5f)
@@ -38,7 +38,7 @@ class CameraViewModel : ViewModel() {
     val availablePresets: StateFlow<List<Float>> = _availablePresets.asStateFlow()
 
     // In-session persistence of the last used ratio.
-    private var lastUserZoomRatio: Float = 1f
+    private var lastUserZoomRatio: Float = 0.5f
 
     fun bindCamera(camera: Camera) {
         this.camera = camera
@@ -48,6 +48,9 @@ class CameraViewModel : ViewModel() {
                 updateFromZoomState(state)
             }
         }
+        // Set zoom to minimum value on camera bind
+        val initialMinZoom = camera.cameraInfo.zoomState.value?.minZoomRatio ?: 0.5f
+        camera.cameraControl.setZoomRatio(initialMinZoom)
     }
 
     private fun updateFromZoomState(state: ZoomState) {

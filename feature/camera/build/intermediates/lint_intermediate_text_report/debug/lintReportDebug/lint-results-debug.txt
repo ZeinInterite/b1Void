@@ -1,0 +1,130 @@
+D:\Code\projects\document_llc_prog\feature\camera\build.gradle.kts:29: Warning: A newer version of androidx.camera:camera-core than 1.3.1 is available: 1.5.1 [GradleDependency]
+    api("androidx.camera:camera-core:$camerax_version")
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\build.gradle.kts:30: Warning: A newer version of androidx.camera:camera-camera2 than 1.3.1 is available: 1.5.1 [GradleDependency]
+    api("androidx.camera:camera-camera2:$camerax_version")
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\build.gradle.kts:31: Warning: A newer version of androidx.camera:camera-lifecycle than 1.3.1 is available: 1.5.1 [GradleDependency]
+    api("androidx.camera:camera-lifecycle:$camerax_version")
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\build.gradle.kts:32: Warning: A newer version of androidx.camera:camera-view than 1.3.1 is available: 1.5.1 [GradleDependency]
+    api("androidx.camera:camera-view:$camerax_version")
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\build.gradle.kts:33: Warning: A newer version of androidx.camera:camera-video than 1.3.1 is available: 1.5.1 [GradleDependency]
+    api("androidx.camera:camera-video:$camerax_version")
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\build.gradle.kts:35: Warning: A newer version of androidx.core:core-ktx than 1.15.0 is available: 1.17.0 [GradleDependency]
+    implementation("androidx.core:core-ktx:1.15.0")
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\build.gradle.kts:36: Warning: A newer version of androidx.lifecycle:lifecycle-runtime-ktx than 2.8.7 is available: 2.9.4 [GradleDependency]
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\build.gradle.kts:44: Warning: A newer version of androidx.test.ext:junit than 1.2.1 is available: 1.3.0 [GradleDependency]
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\build.gradle.kts:45: Warning: A newer version of androidx.test.espresso:espresso-core than 3.6.1 is available: 3.7.0 [GradleDependency]
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "GradleDependency":
+   This detector looks for usages of libraries where the version you are using
+   is not the current stable release. Using older versions is fine, and there
+   are cases where you deliberately want to stick with an older version.
+   However, you may simply not be aware that a more recent version is
+   available, and that is what this lint check helps find.
+
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:69: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+            val control = Camera2CameraControl.from(camera.cameraControl)
+                ~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:69: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+            val control = Camera2CameraControl.from(camera.cameraControl)
+                                               ~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:70: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+            control.setCaptureRequestOptions(
+                    ~~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:71: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                CaptureRequestOptions.Builder()
+                                      ~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:72: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
+                     ~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:73: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+                     ~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:74: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                    .build()
+                     ~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:166: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                val control = Camera2CameraControl.from(camera.cameraControl)
+                    ~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:166: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                val control = Camera2CameraControl.from(camera.cameraControl)
+                                                   ~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:167: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                control.setCaptureRequestOptions(
+                        ~~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:168: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                    CaptureRequestOptions.Builder()
+                                          ~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:169: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                        .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, true)
+                         ~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:171: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                        .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO)
+                         ~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:172: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                        .setCaptureRequestOption(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE)
+                         ~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\data\camera\camerax\CameraXFocusController.kt:173: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                        .build()
+                         ~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:93: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+            val control = Camera2CameraControl.from(camera.cameraControl)
+                ~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:93: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+            val control = Camera2CameraControl.from(camera.cameraControl)
+                                               ~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:94: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+            val options = CaptureRequestOptions.Builder()
+                ~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:94: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+            val options = CaptureRequestOptions.Builder()
+                                                ~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:95: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, locked)
+                 ~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:96: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+                .build()
+                 ~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:97: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
+            control.setCaptureRequestOptions(options)
+                    ~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "UnsafeOptInUsageError":
+   This API has been flagged as opt-in with error-level severity.
+
+   Any declaration annotated with this marker is considered part of an
+   unstable or
+   otherwise non-standard API surface and its call sites should accept the
+   opt-in
+   aspect of it by using the @OptIn annotation, using the marker annotation
+   --
+   effectively causing further propagation of the opt-in aspect -- or
+   configuring
+   the UnsafeOptInUsageError check's options for project-wide opt-in.
+
+   To configure project-wide opt-in, specify the opt-in option value in
+   lint.xml
+   as a comma-delimited list of opted-in annotations:
+
+   <lint>
+       <issue id="UnsafeOptInUsageError">
+           <option name="opt-in" value="com.foo.ExperimentalBarAnnotation" />
+       </issue>
+   </lint>
+
+   Vendor: Android Open Source Project
+   Identifier: androidx.annotation.experimental
+   Feedback: https://issuetracker.google.com/issues/new?component=459778
+
+22 errors, 9 warnings

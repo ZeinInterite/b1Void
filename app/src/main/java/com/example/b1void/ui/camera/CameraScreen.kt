@@ -13,8 +13,14 @@ import com.example.b1void.camera.ui.camera.FocusOverlayView.Mode
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
+import androidx.camera.core.UseCaseGroup
+import androidx.camera.core.ViewPort
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import android.util.Size
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -80,7 +86,8 @@ fun CameraScreen(
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
             implementationMode = PreviewView.ImplementationMode.PERFORMANCE
-            scaleType = PreviewView.ScaleType.FILL_CENTER
+            // FIT_CENTER shows full image without cropping, matching what will be captured
+            scaleType = PreviewView.ScaleType.FIT_CENTER
         }
     }
 
@@ -104,18 +111,58 @@ fun CameraScreen(
         val provider = ProcessCameraProvider.getInstance(context).get()
         try {
             provider.unbindAll()
-            val cameraPreview = Preview.Builder().build().also { p ->
-                p.setSurfaceProvider(previewView.surfaceProvider)
-            }
-            val imageCapture = ImageCapture.Builder().build()
+
+            // Create shared ViewPort to ensure Preview and ImageCapture use the same crop region
+            // This is THE key to making preview match captured photo exactly
+            val viewPort = ViewPort.Builder(
+                android.util.Rational(4, 3), // Use 4:3 aspect ratio (sensor native)
+                previewView.display.rotation
+            ).build()
+
+            val cameraPreview = Preview.Builder()
+                .build()
+
+            val imageCapture = ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                .build()
+
+            // UseCaseGroup with shared ViewPort ensures both use cases see the same area
+            val useCaseGroup = UseCaseGroup.Builder()
+                .setViewPort(viewPort)
+                .addUseCase(cameraPreview)
+                .addUseCase(imageCapture)
+                .build()
 
             camera = provider.bindToLifecycle(
                 lifecycleOwner,
                 cameraSelector,
-                cameraPreview,
-                imageCapture
+                useCaseGroup
             )
-            camera?.let { vm.bindCamera(it) }
+
+            // Set surface provider AFTER binding to ensure proper initialization
+            cameraPreview.setSurfaceProvider(previewView.surfaceProvider)
+
+            camera?.let {
+                vm.bindCamera(it)
+                // Explicitly set zoom to 1.0 to disable any hidden digital zoom
+                it.cameraControl.setZoomRatio(1.0f)
+
+                // DEBUG: Log configuration to verify synchronization
+                Log.d("CameraScreen", "=== CameraX Configuration ===")
+                Log.d("CameraScreen", "ViewPort: 4:3 aspect ratio")
+                Log.d("CameraScreen", "PreviewView ScaleType: ${previewView.scaleType}")
+                cameraPreview.resolutionInfo?.let { resInfo ->
+                    val res = resInfo.resolution
+                    Log.d("CameraScreen", "Preview resolved: ${res.width}x${res.height}, aspect: ${res.width.toFloat() / res.height}")
+                }
+                imageCapture.resolutionInfo?.let { resInfo ->
+                    val res = resInfo.resolution
+                    Log.d("CameraScreen", "ImageCapture resolved: ${res.width}x${res.height}, aspect: ${res.width.toFloat() / res.height}")
+                }
+                it.cameraInfo.zoomState.value?.let { zoom ->
+                    Log.d("CameraScreen", "Zoom: ${zoom.zoomRatio} (min: ${zoom.minZoomRatio}, max: ${zoom.maxZoomRatio})")
+                }
+            }
         } catch (t: Throwable) {
             Log.e("CameraScreen", "Binding failed", t)
         }
