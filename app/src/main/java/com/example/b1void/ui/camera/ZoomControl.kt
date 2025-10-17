@@ -44,6 +44,8 @@ import kotlin.math.roundToInt
  * iPhone-like Zoom control: preset chips + continuous rail with draggable handle.
  * Works in both portrait (horizontal rail) and landscape (vertical rail).
  */
+private const val DRAG_SENSITIVITY = 1.6f // >1 increases how much zoom changes per drag pixel
+private const val DRAG_STEP_CLAMP = 0.3f   // per-frame normalized clamp (was 0.2)
 @Composable
 fun ZoomControl(
     zoomRatio: Float,
@@ -240,10 +242,11 @@ private fun ZoomRail(
     }
     val dragState = rememberDraggableState { delta ->
         val lengthPx = with(density) { length.toPx() }.coerceAtLeast(1f)
-        val d = when (orientation) {
+        val raw = when (orientation) {
             Orientation.Horizontal -> delta / lengthPx
             Orientation.Vertical -> -delta / lengthPx
-        }.coerceIn(-0.2f, 0.2f)
+        }
+        val d = (raw * DRAG_SENSITIVITY).coerceIn(-DRAG_STEP_CLAMP, DRAG_STEP_CLAMP)
         val newPos = (normPos + d).coerceIn(0f, 1f)
         if (newPos != normPos) {
             normPos = newPos
