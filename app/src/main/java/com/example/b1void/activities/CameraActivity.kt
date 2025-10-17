@@ -77,6 +77,7 @@ import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
 import androidx.camera.view.PreviewView
+import android.content.res.Configuration as AndroidConfiguration
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -240,7 +241,8 @@ class CameraActivity : AppCompatActivity() {
         observeSettings()
 
         if (allPermissionsGranted()) {
-            startCamera()
+            // Запускаем камеру после разметки PreviewView, чтобы корректно собрать ViewPort
+            previewView.post { startCamera() }
             loadLatestPhotoThumbnail()
         } else {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
@@ -253,6 +255,8 @@ class CameraActivity : AppCompatActivity() {
         
         // Initialize wake lock
     }
+
+    
 
     private inner class ScaleGestureListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
@@ -444,9 +448,11 @@ class CameraActivity : AppCompatActivity() {
         bottomControlsContainer = findViewById(R.id.bottomControls)
         topControlsSpacer = findViewById(R.id.topControlsSpacer)
         previewView = findViewById(R.id.previewView)
-        // Ensure no implicit crop/zoom in preview: use COMPATIBLE + FIT_CENTER
+        // Default preview scaling. В портретной ориентации избегаем кропа (FIT_CENTER),
+        // в альбомной — заполняем экран без чёрных полос (FILL_CENTER).
         previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-        previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
+        previewView.scaleType = if (resources.configuration.orientation == AndroidConfiguration.ORIENTATION_LANDSCAPE)
+            PreviewView.ScaleType.FILL_CENTER else PreviewView.ScaleType.FIT_CENTER
         captureButton = findViewById(R.id.shutterButton)
         // modeSwitchButton removed from layout
         flipCameraButton = findViewById(R.id.switchCameraButton)
@@ -618,11 +624,17 @@ class CameraActivity : AppCompatActivity() {
             val rotation = previewView.display?.rotation ?: Surface.ROTATION_0
             currentTargetRotation = rotation
 
-            // Create shared ViewPort matching capture aspect and FIT to avoid hidden crop/zoom
+            // ViewPort под реальные размеры PreviewView, чтобы в landscape занять весь экран
+            val viewW = previewView.width.takeIf { it > 0 } ?: previewView.measuredWidth
+            val viewH = previewView.height.takeIf { it > 0 } ?: previewView.measuredHeight
+            val isLandscape = (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270)
             val viewPort = ViewPort.Builder(
-                android.util.Rational(captureResolution.width, captureResolution.height),
+                android.util.Rational(if (viewW > 0) viewW else captureResolution.width,
+                                       if (viewH > 0) viewH else captureResolution.height),
                 rotation
             )
+                // Используем FIT для согласования границ всех use-cases;
+                // заполнение экрана обеспечит PreviewView.ScaleType.FILL_CENTER в landscape
                 .setScaleType(ViewPort.FIT)
                 .build()
 
@@ -683,7 +695,7 @@ class CameraActivity : AppCompatActivity() {
 
             // DEBUG: Log preview and capture configuration
             Log.d(TAG, "=== CameraX Configuration ===")
-            Log.d(TAG, "ViewPort: ${captureResolution.width}:${captureResolution.height} FIT, rotation=$rotation")
+            Log.d(TAG, "ViewPort: ${viewW}x${viewH} ${if (isLandscape) "FILL" else "FIT"}, rotation=$rotation")
             Log.d(
                 TAG,
                 "Preview target resolution: " + (
@@ -996,7 +1008,17 @@ class CameraActivity : AppCompatActivity() {
         } catch (exc: Exception) {
             Log.e(TAG, "Failed to unbind camera before restart", exc)
         }
-        mainHandler.post { startCamera() }
+        // Дождёмся корректной разметки превью, чтобы собрать ViewPort по реальным размерам
+        previewView.post {
+            val w = previewView.width
+            val h = previewView.height
+            if (w <= 0 || h <= 0) {
+                // если размеры ещё не готовы — отложим на следующий кадр
+                previewView.post { startCamera() }
+            } else {
+                startCamera()
+            }
+        }
     }
 
     private fun verifyBoundCaptureResolution(requestedResolution: Size): Boolean {
@@ -1362,19 +1384,7 @@ class CameraActivity : AppCompatActivity() {
         orientationEventListener = object : OrientationEventListener(this) {
             override fun onOrientationChanged(orientationDegrees: Int) {
                 if (orientationDegrees == ORIENTATION_UNKNOWN) return
-                val rotation = when {
-                    orientationDegrees in 45..134 -> Surface.ROTATION_270
-                    orientationDegrees in 135..224 -> Surface.ROTATION_180
-                    orientationDegrees in 225..314 -> Surface.ROTATION_90
-                    else -> Surface.ROTATION_0
-                }
-
-                if (rotation != currentTargetRotation) {
-                    currentTargetRotation = rotation
-                    applyTargetRotations(rotation)
-                }
-
-                // Only update layout when display rotation actually changes
+                // Не ребиндим камеру по наклону — только обновляем UI при реальном повороте экрана
                 val displayRotation = getDisplayRotation()
                 if (displayRotation != lastLayoutRotation) {
                     updateLayoutForRotation(displayRotation)
@@ -1764,8 +1774,18 @@ class CameraActivity : AppCompatActivity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        updateLayoutForRotation(getDisplayRotation())
-        // No legacy zoom sliders to update
+        // fix: rebind camera on orientation change to remove black bars
+        // Обновить UI-раскладку под новый rotation
+        val displayRotation = getDisplayRotation()
+        updateLayoutForRotation(displayRotation)
+
+        // Переключить режим масштабирования превью: в landscape заполняем экран без полос
+        previewView.scaleType = if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE)
+            PreviewView.ScaleType.FILL_CENTER else PreviewView.ScaleType.FIT_CENTER
+
+        // Обновить targetRotation и перебиндить use-cases с актуальным ViewPort
+        currentTargetRotation = previewView.display?.rotation ?: Surface.ROTATION_0
+        restartCameraSession()
     }
 
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).roundToInt()
