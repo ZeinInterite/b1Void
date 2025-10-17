@@ -747,9 +747,29 @@ class CameraActivity : AppCompatActivity() {
                         )
                     )
                     .build()
-                val newVideoCapture = VideoCapture.withOutput(recorder).apply {
-                    targetRotation = rotation
+
+                // Создаем VideoCapture с применением стабилизации видео
+                val videoCaptureBuilder = VideoCapture.Builder(recorder)
+                    .setTargetRotation(rotation)
+
+                // Применяем стабилизацию для видео через Camera2 Interop
+                try {
+                    val quirks = com.example.b1void.utils.ManufacturerCompatibility.getCameraQuirks()
+                    if (!quirks.hasEisIssues()) {
+                        val videoExtender = Camera2Interop.Extender(videoCaptureBuilder)
+                        videoExtender.setCaptureRequestOption(
+                            CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                            CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON
+                        )
+                        Log.d(TAG, "Video stabilization enabled for VideoCapture")
+                    } else {
+                        Log.d(TAG, "Video stabilization disabled for VideoCapture due to quirks")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to enable video stabilization for VideoCapture: ${e.message}")
                 }
+
+                val newVideoCapture = videoCaptureBuilder.build()
                 videoCapture = newVideoCapture
                 useCaseGroupBuilder.addUseCase(newVideoCapture)
             }
@@ -916,6 +936,9 @@ class CameraActivity : AppCompatActivity() {
                 CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES
             )
 
+            // Получаем quirks для текущего производителя
+            val quirks = com.example.b1void.utils.ManufacturerCompatibility.getCameraQuirks()
+
             // Проверяем доступность базовых возможностей
             val hasManualSensor = characteristics?.contains(
                 CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR
@@ -942,22 +965,10 @@ class CameraActivity : AppCompatActivity() {
                 Log.w(TAG, "Basic camera controls not fully supported", e)
             }
 
-            // Опциональные улучшенные настройки
-            try {
-                // Проверяем поддержку OIS
-                val availableOIS = camera2Info.getCameraCharacteristic(
-                    CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION
-                )
-                if (availableOIS?.contains(CameraCharacteristics.LENS_OPTICAL_STABILIZATION_MODE_ON) == true) {
-                    optionsBuilder.setCaptureRequestOption(
-                        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
-                        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON
-                    )
-                    Log.d(TAG, "OIS enabled")
-                }
-            } catch (e: Exception) {
-                Log.d(TAG, "OIS not supported: ${e.message}")
-            }
+            // Настройка стабилизации изображения
+            applyImageStabilization(camera2Info, optionsBuilder, quirks)
+
+            // Опциональные улучшенные настройки - Face detection уже был, оставляем как есть
 
             try {
                 // Проверяем поддержку распознавания лиц
@@ -1007,6 +1018,94 @@ class CameraActivity : AppCompatActivity() {
             Log.e(TAG, "Failed to apply Camera2 defaults, using CameraX defaults", e)
             // Откат к стандартным настройкам CameraX
         }
+    }
+
+    /**
+     * Применяет настройки стабилизации изображения (OIS и EIS) с учетом особенностей устройства
+     */
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
+    private fun applyImageStabilization(
+        camera2Info: Camera2CameraInfo,
+        optionsBuilder: CaptureRequestOptions.Builder,
+        quirks: com.example.b1void.utils.ManufacturerCompatibility.CameraQuirks
+    ) {
+        var oisApplied = false
+        var eisApplied = false
+
+        // 1. Проверяем и применяем оптическую стабилизацию (OIS)
+        if (!quirks.hasOisIssues()) {
+            try {
+                val availableOIS = camera2Info.getCameraCharacteristic(
+                    CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION
+                )
+
+                val oisSupported = availableOIS?.contains(
+                    CameraCharacteristics.LENS_OPTICAL_STABILIZATION_MODE_ON
+                ) == true
+
+                if (oisSupported && !quirks.preferEisOverOis()) {
+                    optionsBuilder.setCaptureRequestOption(
+                        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
+                        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON
+                    )
+                    oisApplied = true
+                    Log.d(TAG, "Stabilization: OIS enabled (hardware: ${com.example.b1void.utils.DeviceInfo.manufacturer})")
+                } else if (!oisSupported) {
+                    Log.d(TAG, "Stabilization: OIS not available on this device")
+                } else {
+                    Log.d(TAG, "Stabilization: OIS available but preferring EIS due to quirks")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Stabilization: Failed to check/enable OIS: ${e.message}")
+            }
+        } else {
+            Log.d(TAG, "Stabilization: OIS disabled due to manufacturer quirks (${com.example.b1void.utils.DeviceInfo.manufacturer})")
+        }
+
+        // 2. Проверяем и применяем электронную стабилизацию изображения (EIS)
+        // EIS применяется через VIDEO_STABILIZATION_MODE для фото
+        if (!quirks.hasEisIssues()) {
+            try {
+                val availableVideoStabilization = camera2Info.getCameraCharacteristic(
+                    CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES
+                )
+
+                val eisSupported = availableVideoStabilization?.contains(
+                    CameraCharacteristics.CONTROL_VIDEO_STABILIZATION_MODE_ON
+                ) == true
+
+                // Применяем EIS если:
+                // - устройство поддерживает
+                // - и (OIS недоступна ИЛИ производитель предпочитает EIS)
+                val shouldApplyEis = eisSupported && (!oisApplied || quirks.preferEisOverOis())
+
+                if (shouldApplyEis) {
+                    optionsBuilder.setCaptureRequestOption(
+                        CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                        CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON
+                    )
+                    eisApplied = true
+                    Log.d(TAG, "Stabilization: EIS enabled (software-based)")
+                } else if (!eisSupported) {
+                    Log.d(TAG, "Stabilization: EIS not available on this device")
+                } else if (oisApplied) {
+                    Log.d(TAG, "Stabilization: EIS available but using OIS instead")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Stabilization: Failed to check/enable EIS: ${e.message}")
+            }
+        } else {
+            Log.d(TAG, "Stabilization: EIS disabled due to manufacturer quirks (${com.example.b1void.utils.DeviceInfo.manufacturer})")
+        }
+
+        // 3. Логирование итогового состояния стабилизации
+        val stabilizationStatus = when {
+            oisApplied && eisApplied -> "HYBRID (OIS + EIS)"
+            oisApplied -> "OIS only"
+            eisApplied -> "EIS only"
+            else -> "NONE (not available or disabled)"
+        }
+        Log.i(TAG, "=== Image Stabilization Status: $stabilizationStatus ===")
     }
 
     /**

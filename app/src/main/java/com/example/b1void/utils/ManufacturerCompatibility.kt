@@ -31,6 +31,9 @@ object ManufacturerCompatibility {
         fun needsManualExposureWorkaround(): Boolean
         fun getRecommendedPreviewSize(): Size?
         fun getMaxRecommendedResolution(): Size?
+        fun hasOisIssues(): Boolean
+        fun hasEisIssues(): Boolean
+        fun preferEisOverOis(): Boolean
     }
 
     class SamsungCameraQuirks(private val model: String) : CameraQuirks {
@@ -41,6 +44,10 @@ object ManufacturerCompatibility {
         override fun needsManualExposureWorkaround() = false
         override fun getRecommendedPreviewSize() = null
         override fun getMaxRecommendedResolution() = Size(3840, 2160) // Max 4K
+        // Samsung обычно хорошо поддерживает OIS на флагманах
+        override fun hasOisIssues() = model.contains("galaxy j") || model.contains("galaxy a")
+        override fun hasEisIssues() = false
+        override fun preferEisOverOis() = false
     }
 
     class XiaomiCameraQuirks(private val model: String) : CameraQuirks {
@@ -59,6 +66,10 @@ object ManufacturerCompatibility {
         } else {
             Size(3840, 2160) // 4K для флагманов
         }
+        // Xiaomi/Redmi часто имеют проблемы с OIS на бюджетных моделях
+        override fun hasOisIssues() = model.contains("redmi")
+        override fun hasEisIssues() = false
+        override fun preferEisOverOis() = model.contains("redmi") // Для бюджетных лучше EIS
     }
 
     class HuaweiCameraQuirks(private val model: String) : CameraQuirks {
@@ -69,6 +80,10 @@ object ManufacturerCompatibility {
         override fun needsManualExposureWorkaround() = true
         override fun getRecommendedPreviewSize() = null
         override fun getMaxRecommendedResolution() = Size(3840, 2160)
+        // Huawei имеет собственную реализацию, могут быть проблемы с CameraX API
+        override fun hasOisIssues() = true
+        override fun hasEisIssues() = true
+        override fun preferEisOverOis() = false
     }
 
     class OnePlusCameraQuirks(private val model: String) : CameraQuirks {
@@ -79,6 +94,10 @@ object ManufacturerCompatibility {
         override fun needsManualExposureWorkaround() = false
         override fun getRecommendedPreviewSize() = null
         override fun getMaxRecommendedResolution() = Size(3840, 2160)
+        // OnePlus обычно хорошо работает с обоими видами стабилизации
+        override fun hasOisIssues() = false
+        override fun hasEisIssues() = false
+        override fun preferEisOverOis() = false
     }
 
     class OppoCameraQuirks(private val model: String) : CameraQuirks {
@@ -89,6 +108,10 @@ object ManufacturerCompatibility {
         override fun needsManualExposureWorkaround() = true
         override fun getRecommendedPreviewSize() = null
         override fun getMaxRecommendedResolution() = Size(1920, 1080)
+        // Oppo/Realme могут иметь проблемы на бюджетных моделях
+        override fun hasOisIssues() = model.contains("a")
+        override fun hasEisIssues() = false
+        override fun preferEisOverOis() = model.contains("a")
     }
 
     class VivoCameraQuirks(private val model: String) : CameraQuirks {
@@ -99,6 +122,10 @@ object ManufacturerCompatibility {
         override fun needsManualExposureWorkaround() = true
         override fun getRecommendedPreviewSize() = null
         override fun getMaxRecommendedResolution() = Size(1920, 1080)
+        // Vivo может иметь проблемы со стабилизацией на некоторых моделях
+        override fun hasOisIssues() = !model.contains("x") && !model.contains("nex")
+        override fun hasEisIssues() = false
+        override fun preferEisOverOis() = false
     }
 
     class MotorolaCameraQuirks(private val model: String) : CameraQuirks {
@@ -109,6 +136,10 @@ object ManufacturerCompatibility {
         override fun needsManualExposureWorkaround() = false
         override fun getRecommendedPreviewSize() = null
         override fun getMaxRecommendedResolution() = Size(2560, 1440)
+        // Motorola обычно хорошо работает, но бюджетные E-серии могут не иметь OIS
+        override fun hasOisIssues() = model.contains("moto e") || model.contains("moto g")
+        override fun hasEisIssues() = false
+        override fun preferEisOverOis() = false
     }
 
     class DefaultCameraQuirks : CameraQuirks {
@@ -119,5 +150,9 @@ object ManufacturerCompatibility {
         override fun needsManualExposureWorkaround() = false
         override fun getRecommendedPreviewSize() = null
         override fun getMaxRecommendedResolution() = null
+        // По умолчанию предполагаем, что устройство поддерживает стабилизацию
+        override fun hasOisIssues() = false
+        override fun hasEisIssues() = false
+        override fun preferEisOverOis() = false
     }
 }
