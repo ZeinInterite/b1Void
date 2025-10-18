@@ -88,7 +88,7 @@ class FileManagerActivity : AppCompatActivity() {
     private val MIN_SPAN_COUNT = 2
     private val MAX_SPAN_COUNT = 6
 
-    private enum class SortMode { DATE_ASC, DATE_DESC, NAME_ASC, NAME_DESC }
+    private enum class SortMode { DATE_ASC, DATE_DESC, NAME_ASC, NAME_DESC, SIZE_ASC, SIZE_DESC }
     private var sortMode: SortMode = SortMode.DATE_ASC
 
     private enum class SwipeSelectionMode { NONE, ADD, REMOVE }
@@ -96,6 +96,7 @@ class FileManagerActivity : AppCompatActivity() {
 
     companion object {
         private const val KEY_LAST_TRASH_AUTO_CLEAR = "last_trash_auto_clear"
+        private const val KEY_SORT_MODE = "sort_mode"
         private val AUTO_TRASH_CLEAR_INTERVAL_MS = TimeUnit.DAYS.toMillis(30)
     }
 
@@ -104,6 +105,7 @@ class FileManagerActivity : AppCompatActivity() {
         setContentView(R.layout.activity_file_manager)
 
         initializeViews()
+        restoreSortMode() // Восстанавливаем сохраненный режим сортировки
         setupButtons()
         setupRecyclerView()
         setupGestureDetector()
@@ -492,6 +494,37 @@ class FileManagerActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Восстанавливает сохраненный режим сортировки из SharedPreferences
+     */
+    private fun restoreSortMode() {
+        try {
+            val savedModeOrdinal = sharedPreferences.getInt(KEY_SORT_MODE, SortMode.DATE_ASC.ordinal)
+            sortMode = SortMode.values().getOrNull(savedModeOrdinal) ?: SortMode.DATE_ASC
+
+            // Обновляем иконку сортировки
+            val asc = (sortMode == SortMode.DATE_ASC || sortMode == SortMode.NAME_ASC)
+            findViewById<ImageView>(R.id.sort_button).scaleY = if (asc) -1f else 1f
+
+            Log.d("FileManagerActivity", "Восстановлен режим сортировки: $sortMode")
+        } catch (e: Exception) {
+            Log.e("FileManagerActivity", "Ошибка восстановления режима сортировки", e)
+            sortMode = SortMode.DATE_ASC // Значение по умолчанию
+        }
+    }
+
+    /**
+     * Сохраняет текущий режим сортировки в SharedPreferences
+     */
+    private fun saveSortMode() {
+        try {
+            sharedPreferences.edit().putInt(KEY_SORT_MODE, sortMode.ordinal).apply()
+            Log.d("FileManagerActivity", "Сохранен режим сортировки: $sortMode")
+        } catch (e: Exception) {
+            Log.e("FileManagerActivity", "Ошибка сохранения режима сортировки", e)
+        }
+    }
+
     private fun toggleSortOrder() {
         sortAscending = !sortAscending
         findViewById<ImageView>(R.id.sort_button).scaleY = if (sortAscending) -1f else 1f
@@ -609,12 +642,16 @@ class FileManagerActivity : AppCompatActivity() {
                     FileManagerUtils.getCreationTimeMillis(x).compareTo(FileManagerUtils.getCreationTimeMillis(y))
                 fun cmpName(x: File, y: File): Int =
                     x.name.lowercase(Locale.ROOT).compareTo(y.name.lowercase(Locale.ROOT))
+                fun cmpSize(x: File, y: File): Int =
+                    x.length().compareTo(y.length())
 
                 val cmp = when (sortMode) {
                     SortMode.DATE_ASC -> cmpDate(a, b)
                     SortMode.DATE_DESC -> -cmpDate(a, b)
                     SortMode.NAME_ASC -> cmpName(a, b)
                     SortMode.NAME_DESC -> -cmpName(a, b)
+                    SortMode.SIZE_ASC -> cmpSize(a, b)
+                    SortMode.SIZE_DESC -> -cmpSize(a, b)
                 }
                 cmp
             }
@@ -654,6 +691,8 @@ class FileManagerActivity : AppCompatActivity() {
             SortMode.DATE_DESC -> R.id.sort_date_desc
             SortMode.NAME_ASC -> R.id.sort_name_asc
             SortMode.NAME_DESC -> R.id.sort_name_desc
+            SortMode.SIZE_ASC -> R.id.sort_size_asc
+            SortMode.SIZE_DESC -> R.id.sort_size_desc
         }
         popup.menu.setGroupCheckable(R.id.sort_mode_group, true, true)
         popup.menu.findItem(checkedId)?.isChecked = true
@@ -664,14 +703,17 @@ class FileManagerActivity : AppCompatActivity() {
                 R.id.sort_date_desc -> SortMode.DATE_DESC
                 R.id.sort_name_asc -> SortMode.NAME_ASC
                 R.id.sort_name_desc -> SortMode.NAME_DESC
+                R.id.sort_size_asc -> SortMode.SIZE_ASC
+                R.id.sort_size_desc -> SortMode.SIZE_DESC
                 else -> null
             }
             if (newMode != null) {
                 sortMode = newMode
                 item.isChecked = true
                 // Update icon orientation for visual hint: asc → upside-down
-                val asc = (sortMode == SortMode.DATE_ASC || sortMode == SortMode.NAME_ASC)
+                val asc = (sortMode == SortMode.DATE_ASC || sortMode == SortMode.NAME_ASC || sortMode == SortMode.SIZE_ASC)
                 findViewById<ImageView>(R.id.sort_button).scaleY = if (asc) -1f else 1f
+                saveSortMode()
                 loadDirectoryContent(getCurrentDirectory())
                 true
             } else false

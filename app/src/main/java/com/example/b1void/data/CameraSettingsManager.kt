@@ -19,6 +19,7 @@ class CameraSettingsManager(private val context: Context) {
         val FLASH_ENABLED_KEY = intPreferencesKey("flash_mode")
         val RESOLUTION_KEY = stringPreferencesKey("resolution")
         val TORCH_ENABLED_KEY = booleanPreferencesKey("torch_enabled")
+        val VIDEO_QUALITY_KEY = intPreferencesKey("video_quality")
 
         // Orientation layout preferences
         val THUMBNAIL_POSITION_LANDSCAPE_KEY = stringPreferencesKey("thumbnail_position_landscape")
@@ -145,6 +146,22 @@ class CameraSettingsManager(private val context: Context) {
     suspend fun setVideoRecordDelay(delayMs: Int) {
         context.dataStore.edit {
             it[VIDEO_RECORD_DELAY_KEY] = delayMs
+        }
+    }
+
+    /**
+     * Get preferred video quality (one of 2160, 1080, 720, 480)
+     * default: 720 (HD)
+     */
+    fun getVideoQuality(): Flow<Int> {
+        return context.dataStore.data.map {
+            it[VIDEO_QUALITY_KEY] ?: 720
+        }
+    }
+
+    suspend fun setVideoQuality(quality: Int) {
+        context.dataStore.edit {
+            it[VIDEO_QUALITY_KEY] = quality
         }
     }
 }

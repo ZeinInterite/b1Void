@@ -27,6 +27,19 @@
         android:layout_marginBottom="8dp"/>
 
     <Button
+        android:id="@+id/video_quality_settings_button"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Video Quality"
+        android:textAlignment="textStart"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:background="?attr/selectableItemBackground"
+        android:textAllCaps="false"
+        android:textSize="16sp"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
         android:id="@+id/resolution_settings_button"
         android:layout_width="match_parent"
         android:layout_height="56dp"

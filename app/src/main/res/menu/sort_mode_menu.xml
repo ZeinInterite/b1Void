@@ -3,20 +3,28 @@
     <group android:id="@+id/sort_mode_group" android:checkableBehavior="single">
         <item
             android:id="@+id/sort_date_asc"
-            android:title="От старых к новым"
+            android:title="@string/sort_date_asc_label"
             android:checkable="true" />
         <item
             android:id="@+id/sort_date_desc"
-            android:title="От новых к старым"
+            android:title="@string/sort_date_desc_label"
             android:checkable="true" />
         <item
             android:id="@+id/sort_name_asc"
-            android:title="По имени (возрастание)"
+            android:title="@string/sort_name_asc_label"
             android:checkable="true" />
         <item
             android:id="@+id/sort_name_desc"
-            android:title="По имени (убывание)"
+            android:title="@string/sort_name_desc_label"
+            android:checkable="true" />
+        <item
+            android:id="@+id/sort_size_asc"
+            android:title="@string/sort_size_asc_label"
+            android:checkable="true" />
+        <item
+            android:id="@+id/sort_size_desc"
+            android:title="@string/sort_size_desc_label"
             android:checkable="true" />
     </group>
-    
+
 </menu>

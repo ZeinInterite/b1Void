@@ -66,4 +66,13 @@
     <string name="action_select_multiple">Выбрать несколько</string>
     <string name="cd_af_ae_lock">AE/AF Lock indicator</string>
     <string name="cd_exposure_overlay">Exposure adjustment overlay</string>
+    
+    <!-- Sort menu labels (Russian) -->
+    <string name="sort_date_asc_label">По дате (возрастание)</string>
+    <string name="sort_date_desc_label">По дате (убывание)</string>
+    <string name="sort_name_asc_label">По имени (А→Я)</string>
+    <string name="sort_name_desc_label">По имени (Я→А)</string>
+    <string name="sort_size_asc_label">По размеру (возрастание)</string>
+    <string name="sort_size_desc_label">По размеру (убывание)</string>
+    <string name="error_saving_settings">Ошибка сохранения настроек</string>
 </resources>

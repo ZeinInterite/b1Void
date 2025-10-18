@@ -1,15 +1,26 @@
-                MotionEvent.ACTION_DOWN -> {
-                    if (currentMode == CaptureMode.PHOTO) {
-                        v.isPressed = true
-                        pressDownUptime = SystemClock.uptimeMillis()
+        val popup = PopupMenu(this, anchor)
+        popup.menuInflater.inflate(R.menu.sort_mode_menu, popup.menu)
 
-                        if (waitingForStopTap) {
-                            // Запись идет, пользователь нажал кнопку для остановки - ничего не делаем в ACTION_DOWN
-                            // Остановка произойдет в ACTION_UP
-                        } else if (!isHoldRecordingActive && !isRecording) {
-                            // Запись не идет - начинаем отсчет 0.8 сек
-                            scheduleHoldRecordingStart()
-                        }
-                        return@setOnTouchListener true
-                    }
-                }
+        // Reflect current selection with a checkmark
+        val checkedId = when (sortMode) {
+            SortMode.DATE_ASC -> R.id.sort_date_asc
+            SortMode.DATE_DESC -> R.id.sort_date_desc
+            SortMode.NAME_ASC -> R.id.sort_name_asc
+            SortMode.NAME_DESC -> R.id.sort_name_desc
+        }
+        popup.menu.setGroupCheckable(R.id.sort_mode_group, true, true)
+        popup.menu.findItem(checkedId)?.isChecked = true
+
+        popup.setOnMenuItemClickListener { item ->
+            val newMode = when (item.itemId) {
+                R.id.sort_date_asc -> SortMode.DATE_ASC
+                R.id.sort_date_desc -> SortMode.DATE_DESC
+                R.id.sort_name_asc -> SortMode.NAME_ASC
+                R.id.sort_name_desc -> SortMode.NAME_DESC
+                else -> null
+            }
+            if (newMode != null) {
+                sortMode = newMode
+                item.isChecked = true
+                // Update icon orientation for visual hint: asc → upside-down
+                val asc = (sortMode == SortMode.DATE_ASC || sortMode == SortMode.NAME_ASC)

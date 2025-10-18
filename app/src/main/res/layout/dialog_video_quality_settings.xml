@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Video Quality"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp"/>
+
+    <RadioGroup
+        android:id="@+id/video_quality_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="16dp">
+
+        <RadioButton
+            android:id="@+id/quality_uhd"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="UHD (2160p)"
+            android:textSize="16sp"
+            android:padding="8dp"/>
+
+        <RadioButton
+            android:id="@+id/quality_fhd"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="FHD (1080p)"
+            android:textSize="16sp"
+            android:padding="8dp"/>
+
+        <RadioButton
+            android:id="@+id/quality_hd"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="HD (720p)"
+            android:textSize="16sp"
+            android:padding="8dp"/>
+
+        <RadioButton
+            android:id="@+id/quality_sd"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SD (480p)"
+            android:textSize="16sp"
+            android:padding="8dp"/>
+
+    </RadioGroup>
+
+</LinearLayout>

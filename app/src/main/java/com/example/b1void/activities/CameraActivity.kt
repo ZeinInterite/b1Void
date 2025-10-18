@@ -203,6 +203,7 @@ class CameraActivity : AppCompatActivity() {
     private var shouldRestoreTorchState = false
     private var savedTorchState = false
     private val useComposeZoom = true
+    private var preferredVideoQuality: Int = 720 // 2160,1080,720,480
     // Hold-to-record state
     // Возврат автофокуса в центр через 5 секунд после ручного тапа
     private val refocusToCenterRunnable = Runnable { focusCoordinator?.resetToCenter() }
@@ -234,13 +235,32 @@ class CameraActivity : AppCompatActivity() {
         setContentView(R.layout.activity_camera)
 
         settingsManager = CameraSettingsManager(this)
+        // Initialize camera settings from app-wide cache (restored at app startup)
+        runCatching {
+            val cache = com.example.b1void.data.AppSettingsCache
+            flashMode = when (cache.flashMode) {
+                1 -> ImageCapture.FLASH_MODE_ON
+                2 -> ImageCapture.FLASH_MODE_AUTO
+                else -> ImageCapture.FLASH_MODE_OFF
+            }
+            cache.resolution?.let { resStr ->
+                selectedResolution = parseResolution(resStr) ?: selectedResolution
+            }
+            preferredVideoQuality = cache.videoQuality
+            holdToRecordDelayMs = cache.videoRecordDelayMs.toLong()
+            savedTorchState = cache.torchEnabled
+            shouldRestoreTorchState = true
+        }
         // Request camera permissions on first launch
         if (!allPermissionsGranted()) {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
         if (savedInstanceState == null) {
             lifecycleScope.launch {
-                settingsManager.setResolution("${DEFAULT_PHOTO_RESOLUTION.width}x${DEFAULT_PHOTO_RESOLUTION.height}")
+                // Set a default resolution only if not previously chosen
+                if (com.example.b1void.data.AppSettingsCache.resolution.isNullOrEmpty()) {
+                    settingsManager.setResolution("${DEFAULT_PHOTO_RESOLUTION.width}x${DEFAULT_PHOTO_RESOLUTION.height}")
+                }
             }
         }
 
@@ -373,7 +393,8 @@ class CameraActivity : AppCompatActivity() {
                     it.cameraControl.enableTorch(newTorchState)
                     // Save torch state to persistent storage
                     lifecycleScope.launch {
-                        settingsManager.setTorchEnabled(newTorchState)
+                        runCatching { settingsManager.setTorchEnabled(newTorchState) }
+                            .onFailure { Log.e(TAG, "Failed to persist torch state", it) }
                     }
                 }
             }
@@ -533,6 +554,14 @@ class CameraActivity : AppCompatActivity() {
         lifecycleScope.launch {
             settingsManager.getTorchEnabled().collect { enabled ->
                 savedTorchState = enabled
+            }
+        }
+        lifecycleScope.launch {
+            settingsManager.getVideoQuality().collect { q ->
+                if (q != preferredVideoQuality) {
+                    preferredVideoQuality = q
+                    startCamera()
+                }
             }
         }
     }
@@ -739,10 +768,11 @@ class CameraActivity : AppCompatActivity() {
 
             // Always bind VideoCapture to support hold-to-record in PHOTO mode
             run {
+                val targetQuality = mapPreferredVideoQuality(preferredVideoQuality)
                 val recorder = Recorder.Builder()
                     .setQualitySelector(
                         QualitySelector.from(
-                            Quality.HD,
+                            targetQuality,
                             FallbackStrategy.higherQualityOrLowerThan(Quality.SD)
                         )
                     )
@@ -1422,7 +1452,8 @@ class CameraActivity : AppCompatActivity() {
             val isTorchOn = state == TorchState.ON
             if (isTorchOn != savedTorchState) {
                 lifecycleScope.launch {
-                    settingsManager.setTorchEnabled(isTorchOn)
+                    runCatching { settingsManager.setTorchEnabled(isTorchOn) }
+                        .onFailure { Log.e(TAG, "Failed to persist torch state from observer", it) }
                 }
             }
         }
@@ -1450,6 +1481,16 @@ class CameraActivity : AppCompatActivity() {
             Log.d(TAG, "Torch enableTorch(true) called successfully")
         } else {
             Log.d(TAG, "Torch state is OFF, no restoration needed")
+        }
+    }
+
+    private fun mapPreferredVideoQuality(pref: Int): Quality {
+        return when (pref) {
+            2160 -> Quality.UHD
+            1080 -> Quality.FHD
+            720 -> Quality.HD
+            480 -> Quality.SD
+            else -> Quality.HD
         }
     }
 
@@ -2538,7 +2579,8 @@ class CameraActivity : AppCompatActivity() {
             val currentTorchState = cam.cameraInfo.torchState.value == TorchState.ON
             savedTorchState = currentTorchState
             lifecycleScope.launch {
-                settingsManager.setTorchEnabled(currentTorchState)
+                runCatching { settingsManager.setTorchEnabled(currentTorchState) }
+                    .onFailure { Log.e(TAG, "Failed to persist torch state onPause", it) }
             }
             Log.d(TAG, "Saved torch state on pause: $currentTorchState")
         }
@@ -2554,14 +2596,22 @@ class CameraActivity : AppCompatActivity() {
 
         // Load and restore torch state after camera initializes
         lifecycleScope.launch {
-            val enabled = settingsManager.getTorchEnabled().first()
-            savedTorchState = enabled
-            shouldRestoreTorchState = true
-            Log.d(TAG, "onResume: Loaded torch state from DataStore: $savedTorchState, will restore after camera initialization")
+            runCatching {
+                val enabled = settingsManager.getTorchEnabled().first()
+                savedTorchState = enabled
+                shouldRestoreTorchState = true
+                Log.d(TAG, "onResume: Loaded torch state from DataStore: $savedTorchState, will restore after camera initialization")
+            }.onFailure { Log.e(TAG, "Failed to load torch state", it) }
 
-            // Load video recording delay setting
-            holdToRecordDelayMs = settingsManager.getVideoRecordDelay().first().toLong()
-            Log.d(TAG, "onResume: Loaded video record delay: ${holdToRecordDelayMs}ms")
+            runCatching {
+                holdToRecordDelayMs = settingsManager.getVideoRecordDelay().first().toLong()
+                Log.d(TAG, "onResume: Loaded video record delay: ${holdToRecordDelayMs}ms")
+            }.onFailure { Log.e(TAG, "Failed to load video delay", it) }
+
+            runCatching {
+                preferredVideoQuality = settingsManager.getVideoQuality().first()
+                Log.d(TAG, "onResume: Loaded preferred video quality: $preferredVideoQuality")
+            }.onFailure { Log.e(TAG, "Failed to load video quality", it) }
         }
     }
 

@@ -1,6 +1,7 @@
 package com.example.b1void.ui
 
 import android.app.Dialog
+import android.util.Log
 import android.os.Bundle
 import android.util.Size
 import android.view.LayoutInflater
@@ -16,6 +17,7 @@ import com.example.b1void.adapters.ResolutionAdapter
 import com.example.b1void.data.CameraSettingsManager
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.coroutines.flow.first
+import android.widget.Toast
 import kotlinx.coroutines.launch
 
 class CameraSettingsDialogFragment : BottomSheetDialogFragment() {
@@ -53,6 +55,10 @@ class CameraSettingsDialogFragment : BottomSheetDialogFragment() {
         view.findViewById<Button>(R.id.video_delay_settings_button).setOnClickListener {
             showVideoDelaySettingsSubmenu()
         }
+
+        view.findViewById<Button>(R.id.video_quality_settings_button).setOnClickListener {
+            showVideoQualitySettingsSubmenu()
+        }
     }
 
     private fun showFlashSettingsSubmenu() {
@@ -75,7 +81,8 @@ class CameraSettingsDialogFragment : BottomSheetDialogFragment() {
                 else -> 0
             }
             lifecycleScope.launch {
-                settingsManager.setFlashMode(mode)
+                runCatching { settingsManager.setFlashMode(mode) }
+                    .onFailure { Log.e("CameraSettings", "Failed to save flash mode", it); Toast.makeText(requireContext(), R.string.error_saving_settings, Toast.LENGTH_SHORT).show() }
             }
         }
 
@@ -120,9 +127,11 @@ class CameraSettingsDialogFragment : BottomSheetDialogFragment() {
                     currentResolution
                 ) { selectedResolution ->
                     lifecycleScope.launch {
-                        settingsManager.setResolution("${selectedResolution.width}x${selectedResolution.height}")
-                        onResolutionChangedCallback?.invoke(selectedResolution)
-                        dialog.dismiss()
+                        runCatching {
+                            settingsManager.setResolution("${selectedResolution.width}x${selectedResolution.height}")
+                            onResolutionChangedCallback?.invoke(selectedResolution)
+                            dialog.dismiss()
+                        }.onFailure { Log.e("CameraSettings", "Failed to save resolution", it); Toast.makeText(requireContext(), R.string.error_saving_settings, Toast.LENGTH_SHORT).show() }
                     }
                 }
                 resolutionRecyclerView.adapter = adapter
@@ -153,8 +162,10 @@ class CameraSettingsDialogFragment : BottomSheetDialogFragment() {
                 else -> 800
             }
             lifecycleScope.launch {
-                settingsManager.setVideoRecordDelay(delayMs)
-                dialog.dismiss()
+                runCatching {
+                    settingsManager.setVideoRecordDelay(delayMs)
+                    dialog.dismiss()
+                }.onFailure { Log.e("CameraSettings", "Failed to save video delay", it); Toast.makeText(requireContext(), R.string.error_saving_settings, Toast.LENGTH_SHORT).show() }
             }
         }
 
@@ -167,6 +178,45 @@ class CameraSettingsDialogFragment : BottomSheetDialogFragment() {
                 1000 -> videoDelayGroup.check(R.id.delay_1000ms)
                 2000 -> videoDelayGroup.check(R.id.delay_2000ms)
                 else -> videoDelayGroup.check(R.id.delay_800ms) // Default 0.8s
+            }
+            isInitializing = false
+        }
+
+        dialog.show()
+    }
+
+    private fun showVideoQualitySettingsSubmenu() {
+        val dialog = Dialog(requireContext())
+        dialog.setContentView(R.layout.dialog_video_quality_settings)
+
+        val group = dialog.findViewById<RadioGroup>(R.id.video_quality_group)
+
+        var isInitializing = true
+
+        group.setOnCheckedChangeListener { _, checkedId ->
+            if (isInitializing) return@setOnCheckedChangeListener
+            val quality = when (checkedId) {
+                R.id.quality_uhd -> 2160
+                R.id.quality_fhd -> 1080
+                R.id.quality_hd -> 720
+                R.id.quality_sd -> 480
+                else -> 720
+            }
+            lifecycleScope.launch {
+                runCatching {
+                    settingsManager.setVideoQuality(quality)
+                    dialog.dismiss()
+                }.onFailure { Log.e("CameraSettings", "Failed to save video quality", it); Toast.makeText(requireContext(), R.string.error_saving_settings, Toast.LENGTH_SHORT).show() }
+            }
+        }
+
+        lifecycleScope.launch {
+            val current = settingsManager.getVideoQuality().first()
+            when (current) {
+                2160 -> group.check(R.id.quality_uhd)
+                1080 -> group.check(R.id.quality_fhd)
+                480 -> group.check(R.id.quality_sd)
+                else -> group.check(R.id.quality_hd)
             }
             isInitializing = false
         }
