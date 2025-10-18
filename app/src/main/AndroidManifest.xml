@@ -125,10 +125,13 @@
         <activity
             android:name=".activities.CameraComposeActivity"
             android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
             <activity
             android:name=".activities.CameraActivity"
             android:exported="false"
+            android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
 </application>

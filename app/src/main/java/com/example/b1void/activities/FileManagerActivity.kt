@@ -25,6 +25,10 @@ import com.example.b1void.adapters.FileAdapter
 import com.example.b1void.utils.FileManagerUtils
 import com.example.b1void.utils.ImageOptimizer
 import com.example.b1void.ui.MoveFilesBottomSheet
+import com.example.b1void.data.FileManagerSettingsManager
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 
@@ -55,7 +59,9 @@ class FileManagerActivity : AppCompatActivity() {
     private lateinit var captureButton: Button
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var titleTextView: TextView
+    @Deprecated("Use settingsManager instead")
     private lateinit var sharedPreferences: SharedPreferences
+    private lateinit var settingsManager: FileManagerSettingsManager
     private lateinit var seekbarWrapper: View
     private lateinit var sizeSeekBar: VerticalSeekBar
     private val uiHandler: Handler = Handler(Looper.getMainLooper())
@@ -104,8 +110,10 @@ class FileManagerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_file_manager)
 
+        settingsManager = FileManagerSettingsManager(applicationContext)
         initializeViews()
         restoreSortMode() // Восстанавливаем сохраненный режим сортировки
+        restoreSpanCount() // Восстанавливаем количество колонок
         setupButtons()
         setupRecyclerView()
         setupGestureDetector()
@@ -301,7 +309,7 @@ class FileManagerActivity : AppCompatActivity() {
         val displayMetrics = resources.displayMetrics
         val screenWidthDp = displayMetrics.widthPixels / displayMetrics.density
         val desiredItemWidthDp = 120
-        spanCount = sharedPreferences.getInt("span_count", (screenWidthDp / desiredItemWidthDp).toInt().coerceAtLeast(1))
+        // spanCount будет восстановлен из DataStore в restoreSpanCount()
         recyclerView.layoutManager = GridLayoutManager(this, spanCount)
 
         scaleGestureDetector = ScaleGestureDetector(this, ScaleListener())
@@ -444,7 +452,7 @@ class FileManagerActivity : AppCompatActivity() {
 
     private fun updateGridLayout() {
         (recyclerView.layoutManager as GridLayoutManager).spanCount = spanCount
-        sharedPreferences.edit().putInt("span_count", spanCount).apply()
+        saveSpanCount() // Используем новый метод с DataStore
         fileAdapter.notifyDataSetChanged()
     }
 
@@ -495,33 +503,80 @@ class FileManagerActivity : AppCompatActivity() {
     }
 
     /**
-     * Восстанавливает сохраненный режим сортировки из SharedPreferences
+     * Восстанавливает сохраненный режим сортировки из DataStore
      */
     private fun restoreSortMode() {
-        try {
-            val savedModeOrdinal = sharedPreferences.getInt(KEY_SORT_MODE, SortMode.DATE_ASC.ordinal)
-            sortMode = SortMode.values().getOrNull(savedModeOrdinal) ?: SortMode.DATE_ASC
+        lifecycleScope.launch {
+            try {
+                val savedMode = settingsManager.getSortMode().first()
+                sortMode = when (savedMode) {
+                    FileManagerSettingsManager.SortMode.DATE_ASC -> SortMode.DATE_ASC
+                    FileManagerSettingsManager.SortMode.DATE_DESC -> SortMode.DATE_DESC
+                    FileManagerSettingsManager.SortMode.NAME_ASC -> SortMode.NAME_ASC
+                    FileManagerSettingsManager.SortMode.NAME_DESC -> SortMode.NAME_DESC
+                    FileManagerSettingsManager.SortMode.SIZE_ASC -> SortMode.SIZE_ASC
+                    FileManagerSettingsManager.SortMode.SIZE_DESC -> SortMode.SIZE_DESC
+                }
 
-            // Обновляем иконку сортировки
-            val asc = (sortMode == SortMode.DATE_ASC || sortMode == SortMode.NAME_ASC)
-            findViewById<ImageView>(R.id.sort_button).scaleY = if (asc) -1f else 1f
+                // Обновляем иконку сортировки
+                val asc = (sortMode == SortMode.DATE_ASC || sortMode == SortMode.NAME_ASC || sortMode == SortMode.SIZE_ASC)
+                findViewById<ImageView>(R.id.sort_button).scaleY = if (asc) -1f else 1f
 
-            Log.d("FileManagerActivity", "Восстановлен режим сортировки: $sortMode")
-        } catch (e: Exception) {
-            Log.e("FileManagerActivity", "Ошибка восстановления режима сортировки", e)
-            sortMode = SortMode.DATE_ASC // Значение по умолчанию
+                Log.d("FileManagerActivity", "Восстановлен режим сортировки: $sortMode")
+            } catch (e: Exception) {
+                Log.e("FileManagerActivity", "Ошибка восстановления режима сортировки", e)
+                sortMode = SortMode.DATE_ASC // Значение по умолчанию
+            }
         }
     }
 
     /**
-     * Сохраняет текущий режим сортировки в SharedPreferences
+     * Сохраняет текущий режим сортировки в DataStore
      */
     private fun saveSortMode() {
-        try {
-            sharedPreferences.edit().putInt(KEY_SORT_MODE, sortMode.ordinal).apply()
-            Log.d("FileManagerActivity", "Сохранен режим сортировки: $sortMode")
-        } catch (e: Exception) {
-            Log.e("FileManagerActivity", "Ошибка сохранения режима сортировки", e)
+        lifecycleScope.launch {
+            try {
+                val settingsMode = when (sortMode) {
+                    SortMode.DATE_ASC -> FileManagerSettingsManager.SortMode.DATE_ASC
+                    SortMode.DATE_DESC -> FileManagerSettingsManager.SortMode.DATE_DESC
+                    SortMode.NAME_ASC -> FileManagerSettingsManager.SortMode.NAME_ASC
+                    SortMode.NAME_DESC -> FileManagerSettingsManager.SortMode.NAME_DESC
+                    SortMode.SIZE_ASC -> FileManagerSettingsManager.SortMode.SIZE_ASC
+                    SortMode.SIZE_DESC -> FileManagerSettingsManager.SortMode.SIZE_DESC
+                }
+                settingsManager.setSortMode(settingsMode)
+                Log.d("FileManagerActivity", "Сохранен режим сортировки: $sortMode")
+            } catch (e: Exception) {
+                Log.e("FileManagerActivity", "Ошибка сохранения режима сортировки", e)
+            }
+        }
+    }
+
+    /**
+     * Восстанавливает сохраненное количество колонок из DataStore
+     */
+    private fun restoreSpanCount() {
+        lifecycleScope.launch {
+            try {
+                spanCount = settingsManager.getSpanCount().first()
+                // Обновим layoutManager если RecyclerView уже инициализирован
+                if (::recyclerView.isInitialized) {
+                    (recyclerView.layoutManager as? GridLayoutManager)?.spanCount = spanCount
+                }
+                Log.d("FileManagerActivity", "Восстановлено количество колонок: $spanCount")
+            } catch (e: Exception) {
+                Log.e("FileManagerActivity", "Ошибка восстановления spanCount", e)
+                spanCount = FileManagerSettingsManager.DEFAULT_SPAN_COUNT
+            }
+        }
+    }
+
+    /**
+     * Сохраняет количество колонок в DataStore
+     */
+    private fun saveSpanCount() {
+        lifecycleScope.launch {
+            settingsManager.setSpanCount(spanCount)
         }
     }
 

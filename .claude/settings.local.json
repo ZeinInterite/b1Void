@@ -9,7 +9,8 @@
       "Bash(.gradlew.bat assembleDebug)",
       "Bash(./gradlew:*)",
       "Bash(where java)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(gradlew.bat test --tests \"com.example.b1void.data.CameraSettingsManagerTest\" --tests \"com.example.b1void.data.FileManagerSettingsManagerTest\")"
     ],
     "deny": []
   }

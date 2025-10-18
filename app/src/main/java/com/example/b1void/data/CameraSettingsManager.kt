@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -16,10 +17,25 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "ca
 class CameraSettingsManager(private val context: Context) {
 
     companion object {
+        // Flash and torch settings
         val FLASH_ENABLED_KEY = intPreferencesKey("flash_mode")
-        val RESOLUTION_KEY = stringPreferencesKey("resolution")
         val TORCH_ENABLED_KEY = booleanPreferencesKey("torch_enabled")
+
+        // Resolution and quality settings
+        val RESOLUTION_KEY = stringPreferencesKey("resolution")
         val VIDEO_QUALITY_KEY = intPreferencesKey("video_quality")
+
+        // Manual camera controls
+        val ISO_VALUE_KEY = intPreferencesKey("iso_value")
+        val SHUTTER_SPEED_KEY = longPreferencesKey("shutter_speed")
+        val FOCUS_MODE_KEY = stringPreferencesKey("focus_mode")
+
+        // Stabilization settings
+        val OIS_ENABLED_KEY = booleanPreferencesKey("ois_enabled")
+        val EIS_ENABLED_KEY = booleanPreferencesKey("eis_enabled")
+
+        // Photo quality settings
+        val PHOTO_QUALITY_KEY = intPreferencesKey("photo_quality")
 
         // Orientation layout preferences
         val THUMBNAIL_POSITION_LANDSCAPE_KEY = stringPreferencesKey("thumbnail_position_landscape")
@@ -29,6 +45,15 @@ class CameraSettingsManager(private val context: Context) {
 
         // Video recording delay preference
         val VIDEO_RECORD_DELAY_KEY = intPreferencesKey("video_record_delay")
+
+        // Default values
+        const val DEFAULT_ISO = 100
+        const val DEFAULT_SHUTTER_SPEED = 1000000L // 1/1000 sec in nanoseconds
+        const val DEFAULT_FOCUS_MODE = "auto"
+        const val DEFAULT_PHOTO_QUALITY = 95
+
+        // Camera aspect ratio - фиксированное соотношение 4:3 для альбомной ориентации
+        const val CAMERA_ASPECT_RATIO = androidx.camera.core.AspectRatio.RATIO_4_3
     }
 
     fun getFlashMode(): Flow<Int> {
@@ -162,6 +187,162 @@ class CameraSettingsManager(private val context: Context) {
     suspend fun setVideoQuality(quality: Int) {
         context.dataStore.edit {
             it[VIDEO_QUALITY_KEY] = quality
+        }
+    }
+
+    // ==================== Manual Camera Controls ====================
+
+    /**
+     * Get ISO value
+     * @return ISO value (default: 100)
+     */
+    fun getIsoValue(): Flow<Int> {
+        return context.dataStore.data.map {
+            it[ISO_VALUE_KEY] ?: DEFAULT_ISO
+        }
+    }
+
+    /**
+     * Set ISO value
+     * @param iso ISO value to save
+     */
+    suspend fun setIsoValue(iso: Int) {
+        try {
+            context.dataStore.edit {
+                it[ISO_VALUE_KEY] = iso
+            }
+            android.util.Log.d("CameraSettingsManager", "ISO saved: $iso")
+        } catch (e: Exception) {
+            android.util.Log.e("CameraSettingsManager", "Failed to save ISO", e)
+        }
+    }
+
+    /**
+     * Get shutter speed in nanoseconds
+     * @return Shutter speed in nanoseconds (default: 1/1000 sec)
+     */
+    fun getShutterSpeed(): Flow<Long> {
+        return context.dataStore.data.map {
+            it[SHUTTER_SPEED_KEY] ?: DEFAULT_SHUTTER_SPEED
+        }
+    }
+
+    /**
+     * Set shutter speed in nanoseconds
+     * @param shutterSpeed Shutter speed in nanoseconds
+     */
+    suspend fun setShutterSpeed(shutterSpeed: Long) {
+        try {
+            context.dataStore.edit {
+                it[SHUTTER_SPEED_KEY] = shutterSpeed
+            }
+            android.util.Log.d("CameraSettingsManager", "Shutter speed saved: $shutterSpeed ns")
+        } catch (e: Exception) {
+            android.util.Log.e("CameraSettingsManager", "Failed to save shutter speed", e)
+        }
+    }
+
+    /**
+     * Get focus mode
+     * @return Focus mode: "auto", "manual", "continuous" (default: "auto")
+     */
+    fun getFocusMode(): Flow<String> {
+        return context.dataStore.data.map {
+            it[FOCUS_MODE_KEY] ?: DEFAULT_FOCUS_MODE
+        }
+    }
+
+    /**
+     * Set focus mode
+     * @param mode Focus mode: "auto", "manual", "continuous"
+     */
+    suspend fun setFocusMode(mode: String) {
+        try {
+            context.dataStore.edit {
+                it[FOCUS_MODE_KEY] = mode
+            }
+            android.util.Log.d("CameraSettingsManager", "Focus mode saved: $mode")
+        } catch (e: Exception) {
+            android.util.Log.e("CameraSettingsManager", "Failed to save focus mode", e)
+        }
+    }
+
+    // ==================== Stabilization Settings ====================
+
+    /**
+     * Get OIS (Optical Image Stabilization) enabled state
+     * @return true if OIS enabled (default: false)
+     */
+    fun getOisEnabled(): Flow<Boolean> {
+        return context.dataStore.data.map {
+            it[OIS_ENABLED_KEY] ?: false
+        }
+    }
+
+    /**
+     * Set OIS enabled state
+     * @param enabled true to enable OIS
+     */
+    suspend fun setOisEnabled(enabled: Boolean) {
+        try {
+            context.dataStore.edit {
+                it[OIS_ENABLED_KEY] = enabled
+            }
+            android.util.Log.d("CameraSettingsManager", "OIS enabled: $enabled")
+        } catch (e: Exception) {
+            android.util.Log.e("CameraSettingsManager", "Failed to save OIS state", e)
+        }
+    }
+
+    /**
+     * Get EIS (Electronic Image Stabilization) enabled state
+     * @return true if EIS enabled (default: false)
+     */
+    fun getEisEnabled(): Flow<Boolean> {
+        return context.dataStore.data.map {
+            it[EIS_ENABLED_KEY] ?: false
+        }
+    }
+
+    /**
+     * Set EIS enabled state
+     * @param enabled true to enable EIS
+     */
+    suspend fun setEisEnabled(enabled: Boolean) {
+        try {
+            context.dataStore.edit {
+                it[EIS_ENABLED_KEY] = enabled
+            }
+            android.util.Log.d("CameraSettingsManager", "EIS enabled: $enabled")
+        } catch (e: Exception) {
+            android.util.Log.e("CameraSettingsManager", "Failed to save EIS state", e)
+        }
+    }
+
+    // ==================== Photo Quality ====================
+
+    /**
+     * Get photo quality (JPEG compression quality)
+     * @return Quality 0-100 (default: 95)
+     */
+    fun getPhotoQuality(): Flow<Int> {
+        return context.dataStore.data.map {
+            it[PHOTO_QUALITY_KEY] ?: DEFAULT_PHOTO_QUALITY
+        }
+    }
+
+    /**
+     * Set photo quality (JPEG compression quality)
+     * @param quality Quality 0-100
+     */
+    suspend fun setPhotoQuality(quality: Int) {
+        try {
+            context.dataStore.edit {
+                it[PHOTO_QUALITY_KEY] = quality.coerceIn(0, 100)
+            }
+            android.util.Log.d("CameraSettingsManager", "Photo quality saved: $quality")
+        } catch (e: Exception) {
+            android.util.Log.e("CameraSettingsManager", "Failed to save photo quality", e)
         }
     }
 }

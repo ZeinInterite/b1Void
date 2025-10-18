@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -36,6 +37,7 @@ import java.util.Locale
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCharacteristics
 import androidx.camera.camera2.interop.Camera2CameraInfo
+import com.example.b1void.data.CameraSettingsManager
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 
@@ -47,7 +49,14 @@ data class CameraUiState(
     val isTorchOn: Boolean = false,
     val lastThumbnail: Bitmap? = null,
     val isBinding: Boolean = false,
-    val isQualityPriority: Boolean = true // Default to quality
+    val isQualityPriority: Boolean = true, // Default to quality
+    // New camera settings
+    val isoValue: Int = 100,
+    val shutterSpeed: Long = 1000000L, // 1/1000 sec in nanoseconds
+    val focusMode: String = "auto",
+    val isOisEnabled: Boolean = false,
+    val isEisEnabled: Boolean = false,
+    val photoQuality: Int = 95
 )
 
 sealed class CameraEvent {
@@ -63,6 +72,48 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     private val _event = MutableSharedFlow<CameraEvent>()
     val event: SharedFlow<CameraEvent> = _event.asSharedFlow()
 
+    private val settingsManager = CameraSettingsManager(application.applicationContext)
+
+    init {
+        // Load saved settings on initialization
+        loadSettings()
+    }
+
+    /**
+     * Загружает сохраненные настройки из DataStore и применяет их к UI state
+     */
+    private fun loadSettings() {
+        viewModelScope.launch {
+            try {
+                // Загружаем все настройки параллельно
+                val torchEnabled = settingsManager.getTorchEnabled().first()
+                val flashMode = settingsManager.getFlashMode().first()
+                val isoValue = settingsManager.getIsoValue().first()
+                val shutterSpeed = settingsManager.getShutterSpeed().first()
+                val focusMode = settingsManager.getFocusMode().first()
+                val oisEnabled = settingsManager.getOisEnabled().first()
+                val eisEnabled = settingsManager.getEisEnabled().first()
+                val photoQuality = settingsManager.getPhotoQuality().first()
+
+                _uiState.update {
+                    it.copy(
+                        isTorchOn = torchEnabled,
+                        flashMode = flashMode,
+                        isoValue = isoValue,
+                        shutterSpeed = shutterSpeed,
+                        focusMode = focusMode,
+                        isOisEnabled = oisEnabled,
+                        isEisEnabled = eisEnabled,
+                        photoQuality = photoQuality
+                    )
+                }
+                Log.d("CameraViewModel", "Settings loaded: torch=$torchEnabled, flash=$flashMode, iso=$isoValue")
+            } catch (e: Exception) {
+                Log.e("CameraViewModel", "Failed to load settings", e)
+            }
+        }
+    }
+
     fun cycleFlashMode() {
         val currentFlashMode = _uiState.value.flashMode
         val isTorchOn = _uiState.value.isTorchOn
@@ -70,20 +121,35 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         if (isTorchOn) {
             // Torch -> Auto
             _uiState.update { it.copy(isTorchOn = false, flashMode = ImageCapture.FLASH_MODE_AUTO) }
+            saveFlashSettings(false, ImageCapture.FLASH_MODE_AUTO)
         } else {
             when (currentFlashMode) {
                 ImageCapture.FLASH_MODE_AUTO -> {
                     // Auto -> On
                     _uiState.update { it.copy(flashMode = ImageCapture.FLASH_MODE_ON) }
+                    saveFlashSettings(false, ImageCapture.FLASH_MODE_ON)
                 }
                 ImageCapture.FLASH_MODE_ON -> {
                     // On -> Off
                     _uiState.update { it.copy(flashMode = ImageCapture.FLASH_MODE_OFF) }
+                    saveFlashSettings(false, ImageCapture.FLASH_MODE_OFF)
                 }
                 ImageCapture.FLASH_MODE_OFF -> {
                     // Off -> Torch
                     _uiState.update { it.copy(isTorchOn = true, flashMode = ImageCapture.FLASH_MODE_OFF) }
+                    saveFlashSettings(true, ImageCapture.FLASH_MODE_OFF)
                 }
+            }
+        }
+    }
+
+    private fun saveFlashSettings(torchEnabled: Boolean, flashMode: Int) {
+        viewModelScope.launch {
+            try {
+                settingsManager.setTorchEnabled(torchEnabled)
+                settingsManager.setFlashMode(flashMode)
+            } catch (e: Exception) {
+                Log.e("CameraViewModel", "Failed to save flash settings", e)
             }
         }
     }
@@ -255,12 +321,76 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     fun onCameraBound(cameraInfo: CameraInfo) {
         val camera2CameraInfo = Camera2CameraInfo.from(cameraInfo)
         val streamConfigurationMap = camera2CameraInfo.getCameraCharacteristic(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-        
+
         val resolutions = streamConfigurationMap?.getOutputSizes(ImageFormat.JPEG)?.toList() ?: emptyList()
         _uiState.update { it.copy(availableResolutions = resolutions) }
     }
-    
+
     fun onRebindComplete() {
         _uiState.update { it.copy(isBinding = false) }
+    }
+
+    // ==================== New Settings Methods ====================
+
+    /**
+     * Обновляет значение ISO и сохраняет в DataStore
+     */
+    fun setIsoValue(iso: Int) {
+        _uiState.update { it.copy(isoValue = iso) }
+        viewModelScope.launch {
+            settingsManager.setIsoValue(iso)
+        }
+    }
+
+    /**
+     * Обновляет выдержку и сохраняет в DataStore
+     */
+    fun setShutterSpeed(shutterSpeed: Long) {
+        _uiState.update { it.copy(shutterSpeed = shutterSpeed) }
+        viewModelScope.launch {
+            settingsManager.setShutterSpeed(shutterSpeed)
+        }
+    }
+
+    /**
+     * Обновляет режим фокусировки и сохраняет в DataStore
+     */
+    fun setFocusMode(mode: String) {
+        _uiState.update { it.copy(focusMode = mode) }
+        viewModelScope.launch {
+            settingsManager.setFocusMode(mode)
+        }
+    }
+
+    /**
+     * Переключает OIS (оптическую стабилизацию) и сохраняет в DataStore
+     */
+    fun toggleOis() {
+        val newState = !_uiState.value.isOisEnabled
+        _uiState.update { it.copy(isOisEnabled = newState) }
+        viewModelScope.launch {
+            settingsManager.setOisEnabled(newState)
+        }
+    }
+
+    /**
+     * Переключает EIS (электронную стабилизацию) и сохраняет в DataStore
+     */
+    fun toggleEis() {
+        val newState = !_uiState.value.isEisEnabled
+        _uiState.update { it.copy(isEisEnabled = newState) }
+        viewModelScope.launch {
+            settingsManager.setEisEnabled(newState)
+        }
+    }
+
+    /**
+     * Обновляет качество фото и сохраняет в DataStore
+     */
+    fun setPhotoQuality(quality: Int) {
+        _uiState.update { it.copy(photoQuality = quality) }
+        viewModelScope.launch {
+            settingsManager.setPhotoQuality(quality)
+        }
     }
 }

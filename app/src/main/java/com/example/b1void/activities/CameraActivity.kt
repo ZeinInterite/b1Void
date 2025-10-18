@@ -694,14 +694,9 @@ class CameraActivity : AppCompatActivity() {
                 .setScaleType(viewPortScaleType)
                 .build()
 
-            // Use dynamic AspectRatioStrategy matching the capture resolution (4:3 or 16:9)
-            val diff16by9 = abs(captureResolution.width * 9 - captureResolution.height * 16)
-            val diff4by3 = abs(captureResolution.width * 3 - captureResolution.height * 4)
-            val targetAspect = if (diff16by9 < diff4by3) {
-                androidx.camera.core.AspectRatio.RATIO_16_9
-            } else {
-                androidx.camera.core.AspectRatio.RATIO_4_3
-            }
+            // Фиксированное соотношение сторон 4:3 для альбомной ориентации
+            // Для warehouse/industrial use cases формат 4:3 оптимален
+            val targetAspect = CameraSettingsManager.CAMERA_ASPECT_RATIO
             val aspectRatioStrategy = AspectRatioStrategy(
                 targetAspect,
                 AspectRatioStrategy.FALLBACK_RULE_AUTO
