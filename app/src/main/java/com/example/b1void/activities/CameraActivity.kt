@@ -638,12 +638,28 @@ class CameraActivity : AppCompatActivity() {
                 supportedResolutions = getDefaultResolutions()
             }
 
+            // === КРИТИЧЕСКАЯ ДИАГНОСТИКА: НАЧАЛО ===
+            Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
+            Log.e("CAMERA_DEBUG", "║ НАСТРОЙКИ ПОЛЬЗОВАТЕЛЯ")
+            Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
+            Log.e("CAMERA_DEBUG", "║ selectedResolution (из настроек): ${selectedResolution?.width}x${selectedResolution?.height}")
+            Log.e("CAMERA_DEBUG", "║ Производитель устройства: $manufacturer")
+            Log.e("CAMERA_DEBUG", "║ Модель устройства: $model")
+            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
+
             // Выбираем разрешение с учетом особенностей устройства
             val captureResolution = selectBestResolution(
                 selectedResolution,
                 manufacturer,
                 model
             )
+
+            Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
+            Log.e("CAMERA_DEBUG", "║ ПОСЛЕ selectBestResolution()")
+            Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
+            Log.e("CAMERA_DEBUG", "║ captureResolution: ${captureResolution.width}x${captureResolution.height}")
+            Log.e("CAMERA_DEBUG", "║ Изменилось? ${selectedResolution != captureResolution}")
+            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
 
             // Use the same resolution for both Preview and ImageCapture to keep crop/viewport in sync
             val previewResolution: Size? = captureResolution
@@ -663,9 +679,27 @@ class CameraActivity : AppCompatActivity() {
             val rotation = previewView.display?.rotation ?: Surface.ROTATION_0
             currentTargetRotation = rotation
 
+            Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
+            Log.e("CAMERA_DEBUG", "║ ОРИЕНТАЦИЯ И ROTATION")
+            Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
+            Log.e("CAMERA_DEBUG", "║ Display rotation: $rotation")
+            val rotationDegrees = when(rotation) {
+                Surface.ROTATION_0 -> "0° (Portrait)"
+                Surface.ROTATION_90 -> "90° (Landscape)"
+                Surface.ROTATION_180 -> "180°"
+                Surface.ROTATION_270 -> "270° (Landscape reverse)"
+                else -> "Unknown"
+            }
+            Log.e("CAMERA_DEBUG", "║ Rotation в градусах: $rotationDegrees")
+            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
+
             // ViewPort должен соответствовать aspect ratio целевого разрешения камеры (4:3)
             // чтобы избежать нежелательного cropping изображения
             val isLandscape = (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270)
+
+            Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
+            Log.e("CAMERA_DEBUG", "║ isLandscape = $isLandscape")
+            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
 
             // Используем aspect ratio целевого разрешения для ViewPort
             // Это гарантирует, что захваченное изображение будет точно соответствовать captureResolution
@@ -695,32 +729,37 @@ class CameraActivity : AppCompatActivity() {
                 .setScaleType(0) // ViewPort.FIT - избегаем cropping
                 .build()
 
-            // Фиксированное соотношение сторон 4:3 для альбомной ориентации
-            // Для warehouse/industrial use cases формат 4:3 оптимален
-            val targetAspect = CameraSettingsManager.CAMERA_ASPECT_RATIO
-            val aspectRatioStrategy = AspectRatioStrategy(
-                targetAspect,
-                AspectRatioStrategy.FALLBACK_RULE_AUTO
-            )
-
+            // КРИТИЧНО: ImageCapture должен использовать ТОЧНОЕ разрешение, выбранное пользователем
+            // НЕ используем AspectRatioStrategy для ImageCapture - это переопределяет точное разрешение!
+            // Если пользователь выбрал 960x720, фото ДОЛЖНО быть 960x720, а не "ближайшее с соотношением 4:3"
             val imageCaptureSelector = ResolutionSelector.Builder()
-                .setAspectRatioStrategy(aspectRatioStrategy)
                 .setResolutionStrategy(
                     ResolutionStrategy(
-                        captureResolution,
+                        captureResolution,  // ТОЧНОЕ разрешение от пользователя (например, 960x720)
                         ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
                     )
                 )
                 .build()
 
+            // Для Preview можем использовать AspectRatioStrategy - это влияет только на отображение
+            val targetAspect = CameraSettingsManager.CAMERA_ASPECT_RATIO
+            val previewAspectRatioStrategy = AspectRatioStrategy(
+                targetAspect,
+                AspectRatioStrategy.FALLBACK_RULE_AUTO
+            )
+
+            // КРИТИЧНО: НЕ используем ViewPort для UseCaseGroup!
+            // ViewPort переопределяет разрешение ImageCapture и приводит к 720x540 вместо 960x720
+            // Preview будет работать без ViewPort, используя ResolutionSelector
             val useCaseGroupBuilder = UseCaseGroup.Builder()
-                .setViewPort(viewPort)
+                // .setViewPort(viewPort)  // УДАЛЕНО - это причина бага!
 
             val previewBuilder = Preview.Builder()
                 .setTargetRotation(rotation)
 
+            // Preview использует AspectRatioStrategy для красивого отображения
             val previewSelector = ResolutionSelector.Builder()
-                .setAspectRatioStrategy(aspectRatioStrategy)
+                .setAspectRatioStrategy(previewAspectRatioStrategy)
                 .setResolutionStrategy(
                     ResolutionStrategy(
                         previewResolution ?: captureResolution,
@@ -734,6 +773,15 @@ class CameraActivity : AppCompatActivity() {
             previewUseCase = preview
             useCaseGroupBuilder.addUseCase(preview)
 
+            Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
+            Log.e("CAMERA_DEBUG", "║ СОЗДАНИЕ ImageCapture")
+            Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
+            Log.e("CAMERA_DEBUG", "║ Передаем captureResolution в ResolutionSelector:")
+            Log.e("CAMERA_DEBUG", "║   ${captureResolution.width}x${captureResolution.height}")
+            Log.e("CAMERA_DEBUG", "║ targetRotation: $rotation")
+            Log.e("CAMERA_DEBUG", "║ flashMode: $flashMode")
+            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
+
             val imageCaptureBuilder = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                 .setFlashMode(flashMode)
@@ -743,6 +791,13 @@ class CameraActivity : AppCompatActivity() {
 
             val newImageCapture = imageCaptureBuilder.build()
             imageCapture = newImageCapture
+
+            Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
+            Log.e("CAMERA_DEBUG", "║ ImageCapture СОЗДАН")
+            Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
+            Log.e("CAMERA_DEBUG", "║ ImageCapture.targetRotation: ${newImageCapture.targetRotation}")
+            Log.e("CAMERA_DEBUG", "║ ImageCapture.flashMode: ${newImageCapture.flashMode}")
+            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
             useCaseGroupBuilder.addUseCase(newImageCapture)
 
             // DEBUG: Log preview and capture configuration
@@ -755,11 +810,12 @@ class CameraActivity : AppCompatActivity() {
                         ?: "${captureResolution.width}x${captureResolution.height}"
                     )
             )
-            Log.d(TAG, "ImageCapture target resolution: ${captureResolution.width}x${captureResolution.height}")
+            Log.d(TAG, "ImageCapture target resolution: ${captureResolution.width}x${captureResolution.height} (EXACT - no aspect ratio override)")
             Log.d(TAG, "SYNC CHECK: Preview and Capture using SAME resolution = ${previewResolution == captureResolution}")
             Log.d(TAG, "PreviewView ScaleType: ${previewView.scaleType}")
             Log.d(TAG, "PreviewView ImplementationMode: ${previewView.implementationMode}")
-            Log.d(TAG, "AspectRatioStrategy: ${if (targetAspect == androidx.camera.core.AspectRatio.RATIO_16_9) "RATIO_16_9" else "RATIO_4_3"} (shared)")
+            Log.d(TAG, "Preview AspectRatioStrategy: ${if (targetAspect == androidx.camera.core.AspectRatio.RATIO_16_9) "RATIO_16_9" else "RATIO_4_3"} (for display only)")
+            Log.d(TAG, "ImageCapture: NO AspectRatioStrategy - using exact resolution")
             Log.d(TAG, "TargetRotation (Preview/ImageCapture): $rotation / $rotation")
 
             // Always bind VideoCapture to support hold-to-record in PHOTO mode
@@ -1142,25 +1198,53 @@ class CameraActivity : AppCompatActivity() {
         manufacturer: String,
         model: String
     ): Size {
+        Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
+        Log.e("CAMERA_DEBUG", "║ selectBestResolution() ВЫЗВАНА")
+        Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
+        Log.e("CAMERA_DEBUG", "║ requested: ${requested?.width}x${requested?.height}")
+        Log.e("CAMERA_DEBUG", "║ manufacturer: $manufacturer")
+        Log.e("CAMERA_DEBUG", "║ model: $model")
+        Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
+
         // Если запрошенное разрешение поддерживается, используем его
         if (requested != null &&
             (selectableCaptureResolutions.contains(requested) ||
                     availableCaptureResolutions.contains(requested))) {
+            Log.e("CAMERA_DEBUG", "║ ✅ requested разрешение ПОДДЕРЖИВАЕТСЯ")
+            Log.e("CAMERA_DEBUG", "║ ВОЗВРАЩАЕМ: ${requested.width}x${requested.height}")
+            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
             return requested
         }
+
+        Log.e("CAMERA_DEBUG", "║ ❌ requested разрешение НЕ поддерживается")
 
         // Получаем список доступных разрешений
         val available = selectableCaptureResolutions.ifEmpty {
             availableCaptureResolutions.ifEmpty { supportedResolutions }
         }
 
+        Log.e("CAMERA_DEBUG", "║")
+        Log.e("CAMERA_DEBUG", "║ ДОСТУПНЫЕ РАЗРЕШЕНИЯ:")
+        available.take(10).forEach {
+            Log.e("CAMERA_DEBUG", "║   - ${it.width}x${it.height}")
+        }
+        if (available.size > 10) {
+            Log.e("CAMERA_DEBUG", "║   ... и еще ${available.size - 10}")
+        }
+        Log.e("CAMERA_DEBUG", "║")
+
         // ПРИОРИТЕТ: Если DEFAULT_PHOTO_RESOLUTION (960x720) поддерживается камерой, используем его
         if (available.contains(DEFAULT_PHOTO_RESOLUTION)) {
+            Log.e("CAMERA_DEBUG", "║ ✅ DEFAULT_PHOTO_RESOLUTION (960x720) ПОДДЕРЖИВАЕТСЯ")
+            Log.e("CAMERA_DEBUG", "║ ВОЗВРАЩАЕМ: 960x720")
+            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
             Log.d(TAG, "Using DEFAULT_PHOTO_RESOLUTION (960x720) as it's supported by camera")
             return DEFAULT_PHOTO_RESOLUTION
         }
 
         // Если DEFAULT_PHOTO_RESOLUTION недоступно, выбираем наилучшее для данного устройства
+        Log.e("CAMERA_DEBUG", "║ ❌ DEFAULT_PHOTO_RESOLUTION (960x720) НЕ поддерживается")
+        Log.e("CAMERA_DEBUG", "║ Используем manufacturer-specific logic...")
         Log.d(TAG, "DEFAULT_PHOTO_RESOLUTION not available, using manufacturer-specific logic")
 
         // Получаем рекомендации для производителя
@@ -2210,6 +2294,13 @@ class CameraActivity : AppCompatActivity() {
     private fun takePhoto() {
         val imageCapture = this.imageCapture ?: return
 
+        Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
+        Log.e("CAMERA_DEBUG", "║ НАЧАЛО СЪЕМКИ ФОТО")
+        Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
+        Log.e("CAMERA_DEBUG", "║ ImageCapture.targetRotation: ${imageCapture.targetRotation}")
+        Log.e("CAMERA_DEBUG", "║ ImageCapture.flashMode: ${imageCapture.flashMode}")
+        Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
+
         val savePath = intent.getStringExtra(EXTRA_SAVE_PATH) ?: externalMediaDirs.firstOrNull()?.absolutePath ?: ""
         val photoFile = File(savePath, "IMG_${System.currentTimeMillis()}.jpg")
 
@@ -2223,12 +2314,46 @@ class CameraActivity : AppCompatActivity() {
                     lastSavedFile = photoFile
                     val savedUri = output.savedUri ?: Uri.fromFile(photoFile)
 
+                    // === КРИТИЧЕСКАЯ ДИАГНОСТИКА: РАЗМЕР СОХРАНЕННОГО ФОТО ===
+                    Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
+                    Log.e("CAMERA_DEBUG", "║ ФОТО СОХРАНЕНО (ДО обработки timestamp)")
+                    Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
+                    val optionsBeforeTimestamp = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    android.graphics.BitmapFactory.decodeFile(photoFile.absolutePath, optionsBeforeTimestamp)
+                    Log.e("CAMERA_DEBUG", "║ Размер ДО timestamp: ${optionsBeforeTimestamp.outWidth}x${optionsBeforeTimestamp.outHeight}")
+                    Log.e("CAMERA_DEBUG", "║ Путь: ${photoFile.absolutePath}")
+                    Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
+
                     try {
                         val bitmap = getCorrectlyOrientedBitmap(photoFile)
+                        Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
+                        Log.e("CAMERA_DEBUG", "║ ПОСЛЕ getCorrectlyOrientedBitmap")
+                        Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
+                        Log.e("CAMERA_DEBUG", "║ Bitmap размер: ${bitmap.width}x${bitmap.height}")
+                        Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
+
                         val timestampedBitmap = addTimestampToBitmap(bitmap)
+                        Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
+                        Log.e("CAMERA_DEBUG", "║ ПОСЛЕ addTimestampToBitmap")
+                        Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
+                        Log.e("CAMERA_DEBUG", "║ Timestamped Bitmap: ${timestampedBitmap.width}x${timestampedBitmap.height}")
+                        Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
+
                         saveBitmapToFile(timestampedBitmap, photoFile)
+
+                        // ФИНАЛЬНАЯ проверка размера
+                        val optionsFinal = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        android.graphics.BitmapFactory.decodeFile(photoFile.absolutePath, optionsFinal)
+                        Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
+                        Log.e("CAMERA_DEBUG", "║ ФИНАЛЬНЫЙ РАЗМЕР ФОТО")
+                        Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
+                        Log.e("CAMERA_DEBUG", "║ ИТОГОВЫЙ размер: ${optionsFinal.outWidth}x${optionsFinal.outHeight}")
+                        Log.e("CAMERA_DEBUG", "║ Файл: ${photoFile.name}")
+                        Log.e("CAMERA_DEBUG", "║ Размер файла: ${photoFile.length() / 1024} KB")
+                        Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
                     } catch (e: Exception) {
                         Log.e(TAG, "Error adding timestamp", e)
+                        Log.e("CAMERA_DEBUG", "ОШИБКА при обработке: ${e.message}")
                     }
 
                     runOnUiThread {
