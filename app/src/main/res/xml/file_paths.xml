@@ -3,4 +3,6 @@
     <files-path name="inspector_app_files" path="." />
     <cache-path name="cache_files" path="." />
     <cache-path name="shared_zips" path="shared_zips/" />
+    <external-files-path name="external_files" path="." />
+    <external-files-path name="pictures" path="Pictures/" />
 </paths>
