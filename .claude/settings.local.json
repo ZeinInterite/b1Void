@@ -1,21 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./gradlew.bat lint:*)",
-      "Bash(findstr:*)",
-      "Bash(grep:*)",
-      "Bash(./gradlew.bat:*)",
-      "Bash(timeout:*)",
       "Bash(.gradlew.bat assembleDebug)",
-      "Bash(./gradlew:*)",
-      "Bash(where java)",
-      "Bash(dir:*)",
-      "Bash(gradlew.bat test --tests \"com.example.b1void.data.CameraSettingsManagerTest\" --tests \"com.example.b1void.data.FileManagerSettingsManagerTest\")",
-      "Bash(Select-Object -Last 50)",
-      "Bash(cmd /c \"gradlew.bat assembleDebug --warning-mode all\")",
-      "Bash(git add app/src/main/res/xml/file_paths.xml app/src/main/java/com/example/b1void/activities/CameraActivity.kt)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nfix: Исправлены баги с разрешением камеры и функцией \"Поделиться\"\n\n1. Добавлены пути external-files-path в file_paths.xml\n   - Приложение вылетало при попытке поделиться файлами из external storage\n   - FileProvider не мог создать URI для файлов в getExternalFilesDir()\n   - Решение: добавлены external-files-path для Pictures и корневой директории\n\n2. Исправлена логика выбора разрешения камеры (960x720)\n   - ViewPort теперь использует размеры целевого разрешения вместо экрана\n   - Функция selectBestResolution() приоритизирует DEFAULT_PHOTO_RESOLUTION (960x720)\n   - Фотографии теперь захватываются точно в разрешении 960x720 (4:3)\n   - Добавлено логирование для отладки выбора разрешения\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(./gradlew.bat assembleDebug)"
     ],
-    "deny": []
+    "deny": [],
+    "ask": []
   }
 }

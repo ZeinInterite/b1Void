@@ -730,7 +730,11 @@ class FileManagerActivity : AppCompatActivity() {
                 clearTrashButton.isEnabled = isTrashDirectory
                 openTrashButton.isEnabled = !isTrashDirectory
                 openTrashButton.alpha = if (openTrashButton.isEnabled) 1f else 0.5f
-                titleTextView.text = if (directory == appDirectory) "Основная директория" else directory.name
+                titleTextView.text = when {
+                    directory == appDirectory -> "Основная директория"
+                    directory == trashDirectory -> getString(R.string.open_trash)
+                    else -> directory.name
+                }
                 swipeRefreshLayout.isRefreshing = false
             }
         }
