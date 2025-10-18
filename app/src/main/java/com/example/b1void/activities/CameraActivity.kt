@@ -663,35 +663,36 @@ class CameraActivity : AppCompatActivity() {
             val rotation = previewView.display?.rotation ?: Surface.ROTATION_0
             currentTargetRotation = rotation
 
-            // ViewPort под реальные размеры PreviewView, чтобы в landscape занять весь экран
-            var viewW = previewView.width.takeIf { it > 0 } ?: previewView.measuredWidth
-            var viewH = previewView.height.takeIf { it > 0 } ?: previewView.measuredHeight
-            // Align viewport to the safe visible area (exclude system bars) to keep preview truly centered
-            kotlin.runCatching {
-                val insets = androidx.core.view.ViewCompat
-                    .getRootWindowInsets(previewView)
-                    ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-                if (insets != null) {
-                    val safeW = (viewW - insets.left - insets.right).coerceAtLeast(1)
-                    val safeH = (viewH - insets.top - insets.bottom).coerceAtLeast(1)
-                    viewW = safeW
-                    viewH = safeH
-                }
-            }
+            // ViewPort должен соответствовать aspect ratio целевого разрешения камеры (4:3)
+            // чтобы избежать нежелательного cropping изображения
             val isLandscape = (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270)
+
+            // Используем aspect ratio целевого разрешения для ViewPort
+            // Это гарантирует, что захваченное изображение будет точно соответствовать captureResolution
+            val viewPortWidth: Int
+            val viewPortHeight: Int
+
+            if (isLandscape) {
+                // В landscape режиме ширина больше высоты
+                viewPortWidth = captureResolution.width
+                viewPortHeight = captureResolution.height
+            } else {
+                // В portrait режиме высота больше ширины (меняем местами)
+                viewPortWidth = captureResolution.height
+                viewPortHeight = captureResolution.width
+            }
+
             val viewPortScaleType = when (previewView.scaleType) {
                 PreviewView.ScaleType.FILL_CENTER -> 1 // ViewPort.FILL
                 else -> 0 // ViewPort.FIT
             }
             val viewPort = ViewPort.Builder(
-                android.util.Rational(if (viewW > 0) viewW else captureResolution.width,
-                                       if (viewH > 0) viewH else captureResolution.height),
+                android.util.Rational(viewPortWidth, viewPortHeight),
                 rotation
             )
-                // Используем FILL в landscape, FIT в portrait.
-                // На CameraX 1.3.1 константа ViewPort.FILL может быть недоступна как символ,
-                // поэтому передаём int-флаги напрямую: 0 = FIT, 1 = FILL.
-                .setScaleType(viewPortScaleType)
+                // Используем FIT чтобы показать всё изображение без обрезки
+                // FIT гарантирует, что весь контент будет виден в preview
+                .setScaleType(0) // ViewPort.FIT - избегаем cropping
                 .build()
 
             // Фиксированное соотношение сторон 4:3 для альбомной ориентации
@@ -746,7 +747,7 @@ class CameraActivity : AppCompatActivity() {
 
             // DEBUG: Log preview and capture configuration
             Log.d(TAG, "=== CameraX Configuration ===")
-            Log.d(TAG, "ViewPort: ${viewW}x${viewH} ${if (isLandscape) "FILL" else "FIT"}, rotation=$rotation")
+            Log.d(TAG, "ViewPort: ${viewPortWidth}x${viewPortHeight} (based on capture resolution), ScaleType=FIT, rotation=$rotation")
             Log.d(
                 TAG,
                 "Preview target resolution: " + (
@@ -1148,10 +1149,19 @@ class CameraActivity : AppCompatActivity() {
             return requested
         }
 
-        // Иначе выбираем наилучшее для данного устройства
+        // Получаем список доступных разрешений
         val available = selectableCaptureResolutions.ifEmpty {
             availableCaptureResolutions.ifEmpty { supportedResolutions }
         }
+
+        // ПРИОРИТЕТ: Если DEFAULT_PHOTO_RESOLUTION (960x720) поддерживается камерой, используем его
+        if (available.contains(DEFAULT_PHOTO_RESOLUTION)) {
+            Log.d(TAG, "Using DEFAULT_PHOTO_RESOLUTION (960x720) as it's supported by camera")
+            return DEFAULT_PHOTO_RESOLUTION
+        }
+
+        // Если DEFAULT_PHOTO_RESOLUTION недоступно, выбираем наилучшее для данного устройства
+        Log.d(TAG, "DEFAULT_PHOTO_RESOLUTION not available, using manufacturer-specific logic")
 
         // Получаем рекомендации для производителя
         val quirks = com.example.b1void.utils.ManufacturerCompatibility.getCameraQuirks()
