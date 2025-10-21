@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="true">
+
+<LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -22,7 +27,8 @@
         android:hint="Поиск папки"
         android:drawableStart="@drawable/ic_search_24"
         android:drawablePadding="8dp"
-        android:inputType="text" />
+        android:inputType="text"
+        android:minHeight="48dp" />
 
     <TextView
         android:id="@+id/breadcrumbs"
@@ -41,6 +47,7 @@
             android:id="@+id/recyclerViewFolders"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:nestedScrollingEnabled="false"
             tools:listitem="@layout/item_folder_tree" />
 
         <ProgressBar
@@ -63,6 +70,7 @@
             style="?attr/materialButtonOutlinedStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:minHeight="48dp"
             android:text="Отмена" />
 
         <com.google.android.material.button.MaterialButton
@@ -70,7 +78,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
+            android:minHeight="48dp"
             android:enabled="false"
             android:text="Переместить сюда" />
     </LinearLayout>
 </LinearLayout>
+</androidx.core.widget.NestedScrollView>

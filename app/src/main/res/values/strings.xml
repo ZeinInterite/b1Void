@@ -64,6 +64,11 @@
     <string name="action_share">Поделиться</string>
     <string name="action_rename">Переименовать</string>
     <string name="action_select_multiple">Выбрать несколько</string>
+
+    <!-- Image Preview Actions -->
+    <string name="image_preview_move_success">Файл успешно перемещен</string>
+    <string name="image_preview_move_error">Ошибка при перемещении файла</string>
+    <string name="image_preview_file_not_found">Файл не найден</string>
     <string name="cd_af_ae_lock">AE/AF Lock indicator</string>
     <string name="cd_exposure_overlay">Exposure adjustment overlay</string>
     

@@ -25,21 +25,31 @@
         <ImageButton
             android:id="@+id/delete_button"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
             android:layout_weight="1"
             android:src="@drawable/ic_delete"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Delete"
+            android:contentDescription="@string/action_delete"
+            app:tint="@android:color/white" />
+
+        <ImageButton
+            android:id="@+id/move_button"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_move"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/action_move"
             app:tint="@android:color/white" />
 
         <ImageButton
             android:id="@+id/share_button"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
             android:layout_weight="1"
             android:src="@drawable/ic_share"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Share"
+            android:contentDescription="@string/action_share"
             app:tint="@android:color/white" />
     </LinearLayout>
 

@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(.gradlew.bat assembleDebug)",
-      "Bash(./gradlew.bat assembleDebug)"
+      "Bash(./gradlew.bat assembleDebug)",
+      "Bash(./gradlew.bat assembleDebug --warning-mode all)",
+      "Bash(dir /s /b *layout-land*)",
+      "Bash(dir /b)",
+      "Bash(./gradlew.bat lint --quiet)",
+      "Bash(./gradlew.bat :app:lintDebug --quiet)",
+      "Bash(./gradlew.bat :app:assembleDebug --quiet)"
     ],
     "deny": [],
     "ask": []
