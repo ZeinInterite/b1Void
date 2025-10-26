@@ -872,8 +872,7 @@ class CameraActivity : AppCompatActivity() {
                     }
                 }, 250)
 
-                // Reset digital zoom to 1.0 to ensure no hidden zoom is applied
-                camera?.cameraControl?.setZoomRatio(1.0f)
+                // Zoom is managed by CameraViewModel which preserves user's zoom setting across rebinds
 
                 // DEBUG: Log actual resolved dimensions and zoom state after binding
                 camera?.cameraInfo?.let { info ->

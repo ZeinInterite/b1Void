@@ -48,8 +48,11 @@ class CameraViewModel : ViewModel() {
                 updateFromZoomState(state)
             }
         }
-        // Set neutral zoom (1.0x) on camera bind to avoid unintended wide/zoomed preview
-        camera.cameraControl.setZoomRatio(1.0f)
+        // Restore last user zoom ratio after rebind to preserve user's zoom setting
+        // This ensures zoom persists across camera configuration changes
+        if (lastUserZoomRatio != 1.0f) {
+            camera.cameraControl.setZoomRatio(lastUserZoomRatio)
+        }
     }
 
     private fun updateFromZoomState(state: ZoomState) {

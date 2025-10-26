@@ -144,8 +144,7 @@ fun CameraScreen(
 
             camera?.let {
                 vm.bindCamera(it)
-                // Explicitly set zoom to 1.0 to disable any hidden digital zoom
-                it.cameraControl.setZoomRatio(1.0f)
+                // ViewModel will restore last user zoom ratio automatically
 
                 // DEBUG: Log configuration to verify synchronization
                 Log.d("CameraScreen", "=== CameraX Configuration ===")
