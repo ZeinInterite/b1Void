@@ -51,4 +51,21 @@ object DeviceInfo {
             |Low RAM Device: ${isLowEndDevice(context)}
         """.trimMargin()
     }
+
+    /**
+     * Логирование информации о камере для отладки проблем с яркостью
+     * Используется для Xiaomi/Redmi устройств
+     */
+    fun logCameraDebugInfo(): String {
+        val quirks = ManufacturerCompatibility.getCameraQuirks()
+        return """
+            |=== Camera Debug Info ===
+            |Device: $manufacturer $model
+            |EV Compensation Boost: ${quirks.getEvCompensationBoost()}
+            |Preferred ISO: ${quirks.getPreferredIsoSensitivity() ?: "AUTO"}
+            |Min ISO: ${quirks.getMinIsoSensitivity() ?: "NONE"}
+            |Disable Scene Modes: ${quirks.shouldDisableSceneModes()}
+            |Manual Exposure Workaround: ${quirks.needsManualExposureWorkaround()}
+        """.trimMargin()
+    }
 }

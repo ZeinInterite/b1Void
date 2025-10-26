@@ -1,9 +1,12 @@
 package com.example.b1void.camera.data.camera.camerax
 
+import android.content.Context
 import android.graphics.RectF
+import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
 import android.util.Log
 import androidx.camera.camera2.interop.Camera2CameraControl
+import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.core.Camera
 import androidx.camera.core.FocusMeteringAction
@@ -20,6 +23,7 @@ import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
+@androidx.camera.camera2.interop.ExperimentalCamera2Interop
 class CameraXFocusController(
     private val previewView: PreviewView,
     private val camera: Camera,
@@ -44,6 +48,116 @@ class CameraXFocusController(
     @Volatile private var lastTrackPoint: Pair<Float, Float>? = null
     private var lastTrackEmitTs: Long = 0L
     private val trackIntervalMs = 100L // <=10 Hz
+
+    // Флаг для отслеживания, были ли применены настройки для производителя
+    private var manufacturerOptimizationsApplied = false
+
+    init {
+        // Применяем оптимизации для конкретного производителя при инициализации
+        applyManufacturerOptimizations()
+    }
+
+    /**
+     * Применяет специфичные для производителя оптимизации камеры
+     * Особенно важно для Xiaomi/Redmi устройств с проблемами яркости
+     */
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
+    private fun applyManufacturerOptimizations() {
+        try {
+            // Получаем класс ManufacturerCompatibility через рефлексию
+            // чтобы избежать прямой зависимости модуля :feature:camera от :app
+            val compatClass = Class.forName("com.example.b1void.utils.ManufacturerCompatibility")
+            val getCameraQuirksMethod = compatClass.getMethod("getCameraQuirks")
+            val quirks = getCameraQuirksMethod.invoke(compatClass.getDeclaredField("INSTANCE").get(null))
+
+            val quirksClass = quirks.javaClass
+
+            // Получаем EV compensation boost
+            val evBoost = quirksClass.getMethod("getEvCompensationBoost").invoke(quirks) as Float
+
+            // Получаем ISO настройки
+            val preferredIso = quirksClass.getMethod("getPreferredIsoSensitivity").invoke(quirks) as Int?
+            val minIso = quirksClass.getMethod("getMinIsoSensitivity").invoke(quirks) as Int?
+            val disableSceneModes = quirksClass.getMethod("shouldDisableSceneModes").invoke(quirks) as Boolean
+
+            // Применяем настройки, если они заданы
+            if (evBoost != 0f || preferredIso != null) {
+                applyExposureOptimizations(evBoost, preferredIso, minIso, disableSceneModes)
+                manufacturerOptimizationsApplied = true
+                Log.i(logTag, "Manufacturer optimizations applied: EV boost=$evBoost, ISO=$preferredIso")
+            }
+        } catch (e: Exception) {
+            // Если рефлексия не сработала (например, в тестах), игнорируем
+            Log.w(logTag, "Could not apply manufacturer optimizations via reflection", e)
+        }
+    }
+
+    /**
+     * Применяет оптимизации экспозиции для устройств с проблемами яркости
+     */
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
+    private fun applyExposureOptimizations(
+        evBoost: Float,
+        preferredIso: Int?,
+        minIso: Int?,
+        disableSceneModes: Boolean
+    ) {
+        scope.launch {
+            try {
+                val camera2Control = Camera2CameraControl.from(camera.cameraControl)
+                val camera2Info = Camera2CameraInfo.from(camera.cameraInfo)
+
+                val optionsBuilder = CaptureRequestOptions.Builder()
+
+                // 1. Применяем EV compensation boost
+                if (evBoost != 0f) {
+                    val exposureState = camera.cameraInfo.exposureState
+                    val step = exposureState.exposureCompensationStep.toFloat()
+                    if (step > 0) {
+                        val evSteps = (evBoost / step).toInt()
+                        val clampedSteps = evSteps.coerceIn(
+                            exposureState.exposureCompensationRange.lower,
+                            exposureState.exposureCompensationRange.upper
+                        )
+
+                        // Устанавливаем через CameraControl для правильного применения
+                        camera.cameraControl.setExposureCompensationIndex(clampedSteps)
+                        _ev.value = clampedSteps * step
+                        _step.value = step
+
+                        Log.d(logTag, "Applied EV boost: $evBoost (+$clampedSteps steps)")
+                    }
+                }
+
+                // 2. Применяем ISO настройки
+                if (preferredIso != null) {
+                    optionsBuilder.setCaptureRequestOption(
+                        CaptureRequest.SENSOR_SENSITIVITY,
+                        preferredIso
+                    )
+                    Log.d(logTag, "Applied preferred ISO: $preferredIso")
+                }
+
+                // 3. Отключаем сценарные режимы, если требуется
+                if (disableSceneModes) {
+                    optionsBuilder.setCaptureRequestOption(
+                        CaptureRequest.CONTROL_SCENE_MODE,
+                        CameraMetadata.CONTROL_SCENE_MODE_DISABLED
+                    )
+                    Log.d(logTag, "Disabled scene modes for manufacturer compatibility")
+                }
+
+                // 4. Применяем настройки
+                val options = optionsBuilder.build()
+                camera2Control.setCaptureRequestOptions(options)
+
+                Log.i(logTag, "Exposure optimizations successfully applied")
+
+            } catch (e: Exception) {
+                Log.e(logTag, "Failed to apply exposure optimizations", e)
+            }
+        }
+    }
 
     override suspend fun tapToFocus(x: Float, y: Float) {
         telemetry.log("tap_focus", mapOf("x" to x, "y" to y))

@@ -624,6 +624,11 @@ class CameraActivity : AppCompatActivity() {
             val model = com.example.b1void.utils.DeviceInfo.model
             Log.d(TAG, "Device: $manufacturer $model")
 
+            // Логирование настроек камеры для отладки (особенно для Xiaomi устройств)
+            if (com.example.b1void.utils.DeviceInfo.isXiaomi()) {
+                Log.d("CAMERA_DEBUG_REDMI", com.example.b1void.utils.DeviceInfo.logCameraDebugInfo())
+            }
+
             val resolvedCameraId = resolveCameraId()
             if (resolvedCameraId != null) {
                 activeCameraId = resolvedCameraId

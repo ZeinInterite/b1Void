@@ -8,7 +8,12 @@
       "Bash(dir /b)",
       "Bash(./gradlew.bat lint --quiet)",
       "Bash(./gradlew.bat :app:lintDebug --quiet)",
-      "Bash(./gradlew.bat :app:assembleDebug --quiet)"
+      "Bash(./gradlew.bat :app:assembleDebug --quiet)",
+      "Bash(dir)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(./gradlew.bat assembleDebug:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

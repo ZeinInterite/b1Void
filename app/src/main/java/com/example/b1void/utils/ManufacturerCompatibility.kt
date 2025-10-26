@@ -34,6 +34,11 @@ object ManufacturerCompatibility {
         fun hasOisIssues(): Boolean
         fun hasEisIssues(): Boolean
         fun preferEisOverOis(): Boolean
+        // Новые параметры для коррекции яркости на проблемных устройствах
+        fun getEvCompensationBoost(): Float
+        fun getPreferredIsoSensitivity(): Int?
+        fun getMinIsoSensitivity(): Int?
+        fun shouldDisableSceneModes(): Boolean
     }
 
     class SamsungCameraQuirks(private val model: String) : CameraQuirks {
@@ -48,6 +53,11 @@ object ManufacturerCompatibility {
         override fun hasOisIssues() = model.contains("galaxy j") || model.contains("galaxy a")
         override fun hasEisIssues() = false
         override fun preferEisOverOis() = false
+        // Samsung обычно не требует коррекции яркости
+        override fun getEvCompensationBoost() = 0f
+        override fun getPreferredIsoSensitivity() = null
+        override fun getMinIsoSensitivity() = null
+        override fun shouldDisableSceneModes() = false
     }
 
     class XiaomiCameraQuirks(private val model: String) : CameraQuirks {
@@ -70,6 +80,29 @@ object ManufacturerCompatibility {
         override fun hasOisIssues() = model.contains("redmi")
         override fun hasEisIssues() = false
         override fun preferEisOverOis() = model.contains("redmi") // Для бюджетных лучше EIS
+
+        // Коррекция яркости для Xiaomi/Redmi устройств
+        // Многие устройства Xiaomi имеют консервативные настройки AE, что приводит к темным фото
+        override fun getEvCompensationBoost() = when {
+            model.contains("redmi note 10") -> 0.7f  // Redmi Note 10 особенно темный
+            model.contains("redmi note") -> 0.5f     // Другие модели Note
+            model.contains("redmi") -> 0.5f          // Все бюджетные Redmi
+            else -> 0.3f                             // Флагманы Mi менее проблемные
+        }
+
+        override fun getPreferredIsoSensitivity() = when {
+            model.contains("redmi note 10") -> 400   // Повышенный ISO для Note 10
+            model.contains("redmi") -> 300           // Умеренный ISO для других Redmi
+            else -> null                             // Auto ISO для флагманов
+        }
+
+        override fun getMinIsoSensitivity() = when {
+            model.contains("redmi") -> 200           // Минимум ISO 200 для бюджетных
+            else -> null
+        }
+
+        // Отключаем сценарные режимы, которые могут принудительно затемнять
+        override fun shouldDisableSceneModes() = model.contains("redmi")
     }
 
     class HuaweiCameraQuirks(private val model: String) : CameraQuirks {
@@ -84,6 +117,11 @@ object ManufacturerCompatibility {
         override fun hasOisIssues() = true
         override fun hasEisIssues() = true
         override fun preferEisOverOis() = false
+        // Huawei обычно не требует коррекции яркости
+        override fun getEvCompensationBoost() = 0f
+        override fun getPreferredIsoSensitivity() = null
+        override fun getMinIsoSensitivity() = null
+        override fun shouldDisableSceneModes() = false
     }
 
     class OnePlusCameraQuirks(private val model: String) : CameraQuirks {
@@ -98,6 +136,10 @@ object ManufacturerCompatibility {
         override fun hasOisIssues() = false
         override fun hasEisIssues() = false
         override fun preferEisOverOis() = false
+        override fun getEvCompensationBoost() = 0f
+        override fun getPreferredIsoSensitivity() = null
+        override fun getMinIsoSensitivity() = null
+        override fun shouldDisableSceneModes() = false
     }
 
     class OppoCameraQuirks(private val model: String) : CameraQuirks {
@@ -112,6 +154,10 @@ object ManufacturerCompatibility {
         override fun hasOisIssues() = model.contains("a")
         override fun hasEisIssues() = false
         override fun preferEisOverOis() = model.contains("a")
+        override fun getEvCompensationBoost() = 0f
+        override fun getPreferredIsoSensitivity() = null
+        override fun getMinIsoSensitivity() = null
+        override fun shouldDisableSceneModes() = false
     }
 
     class VivoCameraQuirks(private val model: String) : CameraQuirks {
@@ -126,6 +172,10 @@ object ManufacturerCompatibility {
         override fun hasOisIssues() = !model.contains("x") && !model.contains("nex")
         override fun hasEisIssues() = false
         override fun preferEisOverOis() = false
+        override fun getEvCompensationBoost() = 0f
+        override fun getPreferredIsoSensitivity() = null
+        override fun getMinIsoSensitivity() = null
+        override fun shouldDisableSceneModes() = false
     }
 
     class MotorolaCameraQuirks(private val model: String) : CameraQuirks {
@@ -140,6 +190,10 @@ object ManufacturerCompatibility {
         override fun hasOisIssues() = model.contains("moto e") || model.contains("moto g")
         override fun hasEisIssues() = false
         override fun preferEisOverOis() = false
+        override fun getEvCompensationBoost() = 0f
+        override fun getPreferredIsoSensitivity() = null
+        override fun getMinIsoSensitivity() = null
+        override fun shouldDisableSceneModes() = false
     }
 
     class DefaultCameraQuirks : CameraQuirks {
@@ -154,5 +208,9 @@ object ManufacturerCompatibility {
         override fun hasOisIssues() = false
         override fun hasEisIssues() = false
         override fun preferEisOverOis() = false
+        override fun getEvCompensationBoost() = 0f
+        override fun getPreferredIsoSensitivity() = null
+        override fun getMinIsoSensitivity() = null
+        override fun shouldDisableSceneModes() = false
     }
 }

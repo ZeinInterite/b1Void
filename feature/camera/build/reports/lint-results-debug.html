@@ -177,9 +177,9 @@ document.getElementById(id).style.display = 'none';
 <div class="mdl-layout mdl-js-layout mdl-layout--fixed-header">
   <header class="mdl-layout__header">
     <div class="mdl-layout__header-row">
-      <span class="mdl-layout-title">Lint Report: 22 errors and 9 warnings</span>
+      <span class="mdl-layout-title">Lint Report: 7 errors and 9 warnings</span>
       <div class="mdl-layout-spacer"></div>
-      <nav class="mdl-navigation mdl-layout--large-screen-only">Check performed at Fri Oct 17 17:53:02 MSK 2025 by AGP (8.9.2)</nav>
+      <nav class="mdl-navigation mdl-layout--large-screen-only">Check performed at Mon Oct 27 00:59:00 MSK 2025 by AGP (8.9.2)</nav>
     </div>
   </header>
   <div class="mdl-layout__drawer">
@@ -187,7 +187,7 @@ document.getElementById(id).style.display = 'none';
     <nav class="mdl-navigation">
       <a class="mdl-navigation__link" href="#overview"><i class="material-icons">dashboard</i>Overview</a>
       <a class="mdl-navigation__link" href="#GradleDependency"><i class="material-icons warning-icon">warning</i>Obsolete Gradle Dependency (9)</a>
-      <a class="mdl-navigation__link" href="#UnsafeOptInUsageError"><i class="material-icons error-icon">error</i>Unsafe opt-in usage intended to be error-level severity (22)</a>
+      <a class="mdl-navigation__link" href="#UnsafeOptInUsageError"><i class="material-icons error-icon">error</i>Unsafe opt-in usage intended to be error-level severity (7)</a>
     </nav>
   </div>
   <main class="mdl-layout__content">
@@ -206,7 +206,7 @@ document.getElementById(id).style.display = 'none';
 <td class="countColumn">9</td><td class="issueColumn"><i class="material-icons warning-icon">warning</i>
 <a href="#GradleDependency">GradleDependency</a>: Obsolete Gradle Dependency</td></tr>
 <tr>
-<td class="countColumn">22</td><td class="issueColumn"><i class="material-icons error-icon">error</i>
+<td class="countColumn">7</td><td class="issueColumn"><i class="material-icons error-icon">error</i>
 <a href="#UnsafeOptInUsageError">UnsafeOptInUsageError</a>: Unsafe opt-in usage intended to be error-level severity</td></tr>
 <tr><td></td><td class="categoryColumn"><a href="#ExtraIssues">Included Additional Checks (23)</a>
 </td></tr>
@@ -354,157 +354,6 @@ Dismiss</button>            </div>
               <div class="mdl-card__supporting-text">
 <div class="issue">
 <div class="warningslist">
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:69</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno">  66 </span>            camera.cameraControl.cancelFocusAndMetering()
-<span class="lineno">  67 </span>        } catch (_: Throwable) {}
-<span class="lineno">  68 </span>        <span class="keyword">try</span> {
-<span class="caretline"><span class="lineno">  69 </span>            <span class="keyword">val</span> <span class="error">control</span> = Camera2CameraControl.from(camera.cameraControl)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno">  70 </span>            control.setCaptureRequestOptions(
-<span class="lineno">  71 </span>                CaptureRequestOptions.Builder()
-<span class="lineno">  72 </span>                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">false</span>)
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:69</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno">  66 </span>            camera.cameraControl.cancelFocusAndMetering()
-<span class="lineno">  67 </span>        } catch (_: Throwable) {}
-<span class="lineno">  68 </span>        <span class="keyword">try</span> {
-<span class="caretline"><span class="lineno">  69 </span>            <span class="keyword">val</span> control = Camera2CameraControl.<span class="error">from</span>(camera.cameraControl)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno">  70 </span>            control.setCaptureRequestOptions(
-<span class="lineno">  71 </span>                CaptureRequestOptions.Builder()
-<span class="lineno">  72 </span>                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">false</span>)
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:70</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno">  67 </span>  } catch (_: Throwable) {}
-<span class="lineno">  68 </span>  <span class="keyword">try</span> {
-<span class="lineno">  69 </span>      <span class="keyword">val</span> control = Camera2CameraControl.from(camera.cameraControl)
-<span class="caretline"><span class="lineno">  70 </span>      control.<span class="error">setCaptureRequestOptions</span>(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno">  71 </span>          CaptureRequestOptions.Builder()
-<span class="lineno">  72 </span>              .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">false</span>)
-<span class="lineno">  73 </span>              .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:71</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno">  68 </span>  <span class="keyword">try</span> {
-<span class="lineno">  69 </span>      <span class="keyword">val</span> control = Camera2CameraControl.from(camera.cameraControl)
-<span class="lineno">  70 </span>      control.setCaptureRequestOptions(
-<span class="caretline"><span class="lineno">  71 </span>          CaptureRequestOptions.<span class="error">Builder</span>()&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno">  72 </span>              .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">false</span>)
-<span class="lineno">  73 </span>              .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-<span class="lineno">  74 </span>              .build()
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:72</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno">  69 </span>  <span class="keyword">val</span> control = Camera2CameraControl.from(camera.cameraControl)
-<span class="lineno">  70 </span>  control.setCaptureRequestOptions(
-<span class="lineno">  71 </span>      CaptureRequestOptions.Builder()
-<span class="caretline"><span class="lineno">  72 </span>          .<span class="error">setCaptureRequestOption</span>(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">false</span>)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno">  73 </span>          .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-<span class="lineno">  74 </span>          .build()
-<span class="lineno">  75 </span>  )
-</pre>
-
-<button class="mdl-button mdl-js-button mdl-button--primary" id="UnsafeOptInUsageErrorDivLink" onclick="reveal('UnsafeOptInUsageErrorDiv');" />+ 17 More Occurrences...</button>
-<div id="UnsafeOptInUsageErrorDiv" style="display: none">
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:73</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno">  70 </span>      control.setCaptureRequestOptions(
-<span class="lineno">  71 </span>          CaptureRequestOptions.Builder()
-<span class="lineno">  72 </span>              .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">false</span>)
-<span class="caretline"><span class="lineno">  73 </span>              .<span class="error">setCaptureRequestOption</span>(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)</span>
-<span class="lineno">  74 </span>              .build()
-<span class="lineno">  75 </span>      )
-<span class="lineno">  76 </span>  } catch (_: Throwable) {}
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:74</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno">  71 </span>          CaptureRequestOptions.Builder()
-<span class="lineno">  72 </span>              .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">false</span>)
-<span class="lineno">  73 </span>              .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-<span class="caretline"><span class="lineno">  74 </span>              .<span class="error">build</span>()&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno">  75 </span>      )
-<span class="lineno">  76 </span>  } catch (_: Throwable) {}
-<span class="lineno">  77 </span>  _state.update { FocusState.Idle() }
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:166</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 163 </span>
-<span class="lineno"> 164 </span>        <span class="keyword">if</span> (lock) {
-<span class="lineno"> 165 </span>            <span class="keyword">try</span> {
-<span class="caretline"><span class="lineno"> 166 </span>                <span class="keyword">val</span> <span class="error">control</span> = Camera2CameraControl.from(camera.cameraControl)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 167 </span>                control.setCaptureRequestOptions(
-<span class="lineno"> 168 </span>                    CaptureRequestOptions.Builder()
-<span class="lineno"> 169 </span>                        .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">true</span>)
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:166</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 163 </span>
-<span class="lineno"> 164 </span>        <span class="keyword">if</span> (lock) {
-<span class="lineno"> 165 </span>            <span class="keyword">try</span> {
-<span class="caretline"><span class="lineno"> 166 </span>                <span class="keyword">val</span> control = Camera2CameraControl.<span class="error">from</span>(camera.cameraControl)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 167 </span>                control.setCaptureRequestOptions(
-<span class="lineno"> 168 </span>                    CaptureRequestOptions.Builder()
-<span class="lineno"> 169 </span>                        .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">true</span>)
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:167</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 164 </span>        <span class="keyword">if</span> (lock) {
-<span class="lineno"> 165 </span>            <span class="keyword">try</span> {
-<span class="lineno"> 166 </span>                <span class="keyword">val</span> control = Camera2CameraControl.from(camera.cameraControl)
-<span class="caretline"><span class="lineno"> 167 </span>                control.<span class="error">setCaptureRequestOptions</span>(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 168 </span>                    CaptureRequestOptions.Builder()
-<span class="lineno"> 169 </span>                        .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">true</span>)
-<span class="lineno"> 170 </span>                        <span class="comment">// Lock AF to AUTO mode while locked, with trigger idle</span></pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:168</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 165 </span>  <span class="keyword">try</span> {
-<span class="lineno"> 166 </span>      <span class="keyword">val</span> control = Camera2CameraControl.from(camera.cameraControl)
-<span class="lineno"> 167 </span>      control.setCaptureRequestOptions(
-<span class="caretline"><span class="lineno"> 168 </span>          CaptureRequestOptions.<span class="error">Builder</span>()&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 169 </span>              .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">true</span>)
-<span class="lineno"> 170 </span>              <span class="comment">// Lock AF to AUTO mode while locked, with trigger idle</span>
-<span class="lineno"> 171 </span>              .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO)
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:169</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 166 </span>  <span class="keyword">val</span> control = Camera2CameraControl.from(camera.cameraControl)
-<span class="lineno"> 167 </span>  control.setCaptureRequestOptions(
-<span class="lineno"> 168 </span>      CaptureRequestOptions.Builder()
-<span class="caretline"><span class="lineno"> 169 </span>          .<span class="error">setCaptureRequestOption</span>(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">true</span>)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 170 </span>          <span class="comment">// Lock AF to AUTO mode while locked, with trigger idle</span>
-<span class="lineno"> 171 </span>          .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO)
-<span class="lineno"> 172 </span>          .setCaptureRequestOption(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE)
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:171</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 168 </span>      CaptureRequestOptions.Builder()
-<span class="lineno"> 169 </span>          .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">true</span>)
-<span class="lineno"> 170 </span>          <span class="comment">// Lock AF to AUTO mode while locked, with trigger idle</span>
-<span class="caretline"><span class="lineno"> 171 </span>          .<span class="error">setCaptureRequestOption</span>(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO)</span>
-<span class="lineno"> 172 </span>          .setCaptureRequestOption(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE)
-<span class="lineno"> 173 </span>          .build()
-<span class="lineno"> 174 </span>  )
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:172</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 169 </span>              .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, <span class="keyword">true</span>)
-<span class="lineno"> 170 </span>              <span class="comment">// Lock AF to AUTO mode while locked, with trigger idle</span>
-<span class="lineno"> 171 </span>              .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO)
-<span class="caretline"><span class="lineno"> 172 </span>              .<span class="error">setCaptureRequestOption</span>(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE)</span>
-<span class="lineno"> 173 </span>              .build()
-<span class="lineno"> 174 </span>      )
-<span class="lineno"> 175 </span>  } catch (_: Throwable) {}
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt">../../src/main/java/com/example/b1void/camera/data/camera/camerax/CameraXFocusController.kt</a>:173</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 170 </span>                  <span class="comment">// Lock AF to AUTO mode while locked, with trigger idle</span>
-<span class="lineno"> 171 </span>                  .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO)
-<span class="lineno"> 172 </span>                  .setCaptureRequestOption(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE)
-<span class="caretline"><span class="lineno"> 173 </span>                  .<span class="error">build</span>()&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 174 </span>          )
-<span class="lineno"> 175 </span>      } catch (_: Throwable) {}
-<span class="lineno"> 176 </span>  }
-</pre>
-
 <span class="location"><a href="../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt">../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt</a>:103</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
 <span class="lineno"> 100 </span>
 <span class="lineno"> 101 </span>    override <span class="keyword">fun</span> setAeLock(locked: Boolean) {
@@ -574,7 +423,6 @@ Dismiss</button>            </div>
 <span class="lineno"> 110 </span>        }
 </pre>
 
-</div>
 </div>
 <div class="metadata"><div class="explanation" id="explanationUnsafeOptInUsageError" style="display: none;">
 This API has been flagged as opt-in with error-level severity.<br/>
