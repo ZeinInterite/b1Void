@@ -24,6 +24,7 @@ import android.util.Size
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
@@ -55,13 +56,17 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun CameraScreen(
     leftHanded: Boolean = false,
-    cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA,
-    vm: CameraViewModel = viewModel()
+    cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val view = LocalView.current
+
+    // Create ViewModel with context for settings management
+    val vm: CameraViewModel = remember {
+        CameraViewModel(context)
+    }
 
     // Ask for camera and audio just in case, gracefully no-op if granted.
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -172,6 +177,10 @@ fun CameraScreen(
     val maxZoom by vm.maxZoomRatio.collectAsState()
     val presets by vm.availablePresets.collectAsState()
 
+    // Exposure compensation state
+    val evValue by vm.evCompensation.collectAsState()
+    val evRange by vm.evRange.collectAsState()
+
     // Preview gestures: pinch to zoom and double tap to cycle presets.
 
     // Track composable size to map tap -> PreviewView coordinates safely
@@ -217,9 +226,64 @@ fun CameraScreen(
         }, ContextCompat.getMainExecutor(context))
     }
 
+    // Long-press EV adjust state
+    var isAdjustingEv by remember { mutableStateOf(false) }
+    var evStart by remember { mutableStateOf(0f) }
+
     val previewGestures = Modifier
+        .pointerInput(evRange) {
+            // Drag after long press: show focus ring + EV slider and adjust EV with vertical swipe
+            detectDragGesturesAfterLongPress(
+                onDragStart = { offset ->
+                    isAdjustingEv = true
+                    evStart = evValue
+                    // Map composable offset -> PreviewView px
+                    val compW = previewSize.width.coerceAtLeast(1)
+                    val compH = previewSize.height.coerceAtLeast(1)
+                    val pxX = (offset.x * previewView.width / compW)
+                    val pxY = (offset.y * previewView.height / compH)
+
+                    // Focus lock visualization and show EV slider near ring
+                    focusOverlayRef?.apply {
+                        visibility = android.view.View.VISIBLE
+                        showFocusAt(pxX, pxY, Mode.Locked)
+                        evMin = evRange.start
+                        evMax = evRange.endInclusive
+                        showEvSlider(pxX, pxY, evStart)
+                    }
+                    // Haptic feedback for long press
+                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                },
+                onDragEnd = {
+                    isAdjustingEv = false
+                    // Hide EV slider after a short delay
+                    focusOverlayRef?.postDelayed({ focusOverlayRef?.hideEvSlider() }, 1200)
+                },
+                onDragCancel = {
+                    isAdjustingEv = false
+                    focusOverlayRef?.hideEvSlider()
+                }
+            ) { change, dragAmount ->
+                change.consume()
+                if (!isAdjustingEv) return@detectDragGesturesAfterLongPress
+                // Positive drag up -> increase EV, down -> decrease EV
+                val sensitivityPxPerEv = 150f
+                val newEv = (evStart - dragAmount.y / sensitivityPxPerEv)
+                    .coerceIn(evRange)
+                vm.setExposureCompensation(newEv)
+                focusOverlayRef?.apply {
+                    this.evValue = newEv
+                    invalidate()
+                }
+            }
+        }
         .pointerInput(Unit) {
-            // Short tap triggers focus immediately
+            detectTransformGestures { _, _, zoomChange, _ ->
+                if (zoomChange.isFinite()) vm.onPinch(zoomChange)
+            }
+        }
+        .pointerInput(Unit) {
+            // Tap gestures: tap for focus, double-tap for zoom, long-press shows EV slider
             detectTapGestures(
                 onTap = { offset ->
                     focusOverlayRef?.apply {
@@ -228,13 +292,23 @@ fun CameraScreen(
                     }
                     tapToFocusAt(offset)
                 },
-                onDoubleTap = { vm.onDoubleTap() }
+                onDoubleTap = { vm.onDoubleTap() },
+                onLongPress = { offset ->
+                    // Map composable offset -> PreviewView px
+                    val compW = previewSize.width.coerceAtLeast(1)
+                    val compH = previewSize.height.coerceAtLeast(1)
+                    val pxX = (offset.x * previewView.width / compW)
+                    val pxY = (offset.y * previewView.height / compH)
+                    focusOverlayRef?.apply {
+                        visibility = android.view.View.VISIBLE
+                        showFocusAt(pxX, pxY, Mode.Locked)
+                        evMin = evRange.start
+                        evMax = evRange.endInclusive
+                        showEvSlider(pxX, pxY, evValue)
+                    }
+                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                }
             )
-        }
-        .pointerInput(Unit) {
-            detectTransformGestures { _, _, zoomChange, _ ->
-                if (zoomChange.isFinite()) vm.onPinch(zoomChange)
-            }
         }
 
     Surface(color = MaterialTheme.colorScheme.background) {
@@ -247,6 +321,8 @@ fun CameraScreen(
                     .onSizeChanged { size -> previewSize = size },
                 factory = { previewView }
             )
+
+            // Exposure slider is rendered by FocusOverlayView overlay during long-press drag
 
             // Zoom control anchored near bottom insets; keep ≥12dp gap from other UI (caller ensures other controls gaps).
             ZoomControl(
@@ -270,9 +346,10 @@ fun CameraScreen(
 @ComposePreview(showBackground = true)
 private fun CameraScreenPreview() {
     // Preview shows only the layout scaffold (no real camera in previews)
-    val fakeVm = CameraViewModel()
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // Just render the zoom control in bottom for preview purposes
+        // Exposure overlay preview omitted
+
+        // Zoom control preview
         ZoomControl(
             zoomRatio = 1f,
             minZoom = 0.5f,

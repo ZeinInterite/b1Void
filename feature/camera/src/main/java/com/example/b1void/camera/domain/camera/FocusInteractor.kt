@@ -68,6 +68,16 @@ class FocusInteractor(
         }
     }
 
+    /** Set absolute exposure compensation value in EV stops (-2.0 to +2.0). */
+    fun setAbsoluteEv(evValue: Float) {
+        scope.launch {
+            repo.setAbsoluteEv(evValue)
+        }
+    }
+
+    /** Get the supported EV range for the camera. */
+    suspend fun getEvRange(): ClosedFloatingPointRange<Float> = repo.getEvRange()
+
     /** Enable/disable macro mode (if supported by device). */
     fun enableMacro(enabled: Boolean) { scope.launch { repo.enableMacro(enabled) } }
     /** Enable/disable torch assist in low light modes. */

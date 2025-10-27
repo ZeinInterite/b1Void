@@ -136,6 +136,25 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:visibility="visible" />
 
+    <TextView
+        android:id="@+id/evSun"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="\u2600"
+        android:textSize="18sp"
+        android:textColor="@android:color/white"
+        android:shadowColor="#80000000"
+        android:shadowDx="0"
+        android:shadowDy="0"
+        android:shadowRadius="3"
+        android:visibility="gone"
+        android:elevation="7dp"
+        android:contentDescription="@string/cd_exposure_overlay"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible"
+        tools:text="\u2600" />
+
     <ImageView
         android:id="@+id/captureAnimationView"
         android:layout_width="220dp"

@@ -6,7 +6,7 @@ import org.junit.Test
 private class FakeEngine : FocusCoordinator.FocusEngine {
     var lastStart: Triple<Float, Float, Int>? = null
     var lastCenterAutoCancel: Int? = null
-    var aeLock = false
+    var aeLockState = false
     var cancelled = false
     var supported = true
     var nextResultSuccess = true
@@ -35,7 +35,7 @@ private class FakeEngine : FocusCoordinator.FocusEngine {
 
     override fun cancel() { cancelled = true }
 
-    override fun setAeLock(locked: Boolean) { aeLock = locked }
+    override fun setAeLock(locked: Boolean) { aeLockState = locked }
 }
 
 private class FakeCallbacks : FocusCoordinator.Callbacks {
@@ -73,7 +73,7 @@ class FocusCoordinatorTest {
         coordinator.onLongPress(10f, 20f)
 
         assertEquals(Triple(10f, 20f, 0), engine.lastStart)
-        assertTrue(engine.aeLock)
+        assertTrue(engine.aeLockState)
         assertTrue(cb.locked)
         assertTrue(coordinator.isLocked())
     }
@@ -90,7 +90,7 @@ class FocusCoordinatorTest {
         coordinator.resetToCenter()
 
         assertFalse(coordinator.isLocked())
-        assertFalse(engine.aeLock)
+        assertFalse(engine.aeLockState)
         assertNotNull(engine.lastCenterAutoCancel)
     }
 

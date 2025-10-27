@@ -134,6 +134,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var focusIndicator: View
     private lateinit var lockIcon: ImageView
     private lateinit var evOverlay: View
+    private lateinit var evSun: android.widget.TextView
     private lateinit var captureAnimationView: ImageView
     private lateinit var rootLayout: ConstraintLayout
     private lateinit var topControlsContainer: LinearLayout
@@ -216,11 +217,14 @@ class CameraActivity : AppCompatActivity() {
     private val hideFocusIndicatorRunnable = Runnable {
         focusIndicator.animate().cancel()
         focusIndicator.visibility = View.GONE
+        hideEvUi()
+        Log.d(AEAF_TAG, "hideFocusIndicatorRunnable: ring + EV UI hidden")
     }
     private var focusLastX: Float? = null
     private var focusLastY: Float? = null
     private var evHideRunnable: Runnable? = null
     private var evController: com.example.b1void.camera.ev.EvController? = null
+    private var previewEvLastY: Float? = null
 
     // Focus coordination
     private var focusCoordinator: com.example.b1void.camera.focus.FocusCoordinator? = null
@@ -410,11 +414,24 @@ class CameraActivity : AppCompatActivity() {
                 return true
             }
             override fun onLongPress(e: MotionEvent) {
+                Log.d(AEAF_TAG, "onLongPress: x=" + e.x + ", y=" + e.y)
                 focusCoordinator?.onLongPress(e.x, e.y)
+                ensureEvController()
+                evController?.begin()
             }
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-                // Exposure adjustment disabled
-                return false
+                val locked = focusCoordinator?.isLocked() == true
+                return if (locked && !isZoomGesture) {
+                    ensureEvController()
+                    val dy = -distanceY
+                    evController?.adjustByDrag(dy)
+                    scheduleHideEvOverlay()
+                    Log.v(AEAF_TAG, "onScroll handled for EV: dy=" + dy)
+                    true
+                } else {
+                    Log.d(AEAF_TAG, "onScroll: dx=" + distanceX + ", dy=" + distanceY + " (skipped; locked=" + locked + ", isZoomGesture=" + isZoomGesture + ")")
+                    false
+                }
             }
         }).apply {
             setOnDoubleTapListener(object : GestureDetector.OnDoubleTapListener {
@@ -433,17 +450,79 @@ class CameraActivity : AppCompatActivity() {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     isZoomGesture = false
+                    Log.d(AEAF_TAG, "touch ACTION_DOWN: x=" + event.x + ", y=" + event.y + ", pointers=" + event.pointerCount)
+                    // If finger lands near the EV bar, begin EV tracking from the preview
+                    try {
+                        val pv = IntArray(2)
+                        val ov = IntArray(2)
+                        previewView.getLocationOnScreen(pv)
+                        evOverlay.getLocationOnScreen(ov)
+                        val sx = pv[0] + event.x.toInt()
+                        val sy = pv[1] + event.y.toInt()
+                        val within = sx >= ov[0] - 20 && sx <= ov[0] + evOverlay.width + 20 && sy >= ov[1] - 32 && sy <= ov[1] + evOverlay.height + 32
+                        if (within) {
+                            ensureEvController()
+                            evController?.begin()
+                            showEvUi()
+                            previewEvLastY = event.y
+                            rootLayout.requestDisallowInterceptTouchEvent(true)
+                            Log.d(AEAF_TAG, "preview EV begin (near bar) y=" + event.y)
+                        }
+                    } catch (_: Throwable) { }
                     showControlsOnInteraction()
                 }
-                MotionEvent.ACTION_POINTER_DOWN -> isZoomGesture = true
-                MotionEvent.ACTION_CANCEL -> isZoomGesture = false
+                MotionEvent.ACTION_POINTER_DOWN -> { isZoomGesture = true; Log.d(AEAF_TAG, "touch POINTER_DOWN -> isZoomGesture=true (pointers=" + event.pointerCount + ")") }
+                MotionEvent.ACTION_MOVE -> {
+                    if (!isZoomGesture) {
+                        // If preview-based EV drag session is active, adjust globally
+                        val activeLast = previewEvLastY
+                        if (activeLast != null) {
+                            ensureEvController()
+                            val dy = event.y - activeLast
+                            previewEvLastY = event.y
+                            evController?.adjustByDrag(dy)
+                            scheduleHideEvOverlay()
+                            Log.v(AEAF_TAG, "preview EV MOVE active: dy=" + dy)
+                        }
+                        val pv = IntArray(2)
+                        val ov = IntArray(2)
+                        previewView.getLocationOnScreen(pv)
+                        evOverlay.getLocationOnScreen(ov)
+                        val sx = pv[0] + event.x.toInt()
+                        val sy = pv[1] + event.y.toInt()
+                        val within = sx >= ov[0] - 20 && sx <= ov[0] + evOverlay.width + 20 && sy >= ov[1] - 32 && sy <= ov[1] + evOverlay.height + 32
+                        Log.d(AEAF_TAG, "touch ACTION_MOVE: x=" + event.x + ", y=" + event.y + " (EV drag not handled) nearBar=" + within + " screenX=" + sx + ", screenY=" + sy)
+                        if (within && activeLast == null) {
+                            ensureEvController()
+                            val last = previewEvLastY
+                            if (last == null) {
+                                previewEvLastY = event.y
+                            } else {
+                                val dy = event.y - last
+                                previewEvLastY = event.y
+                                evController?.adjustByDrag(dy)
+                                scheduleHideEvOverlay()
+                                Log.v(AEAF_TAG, "preview EV MOVE nearBar: dy=" + dy)
+                            }
+                        }
+                    }
+                }
+                MotionEvent.ACTION_CANCEL -> { isZoomGesture = false; Log.d(AEAF_TAG, "touch ACTION_CANCEL") }
                 MotionEvent.ACTION_UP -> {
                     // Лёгкое нажатие (короткий тап) – фокусируемся в точке отпускания
                     if (!isZoomGesture) {
                         startFocusMeteringAt(event.x, event.y, showIndicator = true)
+                        Log.d(AEAF_TAG, "touch ACTION_UP: startFocusMeteringAt at x=" + event.x + ", y=" + event.y)
                         // Через 5 секунд возвращаемся в автофокус по центру
                         
                         
+                        if (focusCoordinator?.isLocked() == true) scheduleHideEvOverlay()
+                        if (previewEvLastY != null) {
+                            scheduleHideEvOverlay()
+                            previewEvLastY = null
+                            rootLayout.requestDisallowInterceptTouchEvent(false)
+                            Log.d(AEAF_TAG, "preview EV end on ACTION_UP")
+                        }
                     }
                     view.performClick()
                 }
@@ -480,10 +559,53 @@ class CameraActivity : AppCompatActivity() {
         focusIndicator = findViewById(R.id.focusIndicator)
         lockIcon = findViewById(R.id.lockIcon)
         evOverlay = findViewById(R.id.evOverlay)
+        evSun = findViewById(R.id.evSun)
         captureAnimationView = findViewById(R.id.captureAnimationView)
         // Hide legacy zoom sliders when using Compose zoom
         if (useComposeZoom) {
             // Legacy sliders are not present in layout anymore
+        }
+
+        // Make EV overlay draggable to adjust exposure
+        var evTouchLastY: Float? = null
+        evOverlay.isClickable = true
+        evOverlay.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    evTouchLastY = event.y
+                    ensureEvController()
+                    evController?.begin()
+                    showEvUi()
+                    rootLayout.requestDisallowInterceptTouchEvent(true)
+                    Log.d(AEAF_TAG, "evOverlay DOWN: y=" + event.y)
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val last = evTouchLastY
+                    if (last != null) {
+                        val dy = event.y - last
+                        evTouchLastY = event.y
+                        ensureEvController()
+                        evController?.adjustByDrag(dy)
+                        scheduleHideEvOverlay()
+                        Log.v(AEAF_TAG, "evOverlay MOVE: dy=" + dy + ", y=" + event.y)
+                        return@setOnTouchListener true
+                    }
+                    false
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val act = if (event.actionMasked == MotionEvent.ACTION_UP) "UP" else "CANCEL"
+                    Log.d(AEAF_TAG, "evOverlay " + act)
+                    evTouchLastY = null
+                    // Stop EV tracking but keep overlay; schedule auto-hide
+                    ensureEvController()
+                    // Do not call end() here to avoid immediate hide; let auto-hide handle it
+                    scheduleHideEvOverlay()
+                    rootLayout.requestDisallowInterceptTouchEvent(false)
+                    true
+                }
+                else -> false
+            }
         }
 
         // Increase touch area around the shutter button for better accessibility
@@ -497,9 +619,30 @@ class CameraActivity : AppCompatActivity() {
                 (captureButton.parent as View).touchDelegate = TouchDelegate(rect, captureButton)
             } catch (_: Throwable) { /* no-op if parent not available */ }
         }
-        
+
+        // Log EV overlay bounds after first layout
+        evOverlay.post { logEvOverlayBounds("after-init") }
+
         // Set initial properties for vertical slider (legacy)
         // No legacy slider init
+
+        // Expand touch area for the narrow EV overlay so it's easier to drag
+        (evOverlay.parent as? View)?.post {
+            try {
+                val extraH = 20.dpToPx(this)
+                val extraV = 32.dpToPx(this)
+                val hit = Rect()
+                evOverlay.getHitRect(hit)
+                hit.left -= extraH
+                hit.right += extraH
+                hit.top -= extraV
+                hit.bottom += extraV
+                (evOverlay.parent as View).touchDelegate = TouchDelegate(hit, evOverlay)
+                Log.d(AEAF_TAG, "expanded evOverlay touch area: rect=" + hit.toShortString())
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to expand EV overlay touch area", t)
+            }
+        }
 
         // Set Compose zoom content if enabled
         if (useComposeZoom) {
@@ -932,15 +1075,24 @@ class CameraActivity : AppCompatActivity() {
                         camera = cam,
                         mainExecutor = ContextCompat.getMainExecutor(this),
                         callbacks = object : com.example.b1void.camera.focus.FocusCoordinator.Callbacks {
-                            override fun showIndicator(x: Float, y: Float) { showFocusIndicator(x, y); focusLastX = x; focusLastY = y }
-                            override fun hideIndicator() { focusIndicator.post(hideFocusIndicatorRunnable) }
-                            override fun onFocusResult(success: Boolean) {
-                                val delay = if (success) 600L else 300L
+                            override fun showIndicator(x: Float, y: Float) {
+                                Log.d(AEAF_TAG, "callbacks.showIndicator(x=" + x + ", y=" + y + ")")
+                                showFocusIndicator(x, y); focusLastX = x; focusLastY = y
+                            }
+                            override fun hideIndicator() {
+                                Log.d(AEAF_TAG, "callbacks.hideIndicator() -> schedule ring hide 1500ms")
                                 focusIndicator.removeCallbacks(hideFocusIndicatorRunnable)
-                                focusIndicator.postDelayed(hideFocusIndicatorRunnable, delay)
+                                focusIndicator.postDelayed(hideFocusIndicatorRunnable, 1500)
+                            }
+                            override fun onFocusResult(success: Boolean) {
+                                Log.d(AEAF_TAG, "callbacks.onFocusResult(success=" + success + ")")
+                                focusIndicator.removeCallbacks(hideFocusIndicatorRunnable)
+                                Log.d(AEAF_TAG, "callbacks.onFocusResult(success=" + success + ") -> schedule ring hide 1500ms")
+                                focusIndicator.postDelayed(hideFocusIndicatorRunnable, 1500)
                                 if (success) previewView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
                             }
                             override fun onLockChanged(locked: Boolean) {
+                                Log.d(AEAF_TAG, "callbacks.onLockChanged(locked=" + locked + ")")
                                 if (!locked) focusIndicator.post(hideFocusIndicatorRunnable)
                                 toggleLockIcon(locked)
                             }
@@ -1045,7 +1197,6 @@ class CameraActivity : AppCompatActivity() {
                     .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
                     .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
                     .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 1)
                     .setCaptureRequestOption(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, CaptureRequest.CONTROL_AE_ANTIBANDING_MODE_AUTO)
             } catch (e: IllegalArgumentException) {
                 Log.w(TAG, "Basic camera controls not fully supported", e)
@@ -1679,17 +1830,36 @@ class CameraActivity : AppCompatActivity() {
         if (evController == null) {
             camera?.let { cam ->
                 evController = com.example.b1void.camera.ev.EvController(
-                    onOverlayVisibility = { visible -> evOverlay.visibility = if (visible) View.VISIBLE else View.GONE },
-                    onOverlayValue = { /* future: draw gradation on overlay or bubble */ }
-                ).also { it.attach(cam) }
+                    onOverlayVisibility = { visible ->
+                        Log.d(AEAF_TAG, "overlay visibility -> " + (if (visible) "VISIBLE" else "GONE"))
+                        if (visible) showEvUi() else hideEvUi()
+                    },
+                    onOverlayValue = { ev ->
+                        Log.v(AEAF_TAG, "overlay value EV=" + ev)
+                        val st = cam.cameraInfo.exposureState
+                        val step = st.exposureCompensationStep.toFloat().takeIf { it > 0 } ?: 0.3333f
+                        val minEv = st.exposureCompensationRange.lower * step
+                        val maxEv = st.exposureCompensationRange.upper * step
+                        updateSunPosition(ev, minEv, maxEv)
+                    }
+                ).also {
+                    it.attach(cam)
+                    Log.i(AEAF_TAG, "ensureEvController: created and attached")
+                    // Sync initial EV knob
+                    syncSunToCurrentEv()
+                }
             }
         }
     }
 
     private fun scheduleHideEvOverlay() {
         evHideRunnable?.let { evOverlay.removeCallbacks(it) }
-        val r = Runnable { evOverlay.visibility = View.GONE }
+        val r = Runnable {
+            Log.d(AEAF_TAG, "auto-hide EV overlay now")
+            hideEvUi()
+        }
         evHideRunnable = r
+        Log.d(AEAF_TAG, "scheduleHideEvOverlay: 1500ms")
         evOverlay.postDelayed(r, 1500)
     }
 
@@ -1700,6 +1870,12 @@ class CameraActivity : AppCompatActivity() {
         val indicatorHeight = focusIndicator.height.takeIf { it > 0 }
             ?: focusIndicator.layoutParams.height.takeIf { it > 0 }
             ?: 0
+
+        // Calculate a physical gap of 0.3 cm in pixels using device xdpi
+        val gapPx = (0.3f * (resources.displayMetrics.xdpi / 2.54f))
+        val evBarWidthPx = (evOverlay.width.takeIf { it > 0 }
+            ?: evOverlay.layoutParams.width.takeIf { it > 0 }
+            ?: 0).toFloat()
 
         val parentLeft = previewView.left.toFloat()
         val parentTop = previewView.top.toFloat()
@@ -1757,10 +1933,70 @@ class CameraActivity : AppCompatActivity() {
             elevation = focusIndicator.elevation + 1f
             visibility = if (focusCoordinator?.isLocked() == true) View.VISIBLE else View.GONE
         }
-        // Place EV overlay alongside
+        // Place EV overlay vertically centered to the focus square,
+        // and 0.3 cm to the left from the focus square's left edge
         evOverlay.apply {
-            translationX = clampedX - 16f
-            translationY = (clampedY - height / 2f).coerceAtLeast(0f)
+            translationX = (clampedX - gapPx - evBarWidthPx).coerceAtLeast(0f)
+            translationY = (clampedY + indicatorHeight / 2f - height / 2f).coerceAtLeast(0f)
+            bringToFront()
+        }
+        // Place sun icon centered over the EV bar horizontally; sync to current EV
+        evSun.apply {
+            translationX = evOverlay.translationX + evOverlay.width / 2f - width / 2f
+            translationY = evOverlay.translationY + evOverlay.height / 2f
+            visibility = View.VISIBLE
+            bringToFront()
+        }
+        showEvUi()
+        syncSunToCurrentEv()
+        logEvOverlayBounds("after-showFocusIndicator")
+        Log.d(AEAF_TAG, "showFocusIndicator: touch(x=" + x + ", y=" + y + ") -> ring(tx=" + clampedX + ", ty=" + clampedY + "); lockVisible=" + (focusCoordinator?.isLocked() == true) + "; evOverlay(tx=" + evOverlay.translationX + ", ty=" + evOverlay.translationY + ", vis=" + (evOverlay.visibility == View.VISIBLE) + ")")
+    }
+
+    private fun logEvOverlayBounds(label: String) {
+        try {
+            val pos = IntArray(2)
+            val pv = IntArray(2)
+            evOverlay.getLocationOnScreen(pos)
+            previewView.getLocationOnScreen(pv)
+            Log.d(
+                AEAF_TAG,
+                "evOverlay bounds [" + pos[0] + "," + pos[1] + ", w=" + evOverlay.width + ", h=" + evOverlay.height + "]; preview@[" + pv[0] + "," + pv[1] + "] label=" + label
+            )
+        } catch (_: Throwable) {}
+    }
+
+    private fun showEvUi() {
+        evOverlay.visibility = View.VISIBLE
+        evSun.visibility = View.VISIBLE
+    }
+
+    private fun hideEvUi() {
+        evOverlay.visibility = View.GONE
+        evSun.visibility = View.GONE
+    }
+
+    private fun syncSunToCurrentEv() {
+        val cam = camera ?: return
+        val st = cam.cameraInfo.exposureState
+        val step = st.exposureCompensationStep.toFloat().takeIf { it > 0 } ?: 0.3333f
+        val minEv = st.exposureCompensationRange.lower * step
+        val maxEv = st.exposureCompensationRange.upper * step
+        val currentEv = st.exposureCompensationIndex * step
+        updateSunPosition(currentEv, minEv, maxEv)
+    }
+
+    private fun updateSunPosition(currentEv: Float, minEv: Float, maxEv: Float) {
+        val range = (maxEv - minEv).takeIf { it != 0f } ?: 1f
+        val t = ((currentEv - minEv) / range).coerceIn(0f, 1f)
+        evOverlay.post {
+            val barH = evOverlay.height.takeIf { it > 0 } ?: return@post
+            val top = evOverlay.translationY
+            val knobY = top + (1f - t) * barH
+            // Center horizontally to the EV bar
+            val centerX = evOverlay.translationX + evOverlay.width / 2f - evSun.width / 2f
+            evSun.translationY = knobY - evSun.height / 2f
+            evSun.translationX = centerX
         }
     }
 
@@ -2763,6 +2999,7 @@ class CameraActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "CameraActivity"
+        private const val AEAF_TAG = "AEAF_EV"
         private const val REQUEST_CODE_PERMISSIONS = 10
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
         const val EXTRA_SAVE_PATH = "extra_save_path"

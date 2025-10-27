@@ -13,7 +13,11 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(./gradlew.bat assembleDebug:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(./gradlew.bat :feature:camera:lint:*)",
+      "Bash(del \"D:\\Code\\projects\\document_llc_prog\\feature\\camera\\src\\main\\java\\com\\example\\b1void\\camera\\ui\\camera\\ExposureControl.kt\")",
+      "Bash(./gradlew.bat :feature:camera:test --quiet)",
+      "Bash(./gradlew.bat:*)"
     ],
     "deny": [],
     "ask": []

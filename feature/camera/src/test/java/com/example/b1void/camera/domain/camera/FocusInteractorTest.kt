@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -14,6 +15,8 @@ private class FakeRepo : FocusRepository {
     override val state: Flow<FocusState> = _state.asStateFlow()
     private val _ev = MutableStateFlow(0f)
     override val evValue: Flow<Float> = _ev.asStateFlow()
+    private val _step = MutableStateFlow(0.3333f)
+    override val exposureStep: Flow<Float> = _step.asStateFlow()
 
     override suspend fun tapToFocus(x: Float, y: Float) { _state.value = FocusState.Metering(x,y) }
     override suspend fun longPressLock(x: Float, y: Float) { _state.value = FocusState.Locked(x,y) }
@@ -21,6 +24,8 @@ private class FakeRepo : FocusRepository {
     override suspend fun startTracking(rect: android.graphics.RectF?, x: Float?, y: Float?) { _state.value = FocusState.Tracking(rect,x,y) }
     override suspend fun stopTracking() { _state.value = FocusState.Idle() }
     override suspend fun setEv(delta: Float) { _ev.value += delta }
+    override suspend fun setAbsoluteEv(evValue: Float) { _ev.value = evValue }
+    override suspend fun getEvRange(): ClosedFloatingPointRange<Float> = -2.0f..2.0f
     override suspend fun enableMacro(enabled: Boolean) {}
     override suspend fun enableTorchAssist(enabled: Boolean) {}
 }
@@ -32,6 +37,37 @@ class FocusInteractorTest {
         val interactor = FocusInteractor(repo, this)
         interactor.tapToFocus(10f, 20f)
         assertTrue(interactor.state.value is FocusState.Metering)
+    }
+
+    @Test
+    fun setAbsoluteEv_updatesEvValue() = runBlocking {
+        val repo = FakeRepo()
+        val interactor = FocusInteractor(repo, this)
+
+        // Set to positive value
+        interactor.setAbsoluteEv(1.5f)
+        kotlinx.coroutines.delay(50) // Wait for coroutine to complete
+        assertEquals(1.5f, interactor.evValue.value, 0.01f)
+
+        // Set to negative value
+        interactor.setAbsoluteEv(-1.0f)
+        kotlinx.coroutines.delay(50)
+        assertEquals(-1.0f, interactor.evValue.value, 0.01f)
+
+        // Set to zero
+        interactor.setAbsoluteEv(0.0f)
+        kotlinx.coroutines.delay(50)
+        assertEquals(0.0f, interactor.evValue.value, 0.01f)
+    }
+
+    @Test
+    fun getEvRange_returnsCorrectRange() = runBlocking {
+        val repo = FakeRepo()
+        val interactor = FocusInteractor(repo, this)
+
+        val range = interactor.getEvRange()
+        assertEquals(-2.0f, range.start, 0.01f)
+        assertEquals(2.0f, range.endInclusive, 0.01f)
     }
 }
 

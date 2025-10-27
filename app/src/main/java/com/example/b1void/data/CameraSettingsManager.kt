@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -36,6 +37,9 @@ class CameraSettingsManager(private val context: Context) {
 
         // Photo quality settings
         val PHOTO_QUALITY_KEY = intPreferencesKey("photo_quality")
+
+        // Exposure compensation
+        val EV_COMPENSATION_KEY = floatPreferencesKey("ev_compensation")
 
         // Orientation layout preferences
         val THUMBNAIL_POSITION_LANDSCAPE_KEY = stringPreferencesKey("thumbnail_position_landscape")
@@ -343,6 +347,33 @@ class CameraSettingsManager(private val context: Context) {
             android.util.Log.d("CameraSettingsManager", "Photo quality saved: $quality")
         } catch (e: Exception) {
             android.util.Log.e("CameraSettingsManager", "Failed to save photo quality", e)
+        }
+    }
+
+    // ==================== Exposure Compensation ====================
+
+    /**
+     * Get exposure compensation value in EV stops
+     * @return EV value from -2.0 to +2.0 (default: 0.0)
+     */
+    fun getEvCompensation(): Flow<Float> {
+        return context.dataStore.data.map {
+            it[EV_COMPENSATION_KEY] ?: 0.0f
+        }
+    }
+
+    /**
+     * Set exposure compensation value in EV stops
+     * @param evValue EV value from -2.0 to +2.0
+     */
+    suspend fun setEvCompensation(evValue: Float) {
+        try {
+            context.dataStore.edit {
+                it[EV_COMPENSATION_KEY] = evValue.coerceIn(-2.0f, 2.0f)
+            }
+            android.util.Log.d("CameraSettingsManager", "EV compensation saved: $evValue")
+        } catch (e: Exception) {
+            android.util.Log.e("CameraSettingsManager", "Failed to save EV compensation", e)
         }
     }
 }

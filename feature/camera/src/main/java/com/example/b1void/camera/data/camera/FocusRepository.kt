@@ -31,6 +31,10 @@ interface FocusRepository {
 
     /** Adjust EV by delta in stops (positive or negative). */
     suspend fun setEv(delta: Float)
+    /** Set absolute EV compensation value in stops (e.g., -2.0 to +2.0). */
+    suspend fun setAbsoluteEv(evValue: Float)
+    /** Get the supported EV range for the camera. */
+    suspend fun getEvRange(): ClosedFloatingPointRange<Float>
     /** Enable/disable macro mode if supported. */
     suspend fun enableMacro(enabled: Boolean)
     /** Enable/disable torch assist for low-light focusing. */

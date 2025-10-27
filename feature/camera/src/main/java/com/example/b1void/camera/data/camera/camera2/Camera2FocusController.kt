@@ -28,6 +28,8 @@ class Camera2FocusController : FocusRepository {
     override suspend fun startTracking(rect: RectF?, x: Float?, y: Float?) { _state.value = FocusState.Failed("camera2_not_implemented") }
     override suspend fun stopTracking() { _state.value = FocusState.Idle() }
     override suspend fun setEv(delta: Float) { _ev.value += delta }
+    override suspend fun setAbsoluteEv(evValue: Float) { _ev.value = evValue }
+    override suspend fun getEvRange(): ClosedFloatingPointRange<Float> = -2.0f..2.0f
     override suspend fun enableMacro(enabled: Boolean) { /* noop */ }
     override suspend fun enableTorchAssist(enabled: Boolean) { /* noop */ }
 }

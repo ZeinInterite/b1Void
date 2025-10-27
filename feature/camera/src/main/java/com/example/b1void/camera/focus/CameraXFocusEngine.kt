@@ -32,7 +32,9 @@ internal class CameraXFocusEngine(
             try { builder.addPoint(af, FocusMeteringAction.FLAG_AWB) } catch (_: Throwable) {}
         }
         val action = builder.build()
-        return camera.cameraInfo.isFocusMeteringSupported(action)
+        val supported = camera.cameraInfo.isFocusMeteringSupported(action)
+        android.util.Log.d("AEAF_EV", "FocusEngine.isSupportedAt(x=" + x + ", y=" + y + ", aeAwb=" + includeAeAwb + ") -> " + supported)
+        return supported
     }
 
     override fun startAt(
@@ -56,6 +58,7 @@ internal class CameraXFocusEngine(
         if (autoCancelSeconds <= 0) builder.disableAutoCancel()
         else builder.setAutoCancelDuration(autoCancelSeconds.toLong(), TimeUnit.SECONDS)
         val action = builder.build()
+        android.util.Log.d("AEAF_EV", "FocusEngine.startAt(x=" + x + ", y=" + y + ", aeAwb=" + includeAeAwb + ", autoCancel=" + autoCancelSeconds + ")")
         val future = camera.cameraControl.startFocusAndMetering(action)
         val resolved = java.util.concurrent.atomic.AtomicBoolean(false)
         // Timeout fallback ~3s
@@ -69,6 +72,7 @@ internal class CameraXFocusEngine(
             try {
                 val result = future.get()
                 if (resolved.compareAndSet(false, true)) {
+                    android.util.Log.d("AEAF_EV", "FocusEngine.startAt.result -> success=" + result.isFocusSuccessful)
                     onResult(result.isFocusSuccessful)
                 }
             } catch (t: Throwable) {
@@ -105,6 +109,7 @@ internal class CameraXFocusEngine(
                 .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, locked)
                 .build()
             control.setCaptureRequestOptions(options)
+            android.util.Log.d("AEAF_EV", "FocusEngine.setAeLock(" + locked + ")")
         } catch (_: Throwable) {
             // best effort; ignore if not supported
         }

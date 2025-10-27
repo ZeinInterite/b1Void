@@ -231,9 +231,33 @@ class CameraXFocusController(
         val raw = targetEv / step
         val rounded = kotlin.math.round(raw)
         val idx = rounded.toInt().coerceIn(st.exposureCompensationRange.lower, st.exposureCompensationRange.upper)
+        Log.d("AEAF_EV", "CameraXFocusController.setEv: deltaEV=" + delta + ", step=" + step + ", targetEV=" + targetEv + ", idx=" + idx + " range=[" + st.exposureCompensationRange.lower + ".." + st.exposureCompensationRange.upper + "]")
         camera.cameraControl.setExposureCompensationIndex(idx)
         _ev.value = idx * step
         telemetry.log("ev_change", mapOf("value" to _ev.value))
+    }
+
+    override suspend fun setAbsoluteEv(evValue: Float) {
+        val st = camera.cameraInfo.exposureState
+        val step = st.exposureCompensationStep.toFloat().takeIf { it > 0 } ?: 0.3333f
+        _step.value = step
+        val clampedEv = evValue.coerceIn(-2f, 2f)
+        val raw = clampedEv / step
+        val rounded = kotlin.math.round(raw)
+        val idx = rounded.toInt().coerceIn(st.exposureCompensationRange.lower, st.exposureCompensationRange.upper)
+        Log.d("AEAF_EV", "CameraXFocusController.setAbsoluteEv: ev=" + evValue + " -> clamped=" + clampedEv + ", step=" + step + ", idx=" + idx + " range=[" + st.exposureCompensationRange.lower + ".." + st.exposureCompensationRange.upper + "]")
+        camera.cameraControl.setExposureCompensationIndex(idx)
+        _ev.value = idx * step
+        telemetry.log("ev_absolute_change", mapOf("value" to _ev.value))
+    }
+
+    override suspend fun getEvRange(): ClosedFloatingPointRange<Float> {
+        val st = camera.cameraInfo.exposureState
+        val step = st.exposureCompensationStep.toFloat().takeIf { it > 0 } ?: 0.3333f
+        val minEv = st.exposureCompensationRange.lower * step
+        val maxEv = st.exposureCompensationRange.upper * step
+        Log.d("AEAF_EV", "CameraXFocusController.getEvRange -> [" + minEv + ".." + maxEv + "] step=" + step)
+        return minEv.coerceIn(-2f, 2f)..maxEv.coerceIn(-2f, 2f)
     }
 
     override suspend fun enableMacro(enabled: Boolean) {

@@ -8,6 +8,7 @@ class FocusCoordinator(
     private val config: Config = Config(),
     private val telemetry: TelemetryLogger = TelemetryLogger.NOOP
 ) {
+    private val logTag = "AEAF_EV"
     data class Config(
         // Автоотмена ручного тапа: по умолчанию 5 сек
         val tapAutoCancelSeconds: Int = 5,
@@ -52,11 +53,13 @@ class FocusCoordinator(
     fun isLocked(): Boolean = locked.get()
 
     fun onSingleTap(x: Float, y: Float) {
+        android.util.Log.d(logTag, "FocusCoordinator.onSingleTap(x=" + x + ", y=" + y + ") locked=" + locked.get())
         if (locked.get()) return
         telemetry.log("tap_focus", mapOf("x" to x, "y" to y))
         lastPoint = x to y
         callbacks.showIndicator(x, y)
         if (!engine.isSupportedAt(x, y, includeAeAwb = true)) {
+            android.util.Log.w(logTag, "FocusCoordinator: metering not supported at point")
             callbacks.onFocusResult(false)
             callbacks.hideIndicator()
             telemetry.log("af_fail", mapOf("reason" to "not_supported"))
@@ -75,6 +78,7 @@ class FocusCoordinator(
     }
 
     fun onLongPress(x: Float, y: Float) {
+        android.util.Log.d(logTag, "FocusCoordinator.onLongPress(x=" + x + ", y=" + y + ") currentLocked=" + locked.get())
         if (locked.get()) {
             cancelAndUnlock()
             return
@@ -97,6 +101,7 @@ class FocusCoordinator(
     }
 
     fun resetToCenter() {
+        android.util.Log.d(logTag, "FocusCoordinator.resetToCenter()")
         engine.cancel()
         if (locked.getAndSet(false)) {
             engine.setAeLock(false)
@@ -110,6 +115,7 @@ class FocusCoordinator(
     }
 
     fun cancelAndUnlock() {
+        android.util.Log.d(logTag, "FocusCoordinator.cancelAndUnlock()")
         engine.cancel()
         if (locked.getAndSet(false)) {
             engine.setAeLock(false)
