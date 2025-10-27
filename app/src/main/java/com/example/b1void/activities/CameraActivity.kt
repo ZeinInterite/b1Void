@@ -29,6 +29,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.util.Size
 import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.ScaleGestureDetector
@@ -201,6 +202,8 @@ class CameraActivity : AppCompatActivity() {
     private var minZoomRatio = 1f
     private var maxZoomRatio = 1f
     private var isZoomGesture = false
+    // While finger touches the screen, keep focus/EV UI visible
+    private var userTouchActive = false
     private var shouldRestoreTorchState = false
     private var savedTorchState = false
     private val useComposeZoom = true
@@ -212,19 +215,33 @@ class CameraActivity : AppCompatActivity() {
     private var holdStartRunnable: Runnable? = null
     private var holdToRecordDelayMs = 3000L  // Загружается из настроек, по умолчанию 0.8 сек
     private var pressDownUptime: Long = 0L
-    private val quickTapThresholdMs = 150L
+    private val quickTapThresholdMs = 100L
     private var waitingForStopTap = false  // Флаг: палец отпущен после старта записи, ждем следующий тап для остановки
-    private val hideFocusIndicatorRunnable = Runnable {
-        focusIndicator.animate().cancel()
-        focusIndicator.visibility = View.GONE
-        hideEvUi()
-        Log.d(AEAF_TAG, "hideFocusIndicatorRunnable: ring + EV UI hidden")
+    private val hideFocusIndicatorRunnable = object : Runnable {
+        override fun run() {
+            if (userTouchActive) {
+                // Defer hiding while user still touching the screen
+                evOverlay.removeCallbacks(this)
+                evOverlay.postDelayed(this, 500)
+                Log.v(AEAF_TAG, "defer hide (userTouchActive)")
+                return
+            }
+            focusIndicator.animate().cancel()
+            focusIndicator.visibility = View.GONE
+            hideEvUi()
+            Log.d(AEAF_TAG, "hideFocusIndicatorRunnable: ring + EV UI hidden")
+        }
     }
     private var focusLastX: Float? = null
     private var focusLastY: Float? = null
     private var evHideRunnable: Runnable? = null
     private var evController: com.example.b1void.camera.ev.EvController? = null
     private var previewEvLastY: Float? = null
+    private var previewDownX: Float? = null
+    private var previewDownY: Float? = null
+    private var previewDownUptime: Long = 0L
+    private var evBeginRunnable: Runnable? = null
+    private val evHoldDelayMs = 180L
 
     // Focus coordination
     private var focusCoordinator: com.example.b1void.camera.focus.FocusCoordinator? = null
@@ -449,8 +466,27 @@ class CameraActivity : AppCompatActivity() {
             val handled = tapGestureDetector.onTouchEvent(event)
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    userTouchActive = true
                     isZoomGesture = false
                     Log.d(AEAF_TAG, "touch ACTION_DOWN: x=" + event.x + ", y=" + event.y + ", pointers=" + event.pointerCount)
+                    // Do NOT move focus reticle yet; only on confirmed tap.
+                    // Prepare for possible EV drag after short hold delay
+                    ensureEvController()
+                    previewEvLastY = null
+                    // Record for tap vs hold detection
+                    previewDownX = event.x
+                    previewDownY = event.y
+                    previewDownUptime = SystemClock.uptimeMillis()
+                    evBeginRunnable?.let { evOverlay.removeCallbacks(it) }
+                    evBeginRunnable = Runnable {
+                        if (userTouchActive) {
+                            evController?.begin()
+                            showEvUi()
+                            previewEvLastY = previewDownY
+                            Log.d(AEAF_TAG, "preview EV begin (hold delay)")
+                        }
+                    }
+                    evOverlay.postDelayed(evBeginRunnable!!, evHoldDelayMs)
                     // If finger lands near the EV bar, begin EV tracking from the preview
                     try {
                         val pv = IntArray(2)
@@ -475,13 +511,25 @@ class CameraActivity : AppCompatActivity() {
                 MotionEvent.ACTION_MOVE -> {
                     if (!isZoomGesture) {
                         // If preview-based EV drag session is active, adjust globally
-                        val activeLast = previewEvLastY
+                        var activeLast = previewEvLastY
+                        if (activeLast == null) {
+                            // If user moved beyond touch slop vertically, start EV immediately
+                            val dy0 = event.y - (previewDownY ?: event.y)
+                            val slop = ViewConfiguration.get(this).scaledTouchSlop.toFloat()
+                            if (kotlin.math.abs(dy0) > slop) {
+                                evBeginRunnable?.let { evOverlay.removeCallbacks(it) }
+                                evController?.begin()
+                                showEvUi()
+                                previewEvLastY = event.y
+                                activeLast = previewEvLastY
+                                Log.d(AEAF_TAG, "preview EV begin (moved beyond slop)")
+                            }
+                        }
                         if (activeLast != null) {
                             ensureEvController()
                             val dy = event.y - activeLast
                             previewEvLastY = event.y
                             evController?.adjustByDrag(dy)
-                            scheduleHideEvOverlay()
                             Log.v(AEAF_TAG, "preview EV MOVE active: dy=" + dy)
                         }
                         val pv = IntArray(2)
@@ -501,29 +549,41 @@ class CameraActivity : AppCompatActivity() {
                                 val dy = event.y - last
                                 previewEvLastY = event.y
                                 evController?.adjustByDrag(dy)
-                                scheduleHideEvOverlay()
                                 Log.v(AEAF_TAG, "preview EV MOVE nearBar: dy=" + dy)
                             }
                         }
                     }
                 }
-                MotionEvent.ACTION_CANCEL -> { isZoomGesture = false; Log.d(AEAF_TAG, "touch ACTION_CANCEL") }
+                MotionEvent.ACTION_CANCEL -> { isZoomGesture = false; userTouchActive = false; previewDownX = null; previewDownY = null; evBeginRunnable?.let { evOverlay.removeCallbacks(it) }; Log.d(AEAF_TAG, "touch ACTION_CANCEL") }
                 MotionEvent.ACTION_UP -> {
                     // Лёгкое нажатие (короткий тап) – фокусируемся в точке отпускания
                     if (!isZoomGesture) {
-                        startFocusMeteringAt(event.x, event.y, showIndicator = true)
-                        Log.d(AEAF_TAG, "touch ACTION_UP: startFocusMeteringAt at x=" + event.x + ", y=" + event.y)
+                        val dt = SystemClock.uptimeMillis() - previewDownUptime
+                        val dx = event.x - (previewDownX ?: event.x)
+                        val dy = event.y - (previewDownY ?: event.y)
+                        val slop = ViewConfiguration.get(this).scaledTouchSlop.toFloat()
+                        val moved = (dx * dx + dy * dy) > (slop * slop)
+                        val isTap = dt <= quickTapThresholdMs && !moved
+                        if (isTap) {
+                            // Move and trigger focus only on confirmed TAP
+                            startFocusMeteringAt(event.x, event.y, showIndicator = true)
+                            Log.d(AEAF_TAG, "touch ACTION_UP: TAP -> startFocusMeteringAt at x=" + event.x + ", y=" + event.y)
+                        } else {
+                            Log.d(AEAF_TAG, "touch ACTION_UP: HOLD/DRAG -> skip refocus")
+                        }
                         // Через 5 секунд возвращаемся в автофокус по центру
                         
                         
                         if (focusCoordinator?.isLocked() == true) scheduleHideEvOverlay()
                         if (previewEvLastY != null) {
-                            scheduleHideEvOverlay()
                             previewEvLastY = null
                             rootLayout.requestDisallowInterceptTouchEvent(false)
                             Log.d(AEAF_TAG, "preview EV end on ACTION_UP")
                         }
                     }
+                    evBeginRunnable?.let { evOverlay.removeCallbacks(it) }
+                    userTouchActive = false
+                    scheduleHideEvOverlay()
                     view.performClick()
                 }
             }
@@ -572,6 +632,7 @@ class CameraActivity : AppCompatActivity() {
         evOverlay.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    userTouchActive = true
                     evTouchLastY = event.y
                     ensureEvController()
                     evController?.begin()
@@ -587,7 +648,6 @@ class CameraActivity : AppCompatActivity() {
                         evTouchLastY = event.y
                         ensureEvController()
                         evController?.adjustByDrag(dy)
-                        scheduleHideEvOverlay()
                         Log.v(AEAF_TAG, "evOverlay MOVE: dy=" + dy + ", y=" + event.y)
                         return@setOnTouchListener true
                     }
@@ -600,6 +660,7 @@ class CameraActivity : AppCompatActivity() {
                     // Stop EV tracking but keep overlay; schedule auto-hide
                     ensureEvController()
                     // Do not call end() here to avoid immediate hide; let auto-hide handle it
+                    userTouchActive = false
                     scheduleHideEvOverlay()
                     rootLayout.requestDisallowInterceptTouchEvent(false)
                     true
@@ -1853,10 +1914,21 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun scheduleHideEvOverlay() {
+        if (userTouchActive) {
+            Log.v(AEAF_TAG, "skip scheduleHideEvOverlay (userTouchActive)")
+            return
+        }
         evHideRunnable?.let { evOverlay.removeCallbacks(it) }
-        val r = Runnable {
-            Log.d(AEAF_TAG, "auto-hide EV overlay now")
-            hideEvUi()
+        val r = object : Runnable {
+            override fun run() {
+                if (userTouchActive) {
+                    Log.v(AEAF_TAG, "defer auto-hide (userTouchActive)")
+                    evOverlay.postDelayed(this, 500)
+                    return
+                }
+                Log.d(AEAF_TAG, "auto-hide EV overlay now")
+                hideEvUi()
+            }
         }
         evHideRunnable = r
         Log.d(AEAF_TAG, "scheduleHideEvOverlay: 1500ms")

@@ -1,0 +1,61 @@
+    private fun startFocusMeteringAt(x: Float, y: Float, showIndicator: Boolean) {
+        // Backward-compat wrapper: delegate to coordinator
+        if (showIndicator) showFocusIndicator(x, y)
+        focusCoordinator?.onSingleTap(x, y)
+        // Плановый возврат в автофокус по центру через 5 секунд
+        
+        
+    }
+
+    private fun toggleLockIcon(locked: Boolean) {
+        lockIcon.animate().cancel()
+        if (locked) {
+            lockIcon.alpha = 0f
+            lockIcon.visibility = View.VISIBLE
+            lockIcon.animate().alpha(1f).setDuration(120).start()
+        } else {
+            lockIcon.animate().alpha(0f).setDuration(120).withEndAction {
+                lockIcon.visibility = View.GONE
+            }.start()
+        }
+    }
+
+    private fun ensureEvController() {
+        if (evController == null) {
+            camera?.let { cam ->
+                evController = com.example.b1void.camera.ev.EvController(
+                    onOverlayVisibility = { visible ->
+                        Log.d(AEAF_TAG, "overlay visibility -> " + (if (visible) "VISIBLE" else "GONE"))
+                        if (visible) showEvUi() else hideEvUi()
+                    },
+                    onOverlayValue = { ev ->
+                        Log.v(AEAF_TAG, "overlay value EV=" + ev)
+                        val st = cam.cameraInfo.exposureState
+                        val step = st.exposureCompensationStep.toFloat().takeIf { it > 0 } ?: 0.3333f
+                        val minEv = st.exposureCompensationRange.lower * step
+                        val maxEv = st.exposureCompensationRange.upper * step
+                        updateSunPosition(ev, minEv, maxEv)
+                    }
+                ).also {
+                    it.attach(cam)
+                    Log.i(AEAF_TAG, "ensureEvController: created and attached")
+                    // Sync initial EV knob
+                    syncSunToCurrentEv()
+                }
+            }
+        }
+    }
+
+    private fun scheduleHideEvOverlay() {
+        evHideRunnable?.let { evOverlay.removeCallbacks(it) }
+        val r = Runnable {
+            Log.d(AEAF_TAG, "auto-hide EV overlay now")
+            hideEvUi()
+        }
+        evHideRunnable = r
+        Log.d(AEAF_TAG, "scheduleHideEvOverlay: 1500ms")
+        evOverlay.postDelayed(r, 1500)
+    }
+
+    private fun showFocusIndicator(x: Float, y: Float) {
+        val indicatorWidth = focusIndicator.width.takeIf { it > 0 }
