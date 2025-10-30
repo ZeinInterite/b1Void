@@ -28,7 +28,7 @@ class EvController(
         override fun run() {
             if (active) {
                 syncUiWithCamera()
-                handler.postDelayed(this, 50) // Обновляем каждые 50ms для плавности
+                handler.postDelayed(this, 100) // poll at 10Hz to reduce UI thread load
             }
         }
     }

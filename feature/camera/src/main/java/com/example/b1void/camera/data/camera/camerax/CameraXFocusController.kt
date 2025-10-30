@@ -6,8 +6,8 @@ import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
 import android.util.Log
 import androidx.camera.camera2.interop.Camera2CameraControl
-import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.CaptureRequestOptions
+import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.Camera
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.view.PreviewView
@@ -54,7 +54,7 @@ class CameraXFocusController(
 
     init {
         // Применяем оптимизации для конкретного производителя при инициализации
-        applyManufacturerOptimizations()
+        // manufacturer tweaks disabled
     }
 
     /**
@@ -63,6 +63,8 @@ class CameraXFocusController(
      */
     @androidx.camera.camera2.interop.ExperimentalCamera2Interop
     private fun applyManufacturerOptimizations() {
+        // disabled: avoid manufacturer-specific reflection hacks
+        return
         try {
             // Получаем класс ManufacturerCompatibility через рефлексию
             // чтобы избежать прямой зависимости модуля :feature:camera от :app
@@ -102,6 +104,8 @@ class CameraXFocusController(
         minIso: Int?,
         disableSceneModes: Boolean
     ) {
+        // disabled
+        return
         scope.launch {
             try {
                 val camera2Control = Camera2CameraControl.from(camera.cameraControl)
@@ -172,6 +176,8 @@ class CameraXFocusController(
         minIso: Int?,
         disableSceneModes: Boolean
     ) {
+        // disabled
+        return
         try {
             val manufacturer = android.os.Build.MANUFACTURER.lowercase()
 
@@ -247,15 +253,7 @@ class CameraXFocusController(
         try {
             camera.cameraControl.cancelFocusAndMetering()
         } catch (_: Throwable) {}
-        try {
-            val control = Camera2CameraControl.from(camera.cameraControl)
-            control.setCaptureRequestOptions(
-                CaptureRequestOptions.Builder()
-                    .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
-                    .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-                    .build()
-            )
-        } catch (_: Throwable) {}
+        // Do not force AE/AF modes here; let CameraX return to continuous behavior.
         _state.update { FocusState.Idle() }
         telemetry.log("ae_unlock")
     }
@@ -277,7 +275,7 @@ class CameraXFocusController(
                             performFocus(center.first, center.second, lock = false, retryOnce = false)
                         }
                     }
-                    kotlinx.coroutines.delay(16L)
+                    kotlinx.coroutines.delay(trackIntervalMs)
                 }
             }
         }
@@ -299,7 +297,7 @@ class CameraXFocusController(
         val raw = targetEv / step
         val rounded = kotlin.math.round(raw)
         val idx = rounded.toInt().coerceIn(st.exposureCompensationRange.lower, st.exposureCompensationRange.upper)
-        Log.d("AEAF_EV", "CameraXFocusController.setEv: deltaEV=" + delta + ", step=" + step + ", targetEV=" + targetEv + ", idx=" + idx + " range=[" + st.exposureCompensationRange.lower + ".." + st.exposureCompensationRange.upper + "]")
+        Log.v("AEAF_EV", "setEv: delta=$delta, step=$step, ev=$targetEv, idx=$idx")
         camera.cameraControl.setExposureCompensationIndex(idx)
         _ev.value = idx * step
         telemetry.log("ev_change", mapOf("value" to _ev.value))
@@ -313,7 +311,7 @@ class CameraXFocusController(
         val raw = clampedEv / step
         val rounded = kotlin.math.round(raw)
         val idx = rounded.toInt().coerceIn(st.exposureCompensationRange.lower, st.exposureCompensationRange.upper)
-        Log.d("AEAF_EV", "CameraXFocusController.setAbsoluteEv: ev=" + evValue + " -> clamped=" + clampedEv + ", step=" + step + ", idx=" + idx + " range=[" + st.exposureCompensationRange.lower + ".." + st.exposureCompensationRange.upper + "]")
+        Log.v("AEAF_EV", "setAbsEv: ev=$evValue -> clamped=$clampedEv, step=$step, idx=$idx")
         camera.cameraControl.setExposureCompensationIndex(idx)
         _ev.value = idx * step
         telemetry.log("ev_absolute_change", mapOf("value" to _ev.value))
@@ -324,7 +322,7 @@ class CameraXFocusController(
         val step = st.exposureCompensationStep.toFloat().takeIf { it > 0 } ?: 0.3333f
         val minEv = st.exposureCompensationRange.lower * step
         val maxEv = st.exposureCompensationRange.upper * step
-        Log.d("AEAF_EV", "CameraXFocusController.getEvRange -> [" + minEv + ".." + maxEv + "] step=" + step)
+        Log.v("AEAF_EV", "evRange: [$minEv..$maxEv] step=$step")
         return minEv.coerceIn(-2f, 2f)..maxEv.coerceIn(-2f, 2f)
     }
 
@@ -367,19 +365,7 @@ class CameraXFocusController(
             return
         }
 
-        if (lock) {
-            try {
-                val control = Camera2CameraControl.from(camera.cameraControl)
-                control.setCaptureRequestOptions(
-                    CaptureRequestOptions.Builder()
-                        .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, true)
-                        // Lock AF to AUTO mode while locked, with trigger idle
-                        .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO)
-                        .setCaptureRequestOption(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE)
-                        .build()
-                )
-            } catch (_: Throwable) {}
-        }
+        // Do not force low-level AE/AF via interop; rely on CameraX metering behavior for compatibility.
 
         val future = camera.cameraControl.startFocusAndMetering(action)
         val resolved = AtomicBoolean(false)
