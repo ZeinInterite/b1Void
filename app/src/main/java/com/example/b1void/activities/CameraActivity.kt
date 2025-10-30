@@ -203,6 +203,10 @@ class CameraActivity : AppCompatActivity() {
     private var minZoomRatio = 1f
     private var maxZoomRatio = 1f
     private var isZoomGesture = false
+    // Throttling для pinch-to-zoom для предотвращения задержек
+    private var lastZoomUpdateTime = 0L
+    private var pendingZoomRatio: Float? = null
+    private val ZOOM_UPDATE_INTERVAL_MS = 16L  // ~60 FPS максимум
     // While finger touches the screen, keep focus/EV UI visible
     private var userTouchActive = false
     private var shouldRestoreTorchState = false
@@ -237,12 +241,21 @@ class CameraActivity : AppCompatActivity() {
     private var focusLastY: Float? = null
     private var evHideRunnable: Runnable? = null
     private var evController: com.example.b1void.camera.ev.EvController? = null
-    private var previewEvLastY: Float? = null
+
+    // EV adjustment state variables
+    private var isEvAdjustmentActive: Boolean = false  // Flag indicating EV adjustment mode is active
+    private var evInitialTouchX: Float? = null
+    private var evInitialTouchY: Float? = null
+    private var evTouchDownTime: Long = 0L
+    private var evLongPressRunnable: Runnable? = null
+    private val EV_LONG_PRESS_DURATION = 500L  // 0.5 seconds required to activate EV adjustment
+    private val MIN_VERTICAL_MOVEMENT = 10f  // dp - minimum vertical movement to start adjusting
+    private val ZOOM_EXCLUSION_MARGIN = 48f  // dp - exclusion zone around zoom slider
+
+    // General touch tracking for focus/tap detection
     private var previewDownX: Float? = null
     private var previewDownY: Float? = null
     private var previewDownUptime: Long = 0L
-    private var evBeginRunnable: Runnable? = null
-    private val evHoldDelayMs = 180L
 
     // Focus coordination
     private var focusCoordinator: com.example.b1void.camera.focus.FocusCoordinator? = null
@@ -314,6 +327,8 @@ class CameraActivity : AppCompatActivity() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
             // Устанавливаем флаг СРАЗУ при начале pinch gesture
             isZoomGesture = true
+            lastZoomUpdateTime = SystemClock.elapsedRealtime()
+            pendingZoomRatio = null
             Log.d(TAG, "Pinch-to-zoom начался (scaleFactor=${detector.scaleFactor})")
             return true // Возвращаем true чтобы получать дальнейшие события onScale
         }
@@ -323,14 +338,35 @@ class CameraActivity : AppCompatActivity() {
             val zoomState = camera.cameraInfo.zoomState.value ?: return true
             val currentZoomRatio = zoomState.zoomRatio
             val newZoomRatio = currentZoomRatio * detector.scaleFactor
-            camera.cameraControl.setZoomRatio(newZoomRatio)
-            Log.v(TAG, "Pinch-to-zoom: ${currentZoomRatio} -> ${newZoomRatio}")
+
+            // Throttling: обновляем зум не чаще чем раз в ZOOM_UPDATE_INTERVAL_MS
+            val now = SystemClock.elapsedRealtime()
+            val timeSinceLastUpdate = now - lastZoomUpdateTime
+
+            if (timeSinceLastUpdate >= ZOOM_UPDATE_INTERVAL_MS) {
+                // Достаточно времени прошло - применяем зум сразу
+                camera.cameraControl.setZoomRatio(newZoomRatio)
+                lastZoomUpdateTime = now
+                pendingZoomRatio = null
+                Log.v(TAG, "Pinch-to-zoom APPLIED: ${currentZoomRatio} -> ${newZoomRatio}")
+            } else {
+                // Слишком рано для обновления - сохраняем для применения позже
+                pendingZoomRatio = newZoomRatio
+                Log.v(TAG, "Pinch-to-zoom PENDING: ${currentZoomRatio} -> ${newZoomRatio} (wait ${ZOOM_UPDATE_INTERVAL_MS - timeSinceLastUpdate}ms)")
+            }
             return true
         }
 
         override fun onScaleEnd(detector: ScaleGestureDetector) {
+            // Применяем отложенный зум если есть
+            pendingZoomRatio?.let { ratio ->
+                camera?.cameraControl?.setZoomRatio(ratio)
+                Log.d(TAG, "Pinch-to-zoom завершен, применен отложенный зум: $ratio")
+            }
+
             // Сбрасываем флаг после завершения pinch gesture
             isZoomGesture = false
+            pendingZoomRatio = null
             Log.d(TAG, "Pinch-to-zoom завершен")
         }
     }
@@ -494,101 +530,119 @@ class CameraActivity : AppCompatActivity() {
                     userTouchActive = true
                     // НЕ устанавливаем isZoomGesture здесь - это делается в onScaleBegin
                     Log.d(AEAF_TAG, "touch ACTION_DOWN: x=" + event.x + ", y=" + event.y + ", pointers=" + event.pointerCount)
-                    // Do NOT move focus reticle yet; only on confirmed tap.
-                    // Prepare for possible EV drag after short hold delay
-                    ensureEvController()
-                    previewEvLastY = null
-                    // Record for tap vs hold detection
+
+                    // Record touch for tap vs hold detection
                     previewDownX = event.x
                     previewDownY = event.y
                     previewDownUptime = SystemClock.uptimeMillis()
-                    evBeginRunnable?.let { evOverlay.removeCallbacks(it) }
-                    evBeginRunnable = Runnable {
-                        if (userTouchActive) {
-                            evController?.begin()
-                            showEvUi()
-                            previewEvLastY = previewDownY
-                            Log.d(AEAF_TAG, "preview EV begin (hold delay)")
+
+                    // Reset EV adjustment state
+                    isEvAdjustmentActive = false
+                    evInitialTouchX = event.x
+                    evInitialTouchY = event.y
+                    evTouchDownTime = SystemClock.uptimeMillis()
+
+                    // Cancel any existing long press timer
+                    evLongPressRunnable?.let { evOverlay.removeCallbacks(it) }
+
+                    // Check if touch is in zoom exclusion zone
+                    val isInExclusionZone = isInZoomExclusionZone(event.x, event.y)
+
+                    if (!isInExclusionZone) {
+                        // Start long press timer for EV adjustment activation
+                        evLongPressRunnable = Runnable {
+                            // Activate EV adjustment mode after 0.5 second hold
+                            if (userTouchActive && event.pointerCount == 1 && !isZoomGesture) {
+                                isEvAdjustmentActive = true
+                                ensureEvController()
+                                evController?.begin()
+                                showEvUi()
+                                Log.d(AEAF_TAG, "EV adjustment ACTIVATED after long press (0.5s)")
+
+                                // Optional: haptic feedback to indicate activation
+                                try {
+                                    view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                                } catch (_: Throwable) { }
+                            } else {
+                                Log.d(AEAF_TAG, "EV long press cancelled: userTouchActive=$userTouchActive, pointers=${event.pointerCount}, isZoomGesture=$isZoomGesture")
+                            }
                         }
+                        evOverlay.postDelayed(evLongPressRunnable!!, EV_LONG_PRESS_DURATION)
+                        Log.d(AEAF_TAG, "EV long press timer STARTED (${EV_LONG_PRESS_DURATION}ms)")
+                    } else {
+                        Log.d(AEAF_TAG, "Touch in zoom exclusion zone - EV adjustment NOT available")
                     }
-                    evOverlay.postDelayed(evBeginRunnable!!, evHoldDelayMs)
-                    // If finger lands near the EV bar, begin EV tracking from the preview
-                    try {
-                        val pv = IntArray(2)
-                        val ov = IntArray(2)
-                        previewView.getLocationOnScreen(pv)
-                        evOverlay.getLocationOnScreen(ov)
-                        val sx = pv[0] + event.x.toInt()
-                        val sy = pv[1] + event.y.toInt()
-                        val within = sx >= ov[0] - 20 && sx <= ov[0] + evOverlay.width + 20 && sy >= ov[1] - 32 && sy <= ov[1] + evOverlay.height + 32
-                        if (within) {
-                            ensureEvController()
-                            evController?.begin()
-                            showEvUi()
-                            previewEvLastY = event.y
-                            rootLayout.requestDisallowInterceptTouchEvent(true)
-                            Log.d(AEAF_TAG, "preview EV begin (near bar) y=" + event.y)
-                        }
-                    } catch (_: Throwable) { }
+
                     showControlsOnInteraction()
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> {
+                    // Second finger down - this is a pinch gesture
+                    // Cancel EV adjustment long press timer and deactivate EV mode
+                    evLongPressRunnable?.let {
+                        evOverlay.removeCallbacks(it)
+                        Log.d(AEAF_TAG, "EV long press timer CANCELLED (pinch detected)")
+                    }
+                    isEvAdjustmentActive = false
                     // isZoomGesture теперь устанавливается в onScaleBegin, не нужно здесь
-                    Log.d(AEAF_TAG, "touch POINTER_DOWN -> pinch detected (pointers=" + event.pointerCount + ")")
+                    Log.d(AEAF_TAG, "touch POINTER_DOWN -> pinch detected (pointers=" + event.pointerCount + "), EV adjustment disabled")
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    // Пропускаем обработку движения если zoom активен
-                    if (scaleGestureDetector.isInProgress) {
-                        Log.v(AEAF_TAG, "touch ACTION_MOVE: пропущено (zoom в процессе)")
+                    // Skip processing if zoom is active
+                    if (scaleGestureDetector.isInProgress || isZoomGesture) {
+                        Log.v(AEAF_TAG, "touch ACTION_MOVE: skipped (zoom in progress)")
                         return@setOnTouchListener true
                     }
 
-                    if (!isZoomGesture) {
-                        // If preview-based EV drag session is active, adjust globally
-                        var activeLast = previewEvLastY
-                        if (activeLast == null) {
-                            // If user moved beyond touch slop vertically, start EV immediately
-                            val dy0 = event.y - (previewDownY ?: event.y)
-                            val slop = ViewConfiguration.get(this).scaledTouchSlop.toFloat()
-                            if (kotlin.math.abs(dy0) > slop) {
-                                evBeginRunnable?.let { evOverlay.removeCallbacks(it) }
-                                evController?.begin()
-                                showEvUi()
-                                previewEvLastY = event.y
-                                activeLast = previewEvLastY
-                                Log.d(AEAF_TAG, "preview EV begin (moved beyond slop)")
+                    // Process EV adjustment only if it was activated by long press
+                    if (isEvAdjustmentActive) {
+                        val lastY = evInitialTouchY
+                        if (lastY != null) {
+                            // Calculate incremental delta from last position
+                            val dy = event.y - lastY
+
+                            // Apply smoothing and damping to reduce jitter
+                            // Lower multiplier = smoother, less sensitive movement
+                            val dampingFactor = 0.7f
+                            val smoothedDy = dy * dampingFactor
+
+                            // Clamp maximum change per frame to avoid jumps
+                            val maxDeltaPerFrame = 8f  // pixels
+                            val clampedDy = smoothedDy.coerceIn(-maxDeltaPerFrame, maxDeltaPerFrame)
+
+                            // Only adjust if movement is significant enough
+                            if (kotlin.math.abs(clampedDy) > 0.5f) {
+                                ensureEvController()
+                                evController?.adjustByDrag(clampedDy)
+
+                                // Update position for next frame
+                                evInitialTouchY = event.y
+
+                                Log.v(AEAF_TAG, "EV adjustment: dy=$dy, smoothed=$smoothedDy, clamped=$clampedDy")
                             }
                         }
-                        if (activeLast != null) {
-                            ensureEvController()
-                            val dy = event.y - activeLast
-                            previewEvLastY = event.y
-                            evController?.adjustByDrag(dy)
-                            Log.v(AEAF_TAG, "preview EV MOVE active: dy=" + dy)
-                        }
-                        val pv = IntArray(2)
-                        val ov = IntArray(2)
-                        previewView.getLocationOnScreen(pv)
-                        evOverlay.getLocationOnScreen(ov)
-                        val sx = pv[0] + event.x.toInt()
-                        val sy = pv[1] + event.y.toInt()
-                        val within = sx >= ov[0] - 20 && sx <= ov[0] + evOverlay.width + 20 && sy >= ov[1] - 32 && sy <= ov[1] + evOverlay.height + 32
-                        Log.d(AEAF_TAG, "touch ACTION_MOVE: x=" + event.x + ", y=" + event.y + " (EV drag not handled) nearBar=" + within + " screenX=" + sx + ", screenY=" + sy)
-                        if (within && activeLast == null) {
-                            ensureEvController()
-                            val last = previewEvLastY
-                            if (last == null) {
-                                previewEvLastY = event.y
-                            } else {
-                                val dy = event.y - last
-                                previewEvLastY = event.y
-                                evController?.adjustByDrag(dy)
-                                Log.v(AEAF_TAG, "preview EV MOVE nearBar: dy=" + dy)
-                            }
-                        }
+                    } else {
+                        // EV adjustment not active - just log for debugging
+                        Log.v(AEAF_TAG, "touch ACTION_MOVE: x=" + event.x + ", y=" + event.y + " (EV not active)")
                     }
                 }
-                MotionEvent.ACTION_CANCEL -> { isZoomGesture = false; userTouchActive = false; previewDownX = null; previewDownY = null; evBeginRunnable?.let { evOverlay.removeCallbacks(it) }; Log.d(AEAF_TAG, "touch ACTION_CANCEL") }
+                MotionEvent.ACTION_CANCEL -> {
+                    // Cancel - clean up all state
+                    isZoomGesture = false
+                    userTouchActive = false
+                    previewDownX = null
+                    previewDownY = null
+
+                    // Cancel EV long press timer and deactivate
+                    evLongPressRunnable?.let {
+                        evOverlay.removeCallbacks(it)
+                        Log.d(AEAF_TAG, "EV long press timer CANCELLED (ACTION_CANCEL)")
+                    }
+                    isEvAdjustmentActive = false
+                    evInitialTouchX = null
+                    evInitialTouchY = null
+
+                    Log.d(AEAF_TAG, "touch ACTION_CANCEL - all EV state cleared")
+                }
                 MotionEvent.ACTION_UP -> {
                     // Лёгкое нажатие (короткий тап) – фокусируемся в точке отпускания
                     if (!isZoomGesture) {
@@ -630,7 +684,7 @@ class CameraActivity : AppCompatActivity() {
                                                         focusIndicator.removeCallbacks(hideFocusIndicatorRunnable)
                                                         focusIndicator.postDelayed(
                                                             hideFocusIndicatorRunnable,
-                                                            if (success) 1500 else 800
+                                                            1500  // Одинаковое время показа для успешного и неудачного фокуса
                                                         )
                                                     }
                                                 } catch (_: Exception) {
@@ -638,7 +692,7 @@ class CameraActivity : AppCompatActivity() {
                                                 }
                                             }, ContextCompat.getMainExecutor(this))
                                         } else {
-                                            focusIndicator.postDelayed(hideFocusIndicatorRunnable, 800)
+                                            focusIndicator.postDelayed(hideFocusIndicatorRunnable, 1500)
                                             Log.w(AEAF_TAG, "Focus/metering not supported at this point (fallback)")
                                         }
                                     }
@@ -648,18 +702,26 @@ class CameraActivity : AppCompatActivity() {
                             Log.d(AEAF_TAG, "touch ACTION_UP: HOLD/DRAG -> skip refocus")
                         }
                         // Через 5 секунд возвращаемся в автофокус по центру
-                        
-                        
+
                         if (focusCoordinator?.isLocked() == true) scheduleHideEvOverlay()
-                        if (previewEvLastY != null) {
-                            previewEvLastY = null
-                            rootLayout.requestDisallowInterceptTouchEvent(false)
-                            Log.d(AEAF_TAG, "preview EV end on ACTION_UP")
-                        }
                     }
-                    evBeginRunnable?.let { evOverlay.removeCallbacks(it) }
+
+                    // Clean up EV adjustment state on finger up
+                    evLongPressRunnable?.let {
+                        evOverlay.removeCallbacks(it)
+                        Log.d(AEAF_TAG, "EV long press timer CANCELLED (ACTION_UP)")
+                    }
+
+                    if (isEvAdjustmentActive) {
+                        Log.d(AEAF_TAG, "EV adjustment DEACTIVATED on ACTION_UP")
+                        scheduleHideEvOverlay()
+                    }
+
+                    isEvAdjustmentActive = false
+                    evInitialTouchX = null
+                    evInitialTouchY = null
                     userTouchActive = false
-                    scheduleHideEvOverlay()
+
                     view.performClick()
                 }
             }
@@ -723,10 +785,22 @@ class CameraActivity : AppCompatActivity() {
                     val last = evTouchLastY
                     if (last != null) {
                         val dy = event.y - last
-                        evTouchLastY = event.y
-                        ensureEvController()
-                        evController?.adjustByDrag(dy)
-                        Log.v(AEAF_TAG, "evOverlay MOVE: dy=" + dy + ", y=" + event.y)
+
+                        // Apply smoothing and damping to reduce jitter and jerky movement
+                        val dampingFactor = 0.7f
+                        val smoothedDy = dy * dampingFactor
+
+                        // Clamp maximum change per frame to avoid sudden jumps
+                        val maxDeltaPerFrame = 8f  // pixels
+                        val clampedDy = smoothedDy.coerceIn(-maxDeltaPerFrame, maxDeltaPerFrame)
+
+                        // Only process if movement is significant
+                        if (kotlin.math.abs(clampedDy) > 0.5f) {
+                            evTouchLastY = event.y
+                            ensureEvController()
+                            evController?.adjustByDrag(clampedDy)
+                            Log.v(AEAF_TAG, "evOverlay MOVE: dy=$dy, smoothed=$smoothedDy, clamped=$clampedDy")
+                        }
                         return@setOnTouchListener true
                     }
                     false
@@ -2001,7 +2075,7 @@ class CameraActivity : AppCompatActivity() {
             showFocusIndicator(width / 2f, height / 2f)
             
             if (!cam.cameraInfo.isFocusMeteringSupported(action)) {
-                focusIndicator.postDelayed(hideFocusIndicatorRunnable, 800)
+                focusIndicator.postDelayed(hideFocusIndicatorRunnable, 1500)
                 return@post
             }
             
@@ -2013,10 +2087,10 @@ class CameraActivity : AppCompatActivity() {
                         // Update autofocus button color based on focus success
                         if (result.isFocusSuccessful) {
                             autofocusButton?.setColorFilter(ContextCompat.getColor(this@CameraActivity, android.R.color.holo_green_light))
-                            focusIndicator.postDelayed(hideFocusIndicatorRunnable, 1000)
+                            focusIndicator.postDelayed(hideFocusIndicatorRunnable, 1500)
                         } else {
                             autofocusButton?.setColorFilter(ContextCompat.getColor(this@CameraActivity, android.R.color.holo_red_light))
-                            focusIndicator.postDelayed(hideFocusIndicatorRunnable, 500)
+                            focusIndicator.postDelayed(hideFocusIndicatorRunnable, 1500)
                         }
                         
                         // Clear button color after delay
@@ -2085,6 +2159,46 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Check if touch coordinates are within the zoom control exclusion zone.
+     * Returns true if the touch should NOT activate EV adjustment (too close to zoom slider).
+     *
+     * @param touchX Touch X coordinate relative to previewView
+     * @param touchY Touch Y coordinate relative to previewView
+     * @return true if touch is in exclusion zone, false otherwise
+     */
+    private fun isInZoomExclusionZone(touchX: Float, touchY: Float): Boolean {
+        return try {
+            val previewLoc = IntArray(2)
+            val zoomLoc = IntArray(2)
+            previewView.getLocationOnScreen(previewLoc)
+            zoomCompose.getLocationOnScreen(zoomLoc)
+
+            // Convert touch coordinates to screen coordinates
+            val screenX = previewLoc[0] + touchX.toInt()
+            val screenY = previewLoc[1] + touchY.toInt()
+
+            // Calculate exclusion zone with margin
+            val marginPx = (ZOOM_EXCLUSION_MARGIN * resources.displayMetrics.density).toInt()
+            val zoneLeft = zoomLoc[0] - marginPx
+            val zoneRight = zoomLoc[0] + zoomCompose.width + marginPx
+            val zoneTop = zoomLoc[1] - marginPx
+            val zoneBottom = zoomLoc[1] + zoomCompose.height + marginPx
+
+            val isInZone = screenX >= zoneLeft && screenX <= zoneRight &&
+                          screenY >= zoneTop && screenY <= zoneBottom
+
+            if (isInZone) {
+                Log.d(AEAF_TAG, "Touch in zoom exclusion zone: screenX=$screenX, screenY=$screenY")
+            }
+
+            isInZone
+        } catch (e: Throwable) {
+            Log.w(AEAF_TAG, "Failed to check zoom exclusion zone", e)
+            false  // If check fails, allow EV adjustment
+        }
+    }
+
     private fun scheduleHideEvOverlay() {
         if (userTouchActive) {
             Log.v(AEAF_TAG, "skip scheduleHideEvOverlay (userTouchActive)")
@@ -2136,17 +2250,18 @@ class CameraActivity : AppCompatActivity() {
             removeCallbacks(hideFocusIndicatorRunnable)
             visibility = View.VISIBLE
             alpha = 0.8f
-            scaleX = 1.5f
-            scaleY = 1.5f
+            // Умеренный начальный размер вместо слишком большого 1.5f
+            scaleX = 1.2f
+            scaleY = 1.2f
             translationX = clampedX
             translationY = clampedY
             animate().cancel()
-            
+
             // Enhanced focus animation with scale and fade
             animate()
                 .alpha(1f)
-                .scaleX(0.8f)
-                .scaleY(0.8f)
+                .scaleX(0.9f)
+                .scaleY(0.9f)
                 .setDuration(150)
                 .withEndAction {
                     animate()
@@ -2180,8 +2295,17 @@ class CameraActivity : AppCompatActivity() {
         // Place EV overlay vertically centered to the focus square,
         // and 0.3 cm to the left from the focus square's left edge
         evOverlay.apply {
+            // Ограничиваем X только слева (не выходим за край экрана)
             translationX = (clampedX - gapPx - evBarWidthPx).coerceAtLeast(0f)
-            translationY = (clampedY + indicatorHeight / 2f - height / 2f).coerceAtLeast(0f)
+
+            // Для Y используем правильное ограничение с учетом размеров экрана
+            // Центрируем относительно квадрата фокуса
+            val centeredEvY = clampedY + indicatorHeight / 2f - height / 2f
+            // Ограничиваем сверху и снизу, чтобы evOverlay всегда был виден
+            val minEvY = 0f
+            val maxEvY = (parentBottom - parentTop - height).coerceAtLeast(0f)
+            translationY = centeredEvY.coerceIn(minEvY, maxEvY)
+
             bringToFront()
         }
         // Place sun icon centered over the EV bar horizontally; sync to current EV
