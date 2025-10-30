@@ -602,6 +602,48 @@ class CameraActivity : AppCompatActivity() {
                             // Move and trigger focus only on confirmed TAP
                             startFocusMeteringAt(event.x, event.y, showIndicator = true)
                             Log.d(AEAF_TAG, "touch ACTION_UP: TAP -> startFocusMeteringAt at x=" + event.x + ", y=" + event.y)
+                            // Ensure CameraX focus triggers at tap point (in addition to coordinator)
+                            run {
+                                val cam = camera
+                                if (cam != null) {
+                                    val width = previewView.width
+                                    val height = previewView.height
+                                    if (width > 0 && height > 0) {
+                                        val factory = previewView.meteringPointFactory
+                                        val afPoint = factory.createPoint(event.x, event.y)
+                                        val aePoint = factory.createPoint(event.x, event.y)
+                                        val action = FocusMeteringAction.Builder(
+                                            afPoint,
+                                            FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+                                        )
+                                            .addPoint(aePoint, FocusMeteringAction.FLAG_AE)
+                                            .setAutoCancelDuration(3, TimeUnit.SECONDS)
+                                            .build()
+                                        if (cam.cameraInfo.isFocusMeteringSupported(action)) {
+                                            try { cam.cameraControl.cancelFocusAndMetering() } catch (_: Throwable) { }
+                                            val future = cam.cameraControl.startFocusAndMetering(action)
+                                            future.addListener({
+                                                try {
+                                                    val result = future.get()
+                                                    val success = result.isFocusSuccessful
+                                                    runOnUiThread {
+                                                        focusIndicator.removeCallbacks(hideFocusIndicatorRunnable)
+                                                        focusIndicator.postDelayed(
+                                                            hideFocusIndicatorRunnable,
+                                                            if (success) 1500 else 800
+                                                        )
+                                                    }
+                                                } catch (_: Exception) {
+                                                    runOnUiThread { focusIndicator.post(hideFocusIndicatorRunnable) }
+                                                }
+                                            }, ContextCompat.getMainExecutor(this))
+                                        } else {
+                                            focusIndicator.postDelayed(hideFocusIndicatorRunnable, 800)
+                                            Log.w(AEAF_TAG, "Focus/metering not supported at this point (fallback)")
+                                        }
+                                    }
+                                }
+                            }
                         } else {
                             Log.d(AEAF_TAG, "touch ACTION_UP: HOLD/DRAG -> skip refocus")
                         }
