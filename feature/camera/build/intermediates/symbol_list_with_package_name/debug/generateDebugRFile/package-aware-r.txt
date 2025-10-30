@@ -1,1 +1,0 @@
-com.example.b1void.camera

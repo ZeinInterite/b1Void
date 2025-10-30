@@ -14,3 +14,26 @@
 .cxx
 local.properties
 /nul
+
+# Build directories
+build/
+*/build/
+**/build/
+
+# Gradle
+.gradle/
+.gradle
+*/gradle/
+**/gradle/
+!gradle/wrapper/**
+!gradlew
+!gradlew.bat
+
+# KSP generated files
+**/kspCaches/
+.ksp/
+
+# Local files
+*.iml
+.idea/
+*.log
