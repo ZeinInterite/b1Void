@@ -107,6 +107,9 @@ class CameraXFocusController(
                 val camera2Control = Camera2CameraControl.from(camera.cameraControl)
                 val camera2Info = Camera2CameraInfo.from(camera.cameraInfo)
 
+                // Логируем диагностическую информацию для Xiaomi устройств
+                logCameraCapabilities(evBoost, preferredIso, minIso, disableSceneModes)
+
                 val optionsBuilder = CaptureRequestOptions.Builder()
 
                 // 1. Применяем EV compensation boost
@@ -151,11 +154,76 @@ class CameraXFocusController(
                 val options = optionsBuilder.build()
                 camera2Control.setCaptureRequestOptions(options)
 
-                Log.i(logTag, "Exposure optimizations successfully applied")
+                Log.i(logTag, "✅ Exposure optimizations successfully applied")
 
             } catch (e: Exception) {
-                Log.e(logTag, "Failed to apply exposure optimizations", e)
+                Log.e(logTag, "❌ Failed to apply exposure optimizations", e)
             }
+        }
+    }
+
+    /**
+     * Логирует диагностическую информацию о возможностях камеры
+     * Особенно полезно для отладки проблем с яркостью на Xiaomi устройствах
+     */
+    private fun logCameraCapabilities(
+        evBoost: Float,
+        preferredIso: Int?,
+        minIso: Int?,
+        disableSceneModes: Boolean
+    ) {
+        try {
+            val manufacturer = android.os.Build.MANUFACTURER.lowercase()
+
+            // Логируем только для Xiaomi/Redmi устройств
+            if (manufacturer in listOf("xiaomi", "redmi", "poco")) {
+                val exposureState = camera.cameraInfo.exposureState
+                val hasFlash = camera.cameraInfo.hasFlashUnit()
+
+                Log.d("REDMI_CAMERA_DEBUG", """
+                    |
+                    |═══════════════════════════════════════════════════════
+                    |       🔧 Redmi/Xiaomi Camera Diagnostics 🔧
+                    |═══════════════════════════════════════════════════════
+                    |
+                    |📱 Device Information:
+                    |   • Manufacturer: ${android.os.Build.MANUFACTURER}
+                    |   • Model: ${android.os.Build.MODEL}
+                    |   • Android: ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})
+                    |   • MIUI/ROM: ${android.os.Build.VERSION.INCREMENTAL}
+                    |
+                    |📸 Current Exposure State:
+                    |   • EV Index: ${exposureState.exposureCompensationIndex}
+                    |   • EV Range: [${exposureState.exposureCompensationRange.lower}..${exposureState.exposureCompensationRange.upper}]
+                    |   • EV Step: ${exposureState.exposureCompensationStep}
+                    |   • EV Value: ${exposureState.exposureCompensationIndex * exposureState.exposureCompensationStep.toFloat()} EV
+                    |
+                    |🔆 Applied Brightness Optimizations:
+                    |   • EV Boost: +$evBoost EV
+                    |   • Preferred ISO: ${preferredIso ?: "Auto"}
+                    |   • Min ISO: ${minIso ?: "Auto"}
+                    |   • Scene Modes Disabled: $disableSceneModes
+                    |
+                    |💡 Camera Capabilities:
+                    |   • Has Flash: $hasFlash
+                    |   • Focus/Metering Support: ${camera.cameraInfo.isFocusMeteringSupported(
+                        androidx.camera.core.FocusMeteringAction.Builder(
+                            previewView.meteringPointFactory.createPoint(0.5f, 0.5f)
+                        ).build()
+                    )}
+                    |
+                    |📝 Recommendation for Redmi Note 10:
+                    |   ${if (evBoost >= 1.0f) "✅ High EV boost applied (good for dark preview)"
+                       else "⚠️  Consider increasing EV boost to 1.0+ if preview is dark"}
+                    |   ${if (preferredIso != null && preferredIso >= 400) "✅ ISO boosted to $preferredIso"
+                       else "⚠️  Consider ISO 400-600 for better brightness"}
+                    |
+                    |═══════════════════════════════════════════════════════
+                    |
+                """.trimMargin())
+            }
+        } catch (e: Exception) {
+            Log.w(logTag, "Failed to log camera capabilities", e)
         }
     }
 

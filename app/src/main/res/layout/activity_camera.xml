@@ -62,6 +62,17 @@
             android:src="@drawable/flash_torch"
             app:tint="@color/white" />
 
+        <ImageButton
+            android:id="@+id/xiaomiBrightnessButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="16dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Boost Brightness"
+            android:src="@android:drawable/ic_menu_day"
+            android:visibility="gone"
+            app:tint="@color/white" />
+
         <Space
             android:id="@+id/topControlsSpacer"
             android:layout_width="0dp"

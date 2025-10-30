@@ -41,6 +41,10 @@ class CameraSettingsManager(private val context: Context) {
         // Exposure compensation
         val EV_COMPENSATION_KEY = floatPreferencesKey("ev_compensation")
 
+        // Xiaomi brightness boost settings
+        val XIAOMI_BRIGHTNESS_BOOST_ENABLED_KEY = booleanPreferencesKey("xiaomi_brightness_boost_enabled")
+        val CUSTOM_EV_COMPENSATION_KEY = floatPreferencesKey("custom_ev_compensation")
+
         // Orientation layout preferences
         val THUMBNAIL_POSITION_LANDSCAPE_KEY = stringPreferencesKey("thumbnail_position_landscape")
         val AUTO_HIDE_DELAY_KEY = intPreferencesKey("auto_hide_delay")
@@ -374,6 +378,58 @@ class CameraSettingsManager(private val context: Context) {
             android.util.Log.d("CameraSettingsManager", "EV compensation saved: $evValue")
         } catch (e: Exception) {
             android.util.Log.e("CameraSettingsManager", "Failed to save EV compensation", e)
+        }
+    }
+
+    // ==================== Xiaomi Brightness Boost Settings ====================
+
+    /**
+     * Get Xiaomi brightness boost enabled state
+     * @return true if brightness boost is enabled (default: true for Xiaomi devices)
+     */
+    fun getXiaomiBrightnessBoostEnabled(): Flow<Boolean> {
+        return context.dataStore.data.map {
+            it[Companion.XIAOMI_BRIGHTNESS_BOOST_ENABLED_KEY] ?: true
+        }
+    }
+
+    /**
+     * Set Xiaomi brightness boost enabled state
+     * @param enabled true to enable automatic brightness boost for Xiaomi devices
+     */
+    suspend fun setXiaomiBrightnessBoostEnabled(enabled: Boolean) {
+        try {
+            context.dataStore.edit {
+                it[Companion.XIAOMI_BRIGHTNESS_BOOST_ENABLED_KEY] = enabled
+            }
+            android.util.Log.d("CameraSettingsManager", "Xiaomi brightness boost enabled: $enabled")
+        } catch (e: Exception) {
+            android.util.Log.e("CameraSettingsManager", "Failed to save Xiaomi brightness boost state", e)
+        }
+    }
+
+    /**
+     * Get custom EV compensation value for manual brightness adjustment
+     * @return Custom EV value from 0.0 to +2.0 (default: 0.0 = use manufacturer defaults)
+     */
+    fun getCustomEvCompensation(): Flow<Float> {
+        return context.dataStore.data.map {
+            it[Companion.CUSTOM_EV_COMPENSATION_KEY] ?: 0.0f
+        }
+    }
+
+    /**
+     * Set custom EV compensation value for manual brightness adjustment
+     * @param value Custom EV value from 0.0 to +2.0 (0.0 = use manufacturer defaults)
+     */
+    suspend fun setCustomEvCompensation(value: Float) {
+        try {
+            context.dataStore.edit {
+                it[Companion.CUSTOM_EV_COMPENSATION_KEY] = value.coerceIn(0.0f, 2.0f)
+            }
+            android.util.Log.d("CameraSettingsManager", "Custom EV compensation saved: $value")
+        } catch (e: Exception) {
+            android.util.Log.e("CameraSettingsManager", "Failed to save custom EV compensation", e)
         }
     }
 }

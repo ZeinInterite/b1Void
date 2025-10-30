@@ -84,14 +84,14 @@ object ManufacturerCompatibility {
         // Коррекция яркости для Xiaomi/Redmi устройств
         // Многие устройства Xiaomi имеют консервативные настройки AE, что приводит к темным фото
         override fun getEvCompensationBoost() = when {
-            model.contains("redmi note 10") -> 0.7f  // Redmi Note 10 особенно темный
-            model.contains("redmi note") -> 0.5f     // Другие модели Note
+            model.contains("redmi note 10") -> 1.0f  // Redmi Note 10 особенно темный - увеличен boost
+            model.contains("redmi note") -> 0.7f     // Другие модели Note - также увеличен
             model.contains("redmi") -> 0.5f          // Все бюджетные Redmi
             else -> 0.3f                             // Флагманы Mi менее проблемные
         }
 
         override fun getPreferredIsoSensitivity() = when {
-            model.contains("redmi note 10") -> 400   // Повышенный ISO для Note 10
+            model.contains("redmi note 10") -> 600   // Повышенный ISO для Note 10 (было 400)
             model.contains("redmi") -> 300           // Умеренный ISO для других Redmi
             else -> null                             // Auto ISO для флагманов
         }

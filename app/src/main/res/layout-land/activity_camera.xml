@@ -64,6 +64,17 @@
             app:tint="@color/white" />
 
         <ImageButton
+            android:id="@+id/xiaomiBrightnessButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Boost Brightness"
+            android:src="@android:drawable/ic_menu_day"
+            android:visibility="gone"
+            app:tint="@color/white" />
+
+        <ImageButton
             android:id="@+id/switchCameraButton"
             android:layout_width="48dp"
             android:layout_height="48dp"

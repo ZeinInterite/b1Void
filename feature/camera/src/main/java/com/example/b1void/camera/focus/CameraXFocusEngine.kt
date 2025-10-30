@@ -102,6 +102,7 @@ internal class CameraXFocusEngine(
         camera.cameraControl.cancelFocusAndMetering()
     }
 
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
     override fun setAeLock(locked: Boolean) {
         try {
             val control = Camera2CameraControl.from(camera.cameraControl)

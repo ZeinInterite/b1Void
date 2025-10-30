@@ -130,6 +130,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var thumbnailPreview: ImageView
     private lateinit var settingsButton: ImageButton
     private lateinit var torchButton: ImageButton
+    private var xiaomiBrightnessButton: ImageButton? = null
     private var autofocusButton: ImageButton? = null
     // Legacy zoom SeekBars removed; using Compose ZoomControl instead
     private lateinit var focusIndicator: View
@@ -613,6 +614,7 @@ class CameraActivity : AppCompatActivity() {
         thumbnailPreview.adjustViewBounds = true
         settingsButton = findViewById(R.id.settingsButton)
         torchButton = findViewById(R.id.torchButton)
+        xiaomiBrightnessButton = findViewById(R.id.xiaomiBrightnessButton)
         // No autofocus button in layout anymore
         // Legacy zoom sliders removed from layouts
         zoomCompose = findViewById(R.id.zoomCompose)
@@ -1124,6 +1126,7 @@ class CameraActivity : AppCompatActivity() {
                 applyCamera2Defaults()
                 setupCameraStateObserver()
                 setupTorchObserver()
+                setupXiaomiBrightnessBoost()
                 // Compose zoom used; no legacy zoom observer
                 val resolutionConfirmed = verifyBoundCaptureResolution(captureResolution)
                 if (!resolutionConfirmed) {
@@ -1762,6 +1765,99 @@ class CameraActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Настройка кнопки управления яркостью для Xiaomi/Redmi устройств
+     * Показывает кнопку только на проблемных устройствах и позволяет вручную увеличить яркость
+     */
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
+    private fun setupXiaomiBrightnessBoost() {
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        val model = Build.MODEL.lowercase()
+
+        // Показываем кнопку только для Xiaomi/Redmi/Poco устройств
+        if (manufacturer !in listOf("xiaomi", "redmi", "poco")) {
+            xiaomiBrightnessButton?.visibility = View.GONE
+            return
+        }
+
+        val cam = camera ?: run {
+            Log.w(TAG, "setupXiaomiBrightnessBoost: camera is null")
+            return
+        }
+
+        // Показываем кнопку для Xiaomi устройств
+        xiaomiBrightnessButton?.visibility = View.VISIBLE
+
+        xiaomiBrightnessButton?.setOnClickListener {
+            try {
+                val exposureState = cam.cameraInfo.exposureState
+                val currentEvIndex = exposureState.exposureCompensationIndex
+                val maxEv = exposureState.exposureCompensationRange.upper
+                val step = exposureState.exposureCompensationStep.toFloat()
+
+                if (currentEvIndex < maxEv) {
+                    // Увеличиваем EV на 2 шага (примерно +0.67 EV)
+                    val newEvIndex = (currentEvIndex + 2).coerceAtMost(maxEv)
+
+                    cam.cameraControl.setExposureCompensationIndex(newEvIndex).addListener({
+                        val newEvValue = newEvIndex * step
+                        Toast.makeText(
+                            this,
+                            "Яркость увеличена до +${String.format("%.2f", newEvValue)} EV",
+                            Toast.LENGTH_SHORT
+                        ).show()
+
+                        Log.d("XIAOMI_BRIGHTNESS", "Manual brightness boost: EV index $currentEvIndex -> $newEvIndex (+${String.format("%.2f", newEvValue)} EV)")
+
+                        // Подсвечиваем кнопку, если применен boost
+                        if (newEvIndex > 0) {
+                            xiaomiBrightnessButton?.setColorFilter(ContextCompat.getColor(this, R.color.yellow))
+                        }
+                    }, ContextCompat.getMainExecutor(this))
+                } else {
+                    // Достигнут максимум - сбрасываем EV до автоматического значения
+                    val quirks = com.example.b1void.utils.ManufacturerCompatibility.getCameraQuirks()
+                    val autoEvBoost = quirks.getEvCompensationBoost()
+                    val autoEvIndex = (autoEvBoost / step).toInt().coerceIn(
+                        exposureState.exposureCompensationRange.lower,
+                        exposureState.exposureCompensationRange.upper
+                    )
+
+                    cam.cameraControl.setExposureCompensationIndex(autoEvIndex).addListener({
+                        Toast.makeText(
+                            this,
+                            "Яркость сброшена до авто (+${String.format("%.2f", autoEvBoost)} EV)",
+                            Toast.LENGTH_SHORT
+                        ).show()
+
+                        Log.d("XIAOMI_BRIGHTNESS", "Brightness reset to auto: EV index $autoEvIndex (+${String.format("%.2f", autoEvBoost)} EV)")
+
+                        // Убираем подсветку кнопки при автоматическом значении
+                        if (autoEvIndex <= (autoEvBoost / step).toInt()) {
+                            xiaomiBrightnessButton?.clearColorFilter()
+                        }
+                    }, ContextCompat.getMainExecutor(this))
+                }
+            } catch (e: Exception) {
+                Log.e("XIAOMI_BRIGHTNESS", "Failed to adjust brightness", e)
+                Toast.makeText(this, "Ошибка настройки яркости", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Установим начальную подсветку кнопки, если уже применен EV boost
+        try {
+            val exposureState = cam.cameraInfo.exposureState
+            val currentEvIndex = exposureState.exposureCompensationIndex
+            if (currentEvIndex > 0) {
+                xiaomiBrightnessButton?.setColorFilter(ContextCompat.getColor(this, R.color.yellow))
+            }
+        } catch (e: Exception) {
+            Log.w("XIAOMI_BRIGHTNESS", "Failed to check initial EV state", e)
+        }
+
+        Log.i("XIAOMI_BRIGHTNESS", "Brightness boost button configured for $manufacturer $model")
     }
 
     private fun restoreTorchState() {
