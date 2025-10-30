@@ -146,115 +146,51 @@
     </issue>
 
     <issue
-        id="UnsafeOptInUsageError"
-        severity="Error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`"
-        category="Correctness"
-        priority="4"
-        summary="Unsafe opt-in usage intended to be error-level severity"
-        explanation="This API has been flagged as opt-in with error-level severity.&#xA;&#xA;Any declaration annotated with this marker is considered part of an unstable or&#xA;otherwise non-standard API surface and its call sites should accept the opt-in&#xA;aspect of it by using the `@OptIn` annotation, using the marker annotation --&#xA;effectively causing further propagation of the opt-in aspect -- or configuring&#xA;the `UnsafeOptInUsageError` check&apos;s options for project-wide opt-in.&#xA;&#xA;To configure project-wide opt-in, specify the `opt-in` option value in `lint.xml`&#xA;as a comma-delimited list of opted-in annotations:&#xA;&#xA;```&#xA;&lt;lint>&#xA;    &lt;issue id=&quot;UnsafeOptInUsageError&quot;>&#xA;        &lt;option name=&quot;opt-in&quot; value=&quot;com.foo.ExperimentalBarAnnotation&quot; />&#xA;    &lt;/issue>&#xA;&lt;/lint>&#xA;```"
-        errorLine1="            val control = Camera2CameraControl.from(camera.cameraControl)"
-        errorLine2="                ~~~~~~~">
+        id="DrawAllocation"
+        severity="Warning"
+        message="Avoid object allocations during draw/layout operations (preallocate and reuse instead)"
+        category="Performance"
+        priority="9"
+        summary="Memory allocations within drawing code"
+        explanation="You should avoid allocating objects during a drawing or layout operation. These are called frequently, so a smooth UI can be interrupted by garbage collection pauses caused by the object allocations.&#xA;&#xA;The way this is generally handled is to allocate the needed objects up front and to reuse them for each drawing operation.&#xA;&#xA;Some methods allocate memory on your behalf (such as `Bitmap.create`), and these should be handled in the same way."
+        errorLine1="                val sunPaintFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {"
+        errorLine2="                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="103"
-            column="17"/>
+            file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\ui\camera\FocusOverlayView.kt"
+            line="137"
+            column="36"/>
     </issue>
 
     <issue
-        id="UnsafeOptInUsageError"
-        severity="Error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`"
-        category="Correctness"
-        priority="4"
-        summary="Unsafe opt-in usage intended to be error-level severity"
-        explanation="This API has been flagged as opt-in with error-level severity.&#xA;&#xA;Any declaration annotated with this marker is considered part of an unstable or&#xA;otherwise non-standard API surface and its call sites should accept the opt-in&#xA;aspect of it by using the `@OptIn` annotation, using the marker annotation --&#xA;effectively causing further propagation of the opt-in aspect -- or configuring&#xA;the `UnsafeOptInUsageError` check&apos;s options for project-wide opt-in.&#xA;&#xA;To configure project-wide opt-in, specify the `opt-in` option value in `lint.xml`&#xA;as a comma-delimited list of opted-in annotations:&#xA;&#xA;```&#xA;&lt;lint>&#xA;    &lt;issue id=&quot;UnsafeOptInUsageError&quot;>&#xA;        &lt;option name=&quot;opt-in&quot; value=&quot;com.foo.ExperimentalBarAnnotation&quot; />&#xA;    &lt;/issue>&#xA;&lt;/lint>&#xA;```"
-        errorLine1="            val control = Camera2CameraControl.from(camera.cameraControl)"
-        errorLine2="                                               ~~~~">
+        id="DrawAllocation"
+        severity="Warning"
+        message="Avoid object allocations during draw/layout operations (preallocate and reuse instead)"
+        category="Performance"
+        priority="9"
+        summary="Memory allocations within drawing code"
+        explanation="You should avoid allocating objects during a drawing or layout operation. These are called frequently, so a smooth UI can be interrupted by garbage collection pauses caused by the object allocations.&#xA;&#xA;The way this is generally handled is to allocate the needed objects up front and to reuse them for each drawing operation.&#xA;&#xA;Some methods allocate memory on your behalf (such as `Bitmap.create`), and these should be handled in the same way."
+        errorLine1="                val sunPaintStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {"
+        errorLine2="                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="103"
-            column="48"/>
+            file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\ui\camera\FocusOverlayView.kt"
+            line="141"
+            column="38"/>
     </issue>
 
     <issue
-        id="UnsafeOptInUsageError"
-        severity="Error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`"
-        category="Correctness"
-        priority="4"
-        summary="Unsafe opt-in usage intended to be error-level severity"
-        explanation="This API has been flagged as opt-in with error-level severity.&#xA;&#xA;Any declaration annotated with this marker is considered part of an unstable or&#xA;otherwise non-standard API surface and its call sites should accept the opt-in&#xA;aspect of it by using the `@OptIn` annotation, using the marker annotation --&#xA;effectively causing further propagation of the opt-in aspect -- or configuring&#xA;the `UnsafeOptInUsageError` check&apos;s options for project-wide opt-in.&#xA;&#xA;To configure project-wide opt-in, specify the `opt-in` option value in `lint.xml`&#xA;as a comma-delimited list of opted-in annotations:&#xA;&#xA;```&#xA;&lt;lint>&#xA;    &lt;issue id=&quot;UnsafeOptInUsageError&quot;>&#xA;        &lt;option name=&quot;opt-in&quot; value=&quot;com.foo.ExperimentalBarAnnotation&quot; />&#xA;    &lt;/issue>&#xA;&lt;/lint>&#xA;```"
-        errorLine1="            val options = CaptureRequestOptions.Builder()"
-        errorLine2="                ~~~~~~~">
+        id="DrawAllocation"
+        severity="Warning"
+        message="Avoid object allocations during draw/layout operations (preallocate and reuse instead)"
+        category="Performance"
+        priority="9"
+        summary="Memory allocations within drawing code"
+        explanation="You should avoid allocating objects during a drawing or layout operation. These are called frequently, so a smooth UI can be interrupted by garbage collection pauses caused by the object allocations.&#xA;&#xA;The way this is generally handled is to allocate the needed objects up front and to reuse them for each drawing operation.&#xA;&#xA;Some methods allocate memory on your behalf (such as `Bitmap.create`), and these should be handled in the same way."
+        errorLine1="                val rayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {"
+        errorLine2="                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="104"
-            column="17"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        severity="Error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`"
-        category="Correctness"
-        priority="4"
-        summary="Unsafe opt-in usage intended to be error-level severity"
-        explanation="This API has been flagged as opt-in with error-level severity.&#xA;&#xA;Any declaration annotated with this marker is considered part of an unstable or&#xA;otherwise non-standard API surface and its call sites should accept the opt-in&#xA;aspect of it by using the `@OptIn` annotation, using the marker annotation --&#xA;effectively causing further propagation of the opt-in aspect -- or configuring&#xA;the `UnsafeOptInUsageError` check&apos;s options for project-wide opt-in.&#xA;&#xA;To configure project-wide opt-in, specify the `opt-in` option value in `lint.xml`&#xA;as a comma-delimited list of opted-in annotations:&#xA;&#xA;```&#xA;&lt;lint>&#xA;    &lt;issue id=&quot;UnsafeOptInUsageError&quot;>&#xA;        &lt;option name=&quot;opt-in&quot; value=&quot;com.foo.ExperimentalBarAnnotation&quot; />&#xA;    &lt;/issue>&#xA;&lt;/lint>&#xA;```"
-        errorLine1="            val options = CaptureRequestOptions.Builder()"
-        errorLine2="                                                ~~~~~~~">
-        <location
-            file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="104"
-            column="49"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        severity="Error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`"
-        category="Correctness"
-        priority="4"
-        summary="Unsafe opt-in usage intended to be error-level severity"
-        explanation="This API has been flagged as opt-in with error-level severity.&#xA;&#xA;Any declaration annotated with this marker is considered part of an unstable or&#xA;otherwise non-standard API surface and its call sites should accept the opt-in&#xA;aspect of it by using the `@OptIn` annotation, using the marker annotation --&#xA;effectively causing further propagation of the opt-in aspect -- or configuring&#xA;the `UnsafeOptInUsageError` check&apos;s options for project-wide opt-in.&#xA;&#xA;To configure project-wide opt-in, specify the `opt-in` option value in `lint.xml`&#xA;as a comma-delimited list of opted-in annotations:&#xA;&#xA;```&#xA;&lt;lint>&#xA;    &lt;issue id=&quot;UnsafeOptInUsageError&quot;>&#xA;        &lt;option name=&quot;opt-in&quot; value=&quot;com.foo.ExperimentalBarAnnotation&quot; />&#xA;    &lt;/issue>&#xA;&lt;/lint>&#xA;```"
-        errorLine1="                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, locked)"
-        errorLine2="                 ~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="105"
-            column="18"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        severity="Error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`"
-        category="Correctness"
-        priority="4"
-        summary="Unsafe opt-in usage intended to be error-level severity"
-        explanation="This API has been flagged as opt-in with error-level severity.&#xA;&#xA;Any declaration annotated with this marker is considered part of an unstable or&#xA;otherwise non-standard API surface and its call sites should accept the opt-in&#xA;aspect of it by using the `@OptIn` annotation, using the marker annotation --&#xA;effectively causing further propagation of the opt-in aspect -- or configuring&#xA;the `UnsafeOptInUsageError` check&apos;s options for project-wide opt-in.&#xA;&#xA;To configure project-wide opt-in, specify the `opt-in` option value in `lint.xml`&#xA;as a comma-delimited list of opted-in annotations:&#xA;&#xA;```&#xA;&lt;lint>&#xA;    &lt;issue id=&quot;UnsafeOptInUsageError&quot;>&#xA;        &lt;option name=&quot;opt-in&quot; value=&quot;com.foo.ExperimentalBarAnnotation&quot; />&#xA;    &lt;/issue>&#xA;&lt;/lint>&#xA;```"
-        errorLine1="                .build()"
-        errorLine2="                 ~~~~~">
-        <location
-            file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="106"
-            column="18"/>
-    </issue>
-
-    <issue
-        id="UnsafeOptInUsageError"
-        severity="Error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`"
-        category="Correctness"
-        priority="4"
-        summary="Unsafe opt-in usage intended to be error-level severity"
-        explanation="This API has been flagged as opt-in with error-level severity.&#xA;&#xA;Any declaration annotated with this marker is considered part of an unstable or&#xA;otherwise non-standard API surface and its call sites should accept the opt-in&#xA;aspect of it by using the `@OptIn` annotation, using the marker annotation --&#xA;effectively causing further propagation of the opt-in aspect -- or configuring&#xA;the `UnsafeOptInUsageError` check&apos;s options for project-wide opt-in.&#xA;&#xA;To configure project-wide opt-in, specify the `opt-in` option value in `lint.xml`&#xA;as a comma-delimited list of opted-in annotations:&#xA;&#xA;```&#xA;&lt;lint>&#xA;    &lt;issue id=&quot;UnsafeOptInUsageError&quot;>&#xA;        &lt;option name=&quot;opt-in&quot; value=&quot;com.foo.ExperimentalBarAnnotation&quot; />&#xA;    &lt;/issue>&#xA;&lt;/lint>&#xA;```"
-        errorLine1="            control.setCaptureRequestOptions(options)"
-        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt"
-            line="107"
-            column="21"/>
+            file="D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\ui\camera\FocusOverlayView.kt"
+            line="150"
+            column="32"/>
     </issue>
 
 </issues>

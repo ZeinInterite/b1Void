@@ -2163,8 +2163,15 @@ class CameraActivity : AppCompatActivity() {
             val knobY = top + (1f - t) * barH
             // Center horizontally to the EV bar
             val centerX = evOverlay.translationX + evOverlay.width / 2f - evSun.width / 2f
-            evSun.translationY = knobY - evSun.height / 2f
-            evSun.translationX = centerX
+
+            // Используем плавную анимацию вместо мгновенного перемещения
+            // Длительность ~200ms соответствует скорости изменения экспозиции на камере
+            evSun.animate()
+                .translationY(knobY - evSun.height / 2f)
+                .translationX(centerX)
+                .setDuration(200) // Синхронизировано со скоростью изменения камеры
+                .setInterpolator(DecelerateInterpolator())
+                .start()
         }
     }
 

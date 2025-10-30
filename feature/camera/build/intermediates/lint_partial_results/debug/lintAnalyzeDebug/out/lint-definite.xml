@@ -152,241 +152,45 @@
     </incident>
 
     <incident
-        id="UnsafeOptInUsageError"
-        severity="error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`">
-        <fix-alternatives>
-            <annotate
-                description="Add &apos;@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-            <annotate
-                description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.camera.camera2.interop.ExperimentalCamera2Interop"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-        </fix-alternatives>
+        id="DrawAllocation"
+        severity="warning"
+        message="Avoid object allocations during draw/layout operations (preallocate and reuse instead)">
         <location
-            file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="103"
-            column="17"
-            startOffset="3900"
-            endLine="103"
-            endColumn="24"
-            endOffset="3907"/>
+            file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/ui/camera/FocusOverlayView.kt"
+            line="137"
+            column="36"
+            startOffset="4794"
+            endLine="137"
+            endColumn="64"
+            endOffset="4822"/>
     </incident>
 
     <incident
-        id="UnsafeOptInUsageError"
-        severity="error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`">
-        <fix-alternatives>
-            <annotate
-                description="Add &apos;@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-            <annotate
-                description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.camera.camera2.interop.ExperimentalCamera2Interop"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-        </fix-alternatives>
+        id="DrawAllocation"
+        severity="warning"
+        message="Avoid object allocations during draw/layout operations (preallocate and reuse instead)">
         <location
-            file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="103"
-            column="48"
-            startOffset="3931"
-            endLine="103"
-            endColumn="52"
-            endOffset="3935"/>
+            file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/ui/camera/FocusOverlayView.kt"
+            line="141"
+            column="38"
+            startOffset="4983"
+            endLine="141"
+            endColumn="66"
+            endOffset="5011"/>
     </incident>
 
     <incident
-        id="UnsafeOptInUsageError"
-        severity="error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`">
-        <fix-alternatives>
-            <annotate
-                description="Add &apos;@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-            <annotate
-                description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.camera.camera2.interop.ExperimentalCamera2Interop"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-        </fix-alternatives>
+        id="DrawAllocation"
+        severity="warning"
+        message="Avoid object allocations during draw/layout operations (preallocate and reuse instead)">
         <location
-            file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="104"
-            column="17"
-            startOffset="3974"
-            endLine="104"
-            endColumn="24"
-            endOffset="3981"/>
-    </incident>
-
-    <incident
-        id="UnsafeOptInUsageError"
-        severity="error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`">
-        <fix-alternatives>
-            <annotate
-                description="Add &apos;@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-            <annotate
-                description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.camera.camera2.interop.ExperimentalCamera2Interop"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-        </fix-alternatives>
-        <location
-            file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="104"
-            column="49"
-            startOffset="4006"
-            endLine="104"
-            endColumn="56"
-            endOffset="4013"/>
-    </incident>
-
-    <incident
-        id="UnsafeOptInUsageError"
-        severity="error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`">
-        <fix-alternatives>
-            <annotate
-                description="Add &apos;@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-            <annotate
-                description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.camera.camera2.interop.ExperimentalCamera2Interop"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-        </fix-alternatives>
-        <location
-            file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="105"
-            column="18"
-            startOffset="4033"
-            endLine="105"
-            endColumn="41"
-            endOffset="4056"/>
-    </incident>
-
-    <incident
-        id="UnsafeOptInUsageError"
-        severity="error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`">
-        <fix-alternatives>
-            <annotate
-                description="Add &apos;@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-            <annotate
-                description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.camera.camera2.interop.ExperimentalCamera2Interop"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-        </fix-alternatives>
-        <location
-            file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="106"
-            column="18"
-            startOffset="4114"
-            endLine="106"
-            endColumn="23"
-            endOffset="4119"/>
-    </incident>
-
-    <incident
-        id="UnsafeOptInUsageError"
-        severity="error"
-        message="This declaration is opt-in and its usage should be marked with `@androidx.camera.camera2.interop.ExperimentalCamera2Interop` or `@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)`">
-        <fix-alternatives>
-            <annotate
-                description="Add &apos;@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-            <annotate
-                description="Add &apos;@androidx.camera.camera2.interop.ExperimentalCamera2Interop&apos; annotation to &apos;setAeLock&apos;"
-                source="@androidx.camera.camera2.interop.ExperimentalCamera2Interop"
-                replace="true">
-                <range
-                    file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-                    startOffset="3828"
-                    endOffset="4276"/>
-            </annotate>
-        </fix-alternatives>
-        <location
-            file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/focus/CameraXFocusEngine.kt"
-            line="107"
-            column="21"
-            startOffset="4142"
-            endLine="107"
-            endColumn="45"
-            endOffset="4166"/>
+            file="${:feature:camera*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/b1void/camera/ui/camera/FocusOverlayView.kt"
+            line="150"
+            column="32"
+            startOffset="5388"
+            endLine="150"
+            endColumn="60"
+            endOffset="5416"/>
     </incident>
 
 </incidents>

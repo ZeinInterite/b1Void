@@ -177,9 +177,9 @@ document.getElementById(id).style.display = 'none';
 <div class="mdl-layout mdl-js-layout mdl-layout--fixed-header">
   <header class="mdl-layout__header">
     <div class="mdl-layout__header-row">
-      <span class="mdl-layout-title">Lint Report: 7 errors and 9 warnings</span>
+      <span class="mdl-layout-title">Lint Report: 12 warnings</span>
       <div class="mdl-layout-spacer"></div>
-      <nav class="mdl-navigation mdl-layout--large-screen-only">Check performed at Mon Oct 27 01:20:26 MSK 2025 by AGP (8.9.2)</nav>
+      <nav class="mdl-navigation mdl-layout--large-screen-only">Check performed at Thu Oct 30 10:47:49 MSK 2025 by AGP (8.9.2)</nav>
     </div>
   </header>
   <div class="mdl-layout__drawer">
@@ -187,7 +187,7 @@ document.getElementById(id).style.display = 'none';
     <nav class="mdl-navigation">
       <a class="mdl-navigation__link" href="#overview"><i class="material-icons">dashboard</i>Overview</a>
       <a class="mdl-navigation__link" href="#GradleDependency"><i class="material-icons warning-icon">warning</i>Obsolete Gradle Dependency (9)</a>
-      <a class="mdl-navigation__link" href="#UnsafeOptInUsageError"><i class="material-icons error-icon">error</i>Unsafe opt-in usage intended to be error-level severity (7)</a>
+      <a class="mdl-navigation__link" href="#DrawAllocation"><i class="material-icons warning-icon">warning</i>Memory allocations within drawing code (3)</a>
     </nav>
   </div>
   <main class="mdl-layout__content">
@@ -205,9 +205,11 @@ document.getElementById(id).style.display = 'none';
 <tr>
 <td class="countColumn">9</td><td class="issueColumn"><i class="material-icons warning-icon">warning</i>
 <a href="#GradleDependency">GradleDependency</a>: Obsolete Gradle Dependency</td></tr>
+<tr><td class="countColumn"></td><td class="categoryColumn"><a href="#Performance">Performance</a>
+</td></tr>
 <tr>
-<td class="countColumn">7</td><td class="issueColumn"><i class="material-icons error-icon">error</i>
-<a href="#UnsafeOptInUsageError">UnsafeOptInUsageError</a>: Unsafe opt-in usage intended to be error-level severity</td></tr>
+<td class="countColumn">3</td><td class="issueColumn"><i class="material-icons warning-icon">warning</i>
+<a href="#DrawAllocation">DrawAllocation</a>: Memory allocations within drawing code</td></tr>
 <tr><td></td><td class="categoryColumn"><a href="#ExtraIssues">Included Additional Checks (23)</a>
 </td></tr>
 <tr><td></td><td class="categoryColumn"><a href="#MissingIssues">Disabled Checks (39)</a>
@@ -345,131 +347,75 @@ To suppress this error, use the issue id "GradleDependency" as explained in the 
 Explain</button><button class="mdl-button mdl-js-button mdl-js-ripple-effect" id="GradleDependencyCardLink" onclick="hideid('GradleDependencyCard');">
 Dismiss</button>            </div>
             </div>
-          </section><a name="UnsafeOptInUsageError"></a>
-<section class="section--center mdl-grid mdl-grid--no-spacing mdl-shadow--2dp" id="UnsafeOptInUsageErrorCard" style="display: block;">
+          </section>
+<a name="Performance"></a>
+<a name="DrawAllocation"></a>
+<section class="section--center mdl-grid mdl-grid--no-spacing mdl-shadow--2dp" id="DrawAllocationCard" style="display: block;">
             <div class="mdl-card mdl-cell mdl-cell--12-col">
   <div class="mdl-card__title">
-    <h2 class="mdl-card__title-text">Unsafe opt-in usage intended to be error-level severity</h2>
+    <h2 class="mdl-card__title-text">Memory allocations within drawing code</h2>
   </div>
               <div class="mdl-card__supporting-text">
 <div class="issue">
 <div class="warningslist">
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt">../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt</a>:103</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 100 </span>
-<span class="lineno"> 101 </span>    override <span class="keyword">fun</span> setAeLock(locked: Boolean) {
-<span class="lineno"> 102 </span>        <span class="keyword">try</span> {
-<span class="caretline"><span class="lineno"> 103 </span>            <span class="keyword">val</span> <span class="error">control</span> = Camera2CameraControl.from(camera.cameraControl)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 104 </span>            <span class="keyword">val</span> options = CaptureRequestOptions.Builder()
-<span class="lineno"> 105 </span>                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, locked)
-<span class="lineno"> 106 </span>                .build()
+<span class="location"><a href="../../src/main/java/com/example/b1void/camera/ui/camera/FocusOverlayView.kt">../../src/main/java/com/example/b1void/camera/ui/camera/FocusOverlayView.kt</a>:137</span>: <span class="message">Avoid object allocations during draw/layout operations (preallocate and reuse instead)</span><br /><pre class="errorlines">
+<span class="lineno"> 134 </span>                <span class="keyword">val</span> sunCx = left + barWidth + <span class="number">10f</span> * density
+<span class="lineno"> 135 </span>
+<span class="lineno"> 136 </span>                <span class="comment">// Sun core</span>
+<span class="caretline"><span class="lineno"> 137 </span>                <span class="keyword">val</span> sunPaintFill = <span class="warning">Paint(Paint.ANTI_ALIAS_FLAG)</span>.apply {&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+<span class="lineno"> 138 </span>                    style = Paint.Style.FILL
+<span class="lineno"> 139 </span>                    <span class="keyword">this</span>.color = <span class="number">0xFFFFD54F.</span>toInt()
+<span class="lineno"> 140 </span>                }
 </pre>
 
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt">../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt</a>:103</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 100 </span>
-<span class="lineno"> 101 </span>    override <span class="keyword">fun</span> setAeLock(locked: Boolean) {
-<span class="lineno"> 102 </span>        <span class="keyword">try</span> {
-<span class="caretline"><span class="lineno"> 103 </span>            <span class="keyword">val</span> control = Camera2CameraControl.<span class="error">from</span>(camera.cameraControl)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 104 </span>            <span class="keyword">val</span> options = CaptureRequestOptions.Builder()
-<span class="lineno"> 105 </span>                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, locked)
-<span class="lineno"> 106 </span>                .build()
+<span class="location"><a href="../../src/main/java/com/example/b1void/camera/ui/camera/FocusOverlayView.kt">../../src/main/java/com/example/b1void/camera/ui/camera/FocusOverlayView.kt</a>:141</span>: <span class="message">Avoid object allocations during draw/layout operations (preallocate and reuse instead)</span><br /><pre class="errorlines">
+<span class="lineno"> 138 </span>                    style = Paint.Style.FILL
+<span class="lineno"> 139 </span>                    <span class="keyword">this</span>.color = <span class="number">0xFFFFD54F.</span>toInt()
+<span class="lineno"> 140 </span>                }
+<span class="caretline"><span class="lineno"> 141 </span>                <span class="keyword">val</span> sunPaintStroke = <span class="warning">Paint(Paint.ANTI_ALIAS_FLAG)</span>.apply {&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+<span class="lineno"> 142 </span>                    style = Paint.Style.STROKE
+<span class="lineno"> 143 </span>                    strokeWidth = rayStroke
+<span class="lineno"> 144 </span>                    <span class="keyword">this</span>.color = <span class="number">0xFFFFF59D.</span>toInt()
 </pre>
 
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt">../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt</a>:104</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 101 </span>    override <span class="keyword">fun</span> setAeLock(locked: Boolean) {
-<span class="lineno"> 102 </span>        <span class="keyword">try</span> {
-<span class="lineno"> 103 </span>            <span class="keyword">val</span> control = Camera2CameraControl.from(camera.cameraControl)
-<span class="caretline"><span class="lineno"> 104 </span>            <span class="keyword">val</span> <span class="error">options</span> = CaptureRequestOptions.Builder()&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 105 </span>                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, locked)
-<span class="lineno"> 106 </span>                .build()
-<span class="lineno"> 107 </span>            control.setCaptureRequestOptions(options)
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt">../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt</a>:104</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 101 </span>    override <span class="keyword">fun</span> setAeLock(locked: Boolean) {
-<span class="lineno"> 102 </span>        <span class="keyword">try</span> {
-<span class="lineno"> 103 </span>            <span class="keyword">val</span> control = Camera2CameraControl.from(camera.cameraControl)
-<span class="caretline"><span class="lineno"> 104 </span>            <span class="keyword">val</span> options = CaptureRequestOptions.<span class="error">Builder</span>()&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 105 </span>                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, locked)
-<span class="lineno"> 106 </span>                .build()
-<span class="lineno"> 107 </span>            control.setCaptureRequestOptions(options)
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt">../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt</a>:105</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 102 </span>        <span class="keyword">try</span> {
-<span class="lineno"> 103 </span>            <span class="keyword">val</span> control = Camera2CameraControl.from(camera.cameraControl)
-<span class="lineno"> 104 </span>            <span class="keyword">val</span> options = CaptureRequestOptions.Builder()
-<span class="caretline"><span class="lineno"> 105 </span>                .<span class="error">setCaptureRequestOption</span>(CaptureRequest.CONTROL_AE_LOCK, locked)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 106 </span>                .build()
-<span class="lineno"> 107 </span>            control.setCaptureRequestOptions(options)
-<span class="lineno"> 108 </span>        } catch (_: Throwable) {
-</pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt">../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt</a>:106</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 103 </span>            <span class="keyword">val</span> control = Camera2CameraControl.from(camera.cameraControl)
-<span class="lineno"> 104 </span>            <span class="keyword">val</span> options = CaptureRequestOptions.Builder()
-<span class="lineno"> 105 </span>                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, locked)
-<span class="caretline"><span class="lineno"> 106 </span>                .<span class="error">build</span>()&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 107 </span>            control.setCaptureRequestOptions(options)
-<span class="lineno"> 108 </span>        } catch (_: Throwable) {
-<span class="lineno"> 109 </span>            <span class="comment">// best effort; ignore if not supported</span></pre>
-
-<span class="location"><a href="../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt">../../src/main/java/com/example/b1void/camera/focus/CameraXFocusEngine.kt</a>:107</span>: <span class="message">This declaration is opt-in and its usage should be marked with <code>@androidx.camera.camera2.interop.ExperimentalCamera2Interop</code> or <code>@OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class)</code></span><br /><pre class="errorlines">
-<span class="lineno"> 104 </span>            <span class="keyword">val</span> options = CaptureRequestOptions.Builder()
-<span class="lineno"> 105 </span>                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, locked)
-<span class="lineno"> 106 </span>                .build()
-<span class="caretline"><span class="lineno"> 107 </span>            control.<span class="error">setCaptureRequestOptions</span>(options)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-<span class="lineno"> 108 </span>        } catch (_: Throwable) {
-<span class="lineno"> 109 </span>            <span class="comment">// best effort; ignore if not supported</span>
-<span class="lineno"> 110 </span>        }
+<span class="location"><a href="../../src/main/java/com/example/b1void/camera/ui/camera/FocusOverlayView.kt">../../src/main/java/com/example/b1void/camera/ui/camera/FocusOverlayView.kt</a>:150</span>: <span class="message">Avoid object allocations during draw/layout operations (preallocate and reuse instead)</span><br /><pre class="errorlines">
+<span class="lineno"> 147 </span>                drawCircle(sunCx, knobCy, sunRadius, sunPaintStroke)
+<span class="lineno"> 148 </span>
+<span class="lineno"> 149 </span>                <span class="comment">// Rays (8 directions)</span>
+<span class="caretline"><span class="lineno"> 150 </span>                <span class="keyword">val</span> rayPaint = <span class="warning">Paint(Paint.ANTI_ALIAS_FLAG)</span>.apply {&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+<span class="lineno"> 151 </span>                    style = Paint.Style.STROKE
+<span class="lineno"> 152 </span>                    strokeWidth = rayStroke
+<span class="lineno"> 153 </span>                    <span class="keyword">this</span>.color = <span class="number">0xFFFFF59D.</span>toInt()
 </pre>
 
 </div>
-<div class="metadata"><div class="explanation" id="explanationUnsafeOptInUsageError" style="display: none;">
-This API has been flagged as opt-in with error-level severity.<br/>
+<div class="metadata"><div class="explanation" id="explanationDrawAllocation" style="display: none;">
+You should avoid allocating objects during a drawing or layout operation. These are called frequently, so a smooth UI can be interrupted by garbage collection pauses caused by the object allocations.<br/>
 <br/>
-Any declaration annotated with this marker is considered part of an unstable or<br/>
-otherwise non-standard API surface and its call sites should accept the opt-in<br/>
-aspect of it by using the <code>@OptIn</code> annotation, using the marker annotation --<br/>
-effectively causing further propagation of the opt-in aspect -- or configuring<br/>
-the <code>UnsafeOptInUsageError</code> check's options for project-wide opt-in.<br/>
+The way this is generally handled is to allocate the needed objects up front and to reuse them for each drawing operation.<br/>
 <br/>
-To configure project-wide opt-in, specify the <code>opt-in</code> option value in <code>lint.xml</code><br/>
-as a comma-delimited list of opted-in annotations:<br/>
-
-<pre>
-&lt;lint>
-    &lt;issue id="UnsafeOptInUsageError">
-        &lt;option name="opt-in" value="com.foo.ExperimentalBarAnnotation" />
-    &lt;/issue>
-&lt;/lint>
-</pre>
-<br/>To suppress this error, use the issue id "UnsafeOptInUsageError" as explained in the <a href="#SuppressInfo">Suppressing Warnings and Errors</a> section.<br/>
+Some methods allocate memory on your behalf (such as <code>Bitmap.create</code>), and these should be handled in the same way.<br/>To suppress this error, use the issue id "DrawAllocation" as explained in the <a href="#SuppressInfo">Suppressing Warnings and Errors</a> section.<br/>
 <br/></div>
 </div>
 </div>
-<div class="vendor">
-Vendor: Android Open Source Project<br/>
-Identifier: androidx.annotation.experimental<br/>
-Feedback: <a href="https://issuetracker.google.com/issues/new?component=459778">https://issuetracker.google.com/issues/new?component=459778</a><br/>
-</div>
 <div class="chips">
 <span class="mdl-chip">
-    <span class="mdl-chip__text">UnsafeOptInUsageError</span>
+    <span class="mdl-chip__text">DrawAllocation</span>
 </span>
 <span class="mdl-chip">
-    <span class="mdl-chip__text">Correctness</span>
+    <span class="mdl-chip__text">Performance</span>
 </span>
 <span class="mdl-chip">
-    <span class="mdl-chip__text">Error</span>
+    <span class="mdl-chip__text">Warning</span>
 </span>
 <span class="mdl-chip">
-    <span class="mdl-chip__text">Priority 4/10</span>
+    <span class="mdl-chip__text">Priority 9/10</span>
 </span>
 </div>
               </div>
               <div class="mdl-card__actions mdl-card--border">
-<button class="mdl-button mdl-js-button mdl-js-ripple-effect" id="explanationUnsafeOptInUsageErrorLink" onclick="reveal('explanationUnsafeOptInUsageError');">
-Explain</button><button class="mdl-button mdl-js-button mdl-js-ripple-effect" id="UnsafeOptInUsageErrorCardLink" onclick="hideid('UnsafeOptInUsageErrorCard');">
+<button class="mdl-button mdl-js-button mdl-js-ripple-effect" id="explanationDrawAllocationLink" onclick="reveal('explanationDrawAllocation');">
+Explain</button><button class="mdl-button mdl-js-button mdl-js-ripple-effect" id="DrawAllocationCardLink" onclick="hideid('DrawAllocationCard');">
 Dismiss</button>            </div>
             </div>
           </section>

@@ -33,53 +33,25 @@ D:\Code\projects\document_llc_prog\feature\camera\build.gradle.kts:45: Warning: 
    However, you may simply not be aware that a more recent version is
    available, and that is what this lint check helps find.
 
-D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:103: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
-            val control = Camera2CameraControl.from(camera.cameraControl)
-                ~~~~~~~
-D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:103: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
-            val control = Camera2CameraControl.from(camera.cameraControl)
-                                               ~~~~
-D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:104: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
-            val options = CaptureRequestOptions.Builder()
-                ~~~~~~~
-D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:104: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
-            val options = CaptureRequestOptions.Builder()
-                                                ~~~~~~~
-D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:105: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
-                .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, locked)
-                 ~~~~~~~~~~~~~~~~~~~~~~~
-D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:106: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
-                .build()
-                 ~~~~~
-D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\focus\CameraXFocusEngine.kt:107: Error: This declaration is opt-in and its usage should be marked with @androidx.camera.camera2.interop.ExperimentalCamera2Interop or @OptIn(markerClass = androidx.camera.camera2.interop.ExperimentalCamera2Interop.class) [UnsafeOptInUsageError from androidx.annotation.experimental]
-            control.setCaptureRequestOptions(options)
-                    ~~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\ui\camera\FocusOverlayView.kt:137: Warning: Avoid object allocations during draw/layout operations (preallocate and reuse instead) [DrawAllocation]
+                val sunPaintFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\ui\camera\FocusOverlayView.kt:141: Warning: Avoid object allocations during draw/layout operations (preallocate and reuse instead) [DrawAllocation]
+                val sunPaintStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\Code\projects\document_llc_prog\feature\camera\src\main\java\com\example\b1void\camera\ui\camera\FocusOverlayView.kt:150: Warning: Avoid object allocations during draw/layout operations (preallocate and reuse instead) [DrawAllocation]
+                val rayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   Explanation for issues of type "UnsafeOptInUsageError":
-   This API has been flagged as opt-in with error-level severity.
+   Explanation for issues of type "DrawAllocation":
+   You should avoid allocating objects during a drawing or layout operation.
+   These are called frequently, so a smooth UI can be interrupted by garbage
+   collection pauses caused by the object allocations.
 
-   Any declaration annotated with this marker is considered part of an
-   unstable or
-   otherwise non-standard API surface and its call sites should accept the
-   opt-in
-   aspect of it by using the @OptIn annotation, using the marker annotation
-   --
-   effectively causing further propagation of the opt-in aspect -- or
-   configuring
-   the UnsafeOptInUsageError check's options for project-wide opt-in.
+   The way this is generally handled is to allocate the needed objects up
+   front and to reuse them for each drawing operation.
 
-   To configure project-wide opt-in, specify the opt-in option value in
-   lint.xml
-   as a comma-delimited list of opted-in annotations:
+   Some methods allocate memory on your behalf (such as Bitmap.create), and
+   these should be handled in the same way.
 
-   <lint>
-       <issue id="UnsafeOptInUsageError">
-           <option name="opt-in" value="com.foo.ExperimentalBarAnnotation" />
-       </issue>
-   </lint>
-
-   Vendor: Android Open Source Project
-   Identifier: androidx.annotation.experimental
-   Feedback: https://issuetracker.google.com/issues/new?component=459778
-
-7 errors, 9 warnings
+0 errors, 12 warnings

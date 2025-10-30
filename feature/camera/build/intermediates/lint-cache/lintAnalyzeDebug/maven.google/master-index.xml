@@ -164,6 +164,7 @@
   <com.android.asset-pack/>
   <com.android.asset-pack-bundle/>
   <com.android.billingclient/>
+  <com.android.built-in-kotlin/>
   <com.android.car.setupwizardlib/>
   <com.android.car.ui/>
   <com.android.compose.screenshot/>
