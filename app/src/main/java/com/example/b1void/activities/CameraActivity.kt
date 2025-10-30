@@ -311,13 +311,27 @@ class CameraActivity : AppCompatActivity() {
     
 
     private inner class ScaleGestureListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            // Устанавливаем флаг СРАЗУ при начале pinch gesture
+            isZoomGesture = true
+            Log.d(TAG, "Pinch-to-zoom начался (scaleFactor=${detector.scaleFactor})")
+            return true // Возвращаем true чтобы получать дальнейшие события onScale
+        }
+
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             val camera = camera ?: return true
             val zoomState = camera.cameraInfo.zoomState.value ?: return true
             val currentZoomRatio = zoomState.zoomRatio
             val newZoomRatio = currentZoomRatio * detector.scaleFactor
             camera.cameraControl.setZoomRatio(newZoomRatio)
+            Log.v(TAG, "Pinch-to-zoom: ${currentZoomRatio} -> ${newZoomRatio}")
             return true
+        }
+
+        override fun onScaleEnd(detector: ScaleGestureDetector) {
+            // Сбрасываем флаг после завершения pinch gesture
+            isZoomGesture = false
+            Log.d(TAG, "Pinch-to-zoom завершен")
         }
     }
 
@@ -463,12 +477,22 @@ class CameraActivity : AppCompatActivity() {
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                 return@setOnTouchListener false
             }
-            scaleGestureDetector.onTouchEvent(event)
-            val handled = tapGestureDetector.onTouchEvent(event)
+
+            // КРИТИЧНО: Обработать zoom ПЕРВЫМ и сохранить результат
+            val scaleHandled = scaleGestureDetector.onTouchEvent(event)
+
+            // Если zoom активен (два пальца), НЕ обрабатывать tap gesture для предотвращения конфликта
+            val tapHandled = if (scaleGestureDetector.isInProgress || isZoomGesture) {
+                Log.v(AEAF_TAG, "Пропускаем tap detection: zoom активен (isInProgress=${scaleGestureDetector.isInProgress}, isZoomGesture=$isZoomGesture)")
+                false // Пропускаем tap detection во время zoom
+            } else {
+                tapGestureDetector.onTouchEvent(event)
+            }
+
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     userTouchActive = true
-                    isZoomGesture = false
+                    // НЕ устанавливаем isZoomGesture здесь - это делается в onScaleBegin
                     Log.d(AEAF_TAG, "touch ACTION_DOWN: x=" + event.x + ", y=" + event.y + ", pointers=" + event.pointerCount)
                     // Do NOT move focus reticle yet; only on confirmed tap.
                     // Prepare for possible EV drag after short hold delay
@@ -508,8 +532,17 @@ class CameraActivity : AppCompatActivity() {
                     } catch (_: Throwable) { }
                     showControlsOnInteraction()
                 }
-                MotionEvent.ACTION_POINTER_DOWN -> { isZoomGesture = true; Log.d(AEAF_TAG, "touch POINTER_DOWN -> isZoomGesture=true (pointers=" + event.pointerCount + ")") }
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    // isZoomGesture теперь устанавливается в onScaleBegin, не нужно здесь
+                    Log.d(AEAF_TAG, "touch POINTER_DOWN -> pinch detected (pointers=" + event.pointerCount + ")")
+                }
                 MotionEvent.ACTION_MOVE -> {
+                    // Пропускаем обработку движения если zoom активен
+                    if (scaleGestureDetector.isInProgress) {
+                        Log.v(AEAF_TAG, "touch ACTION_MOVE: пропущено (zoom в процессе)")
+                        return@setOnTouchListener true
+                    }
+
                     if (!isZoomGesture) {
                         // If preview-based EV drag session is active, adjust globally
                         var activeLast = previewEvLastY
@@ -588,7 +621,8 @@ class CameraActivity : AppCompatActivity() {
                     view.performClick()
                 }
             }
-            handled || true
+            // Возвращаем true если хотя бы один детектор обработал событие
+            scaleHandled || tapHandled || true
         }
 
         // Legacy SeekBar zoom listeners removed
