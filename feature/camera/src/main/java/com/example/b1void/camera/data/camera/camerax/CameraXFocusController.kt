@@ -290,11 +290,35 @@ class CameraXFocusController(
     }
 
     override suspend fun setEv(delta: Float) {
+        // CRITICAL: Validate delta to prevent NaN/Infinity from crashing camera HAL
+        if (!delta.isFinite()) {
+            Log.e(logTag, "Invalid EV delta: $delta (not finite), ignoring")
+            return
+        }
+
         val st = camera.cameraInfo.exposureState
         val step = st.exposureCompensationStep.toFloat().takeIf { it > 0 } ?: 0.3333f
+
+        if (!step.isFinite() || step <= 0f) {
+            Log.e(logTag, "Invalid step value: $step, cannot set EV")
+            return
+        }
+
         _step.value = step
         val targetEv = (_ev.value + delta).coerceIn(-2f, 2f)
+
+        if (!targetEv.isFinite()) {
+            Log.e(logTag, "Invalid target EV: $targetEv, ignoring")
+            return
+        }
+
         val raw = targetEv / step
+
+        if (!raw.isFinite()) {
+            Log.e(logTag, "Division resulted in invalid value: $targetEv / $step = $raw, ignoring")
+            return
+        }
+
         val rounded = kotlin.math.round(raw)
         val idx = rounded.toInt().coerceIn(st.exposureCompensationRange.lower, st.exposureCompensationRange.upper)
         Log.v("AEAF_EV", "setEv: delta=$delta, step=$step, ev=$targetEv, idx=$idx")
@@ -304,11 +328,35 @@ class CameraXFocusController(
     }
 
     override suspend fun setAbsoluteEv(evValue: Float) {
+        // CRITICAL: Validate evValue to prevent NaN/Infinity from crashing camera HAL
+        if (!evValue.isFinite()) {
+            Log.e(logTag, "Invalid EV value: $evValue (not finite), ignoring")
+            return
+        }
+
         val st = camera.cameraInfo.exposureState
         val step = st.exposureCompensationStep.toFloat().takeIf { it > 0 } ?: 0.3333f
+
+        if (!step.isFinite() || step <= 0f) {
+            Log.e(logTag, "Invalid step value: $step, cannot set EV")
+            return
+        }
+
         _step.value = step
         val clampedEv = evValue.coerceIn(-2f, 2f)
+
+        if (!clampedEv.isFinite()) {
+            Log.e(logTag, "Invalid clamped EV: $clampedEv, ignoring")
+            return
+        }
+
         val raw = clampedEv / step
+
+        if (!raw.isFinite()) {
+            Log.e(logTag, "Division resulted in invalid value: $clampedEv / $step = $raw, ignoring")
+            return
+        }
+
         val rounded = kotlin.math.round(raw)
         val idx = rounded.toInt().coerceIn(st.exposureCompensationRange.lower, st.exposureCompensationRange.upper)
         Log.v("AEAF_EV", "setAbsEv: ev=$evValue -> clamped=$clampedEv, step=$step, idx=$idx")

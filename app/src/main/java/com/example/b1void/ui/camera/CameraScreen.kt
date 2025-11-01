@@ -41,12 +41,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import androidx.compose.ui.tooling.preview.Preview as ComposePreview
 import androidx.compose.ui.Alignment
 import android.view.HapticFeedbackConstants
 import java.util.concurrent.TimeUnit
+
+private const val TAG = "TONEMAP_DEBUG"
 
 /**
  * CameraScreen shows CameraX Preview and the iPhone-like ZoomControl, with pinch/double-tap hooks.
@@ -64,9 +66,7 @@ fun CameraScreen(
     val view = LocalView.current
 
     // Create ViewModel with context for settings management
-    val vm: CameraViewModel = remember {
-        CameraViewModel(context)
-    }
+    val vm: CameraViewModel = hiltViewModel()
 
     // Ask for camera and audio just in case, gracefully no-op if granted.
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -187,12 +187,32 @@ fun CameraScreen(
     var previewSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
 
     fun tapToFocusAt(offset: Offset) {
+        // CRITICAL: Validate offset to prevent NaN/Infinity from reaching camera HAL
+        if (!offset.x.isFinite() || !offset.y.isFinite()) {
+            android.util.Log.e(TAG, "Invalid tap offset: ($offset), ignoring")
+            return
+        }
+
         val cam = camera ?: return
         try { cam.cameraControl.cancelFocusAndMetering() } catch (_: Throwable) {}
+
         val compW = previewSize.width.coerceAtLeast(1)
         val compH = previewSize.height.coerceAtLeast(1)
+
+        // Additional safety: ensure preview dimensions are valid
+        if (previewView.width <= 0 || previewView.height <= 0) {
+            android.util.Log.e(TAG, "Invalid previewView dimensions: ${previewView.width}x${previewView.height}")
+            return
+        }
+
         val pxX = (offset.x * previewView.width / compW)
         val pxY = (offset.y * previewView.height / compH)
+
+        // Validate calculated coordinates
+        if (!pxX.isFinite() || !pxY.isFinite()) {
+            android.util.Log.e(TAG, "Coordinate calculation produced invalid values: ($pxX, $pxY)")
+            return
+        }
         val factory = previewView.meteringPointFactory
         val af = factory.createPoint(pxX, pxY, 0.15f)
         val ae = factory.createPoint(pxX, pxY, 0.35f)
@@ -234,14 +254,31 @@ fun CameraScreen(
         .pointerInput(evRange) {
             // Drag after long press: show focus ring + EV slider and adjust EV with vertical swipe
             detectDragGesturesAfterLongPress(
-                onDragStart = { offset ->
-                    isAdjustingEv = true
-                    evStart = evValue
-                    // Map composable offset -> PreviewView px
+                onDragStart = onDragStart@ { offset ->
+                    // CRITICAL: Validate offset to prevent NaN/Infinity
+                    if (!offset.x.isFinite() || !offset.y.isFinite()) {
+                        android.util.Log.e(TAG, "Invalid drag offset: $offset")
+                        return@onDragStart
+                    }
+
                     val compW = previewSize.width.coerceAtLeast(1)
                     val compH = previewSize.height.coerceAtLeast(1)
+
+                    if (previewView.width <= 0 || previewView.height <= 0) {
+                        android.util.Log.e(TAG, "Invalid preview dimensions")
+                        return@onDragStart
+                    }
+
                     val pxX = (offset.x * previewView.width / compW)
                     val pxY = (offset.y * previewView.height / compH)
+
+                    if (!pxX.isFinite() || !pxY.isFinite()) {
+                        android.util.Log.e(TAG, "Invalid calculated coordinates: ($pxX, $pxY)")
+                        return@onDragStart
+                    }
+
+                    isAdjustingEv = true
+                    evStart = evValue
 
                     // Focus lock visualization and show EV slider near ring
                     focusOverlayRef?.apply {
@@ -266,10 +303,24 @@ fun CameraScreen(
             ) { change, dragAmount ->
                 change.consume()
                 if (!isAdjustingEv) return@detectDragGesturesAfterLongPress
+
+                // CRITICAL: Validate dragAmount to prevent NaN/Infinity from gesture bugs
+                if (!dragAmount.y.isFinite()) {
+                    android.util.Log.e(TAG, "Invalid dragAmount.y: ${dragAmount.y}, ignoring gesture")
+                    return@detectDragGesturesAfterLongPress
+                }
+
                 // Positive drag up -> increase EV, down -> decrease EV
                 val sensitivityPxPerEv = 150f
-                val newEv = (evStart - dragAmount.y / sensitivityPxPerEv)
-                    .coerceIn(evRange)
+                val rawEv = evStart - dragAmount.y / sensitivityPxPerEv
+
+                // Validate calculated EV before clamping
+                if (!rawEv.isFinite()) {
+                    android.util.Log.e(TAG, "EV calculation invalid: $rawEv from evStart=$evStart, drag=${dragAmount.y}")
+                    return@detectDragGesturesAfterLongPress
+                }
+
+                val newEv = rawEv.coerceIn(evRange)
                 vm.setExposureCompensation(newEv)
                 focusOverlayRef?.apply {
                     this.evValue = newEv
@@ -293,12 +344,29 @@ fun CameraScreen(
                     tapToFocusAt(offset)
                 },
                 onDoubleTap = { vm.onDoubleTap() },
-                onLongPress = { offset ->
+                onLongPress = onLongPress@ { offset ->
+                    // CRITICAL: Validate offset to prevent NaN/Infinity
+                    if (!offset.x.isFinite() || !offset.y.isFinite()) {
+                        android.util.Log.e(TAG, "Invalid long-press offset: $offset")
+                        return@onLongPress
+                    }
+
                     // Map composable offset -> PreviewView px
                     val compW = previewSize.width.coerceAtLeast(1)
                     val compH = previewSize.height.coerceAtLeast(1)
+
+                    if (previewView.width <= 0 || previewView.height <= 0) {
+                        android.util.Log.e(TAG, "Invalid preview dimensions")
+                        return@onLongPress
+                    }
+
                     val pxX = (offset.x * previewView.width / compW)
                     val pxY = (offset.y * previewView.height / compH)
+
+                    if (!pxX.isFinite() || !pxY.isFinite()) {
+                        android.util.Log.e(TAG, "Invalid coordinates: ($pxX, $pxY)")
+                        return@onLongPress
+                    }
                     focusOverlayRef?.apply {
                         visibility = android.view.View.VISIBLE
                         showFocusAt(pxX, pxY, Mode.Locked)

@@ -7,6 +7,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.viewModelScope
 import com.example.b1void.data.CameraSettingsManager
+import com.example.b1void.camera.ev.ExposureInteractor
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,13 +23,17 @@ import kotlin.math.min
  * CameraViewModel holds zoom and exposure state and exposes actions to manipulate CameraX.
  * Identifiers and comments are in English, production-leaning style.
  */
-class CameraViewModel(
-    private val context: Context? = null
+@HiltViewModel
+class CameraViewModel @Inject constructor(
+    private val exposureInteractor: ExposureInteractor,
+    private val settingsManager: CameraSettingsManager
 ) : ViewModel() {
-
     private var camera: Camera? = null
     private var zoomCollectJob: Job? = null
-    private val settingsManager: CameraSettingsManager? = context?.let { CameraSettingsManager(it) }
+
+    companion object {
+        private const val TAG = "TONEMAP_DEBUG"
+    }
 
     private val _zoomRatio = MutableStateFlow(1.0f)
     val zoomRatio: StateFlow<Float> = _zoomRatio.asStateFlow()
@@ -54,19 +61,24 @@ class CameraViewModel(
 
     init {
         // Load saved EV compensation from settings
-        settingsManager?.let { manager ->
-            viewModelScope.launch {
-                manager.getEvCompensation().collectLatest { savedEv ->
-                    _evCompensation.value = savedEv
-                    // Apply to camera if already bound
-                    camera?.let { applyEvCompensationToCamera(savedEv) }
-                }
+        viewModelScope.launch {
+            settingsManager.getEvCompensation().collectLatest { savedEv ->
+                _evCompensation.value = savedEv
+                camera?.let { applyEvCompensationToCamera(savedEv) }
             }
         }
     }
 
     fun bindCamera(camera: Camera) {
+        android.util.Log.d(TAG, "=== bindCamera START ===")
         this.camera = camera
+
+        // Log initial exposure state
+        val initialExposure = camera.cameraInfo.exposureState
+        android.util.Log.d(TAG, "Initial exposure state: index=${initialExposure.exposureCompensationIndex}, " +
+                "step=${initialExposure.exposureCompensationStep}, " +
+                "range=[${initialExposure.exposureCompensationRange.lower}..${initialExposure.exposureCompensationRange.upper}]")
+
         zoomCollectJob?.cancel()
         zoomCollectJob = viewModelScope.launch {
             camera.cameraInfo.zoomState.asFlow().collectLatest { state ->
@@ -76,14 +88,21 @@ class CameraViewModel(
         // Restore last user zoom ratio after rebind to preserve user's zoom setting
         // This ensures zoom persists across camera configuration changes
         if (lastUserZoomRatio != 1.0f) {
+            android.util.Log.d(TAG, "Restoring zoom ratio: $lastUserZoomRatio")
             camera.cameraControl.setZoomRatio(lastUserZoomRatio)
         }
 
         // Initialize EV range from camera capabilities
-        initializeEvRange(camera)
+        android.util.Log.d(TAG, "Binding exposureInteractor to camera")
+        exposureInteractor.bind(camera)
+        initializeEvRange()
+        android.util.Log.d(TAG, "Initialized EV range: ${_evRange.value}")
 
         // Apply saved EV compensation
-        applyEvCompensationToCamera(_evCompensation.value)
+        val savedEv = _evCompensation.value
+        android.util.Log.d(TAG, "Applying saved EV compensation: $savedEv")
+        applyEvCompensationToCamera(savedEv)
+        android.util.Log.d(TAG, "=== bindCamera END ===")
     }
 
     private fun updateFromZoomState(state: ZoomState) {
@@ -158,15 +177,30 @@ class CameraViewModel(
      * @param evValue EV value from -2.0 to +2.0
      */
     fun setExposureCompensation(evValue: Float) {
-        val clampedEv = evValue.coerceIn(_evRange.value)
-        _evCompensation.value = clampedEv
-        applyEvCompensationToCamera(clampedEv)
+        android.util.Log.d(TAG, "=== setExposureCompensation CALLED with evValue=$evValue ===")
+        android.util.Log.d(TAG, "Current state: _evCompensation=${_evCompensation.value}, _evRange=${_evRange.value}")
 
-        // Save to settings
-        settingsManager?.let { manager ->
-            viewModelScope.launch {
-                manager.setEvCompensation(clampedEv)
-            }
+        // CRITICAL: Validate input to prevent NaN/Infinity from crashing camera HAL
+        if (!evValue.isFinite()) {
+            android.util.Log.e(TAG, "❌ REJECTED: EV value $evValue is not finite")
+            return
+        }
+
+        val clampedEv = evValue.coerceIn(_evRange.value)
+        android.util.Log.d(TAG, "After clamping: $evValue -> $clampedEv (range=${_evRange.value})")
+
+        // Additional safety: ensure clamped value is still finite
+        if (!clampedEv.isFinite()) {
+            android.util.Log.e(TAG, "❌ REJECTED: Clamped EV $clampedEv is not finite")
+            return
+        }
+
+        _evCompensation.value = clampedEv
+        android.util.Log.d(TAG, "✅ State updated to $clampedEv, calling applyEvCompensationToCamera")
+        applyEvCompensationToCamera(clampedEv)
+        viewModelScope.launch {
+            settingsManager.setEvCompensation(clampedEv)
+            android.util.Log.d(TAG, "Saved EV $clampedEv to settings")
         }
     }
 
@@ -180,34 +214,21 @@ class CameraViewModel(
     /**
      * Initialize EV range from camera capabilities
      */
-    private fun initializeEvRange(camera: Camera) {
-        try {
-            val exposureState = camera.cameraInfo.exposureState
-            val step = exposureState.exposureCompensationStep.toFloat().takeIf { it > 0f } ?: 0.3333f
-            val minEv = exposureState.exposureCompensationRange.lower * step
-            val maxEv = exposureState.exposureCompensationRange.upper * step
-            _evRange.value = minEv.coerceIn(-2f, 2f)..maxEv.coerceIn(-2f, 2f)
-        } catch (e: Exception) {
-            // Use default range on error
-            _evRange.value = -2.0f..2.0f
-        }
+    private fun initializeEvRange() {
+        runCatching { _evRange.value = exposureInteractor.evRange() }
+            .onFailure { _evRange.value = -2.0f..2.0f }
     }
 
     /**
      * Apply EV compensation to camera hardware
      */
     private fun applyEvCompensationToCamera(evValue: Float) {
-        val cam = camera ?: return
-        try {
-            val exposureState = cam.cameraInfo.exposureState
-            val step = exposureState.exposureCompensationStep.toFloat().takeIf { it > 0f } ?: 0.3333f
-            val index = (evValue / step).toInt().coerceIn(
-                exposureState.exposureCompensationRange.lower,
-                exposureState.exposureCompensationRange.upper
-            )
-            cam.cameraControl.setExposureCompensationIndex(index)
-        } catch (e: Exception) {
-            android.util.Log.e("CameraViewModel", "Failed to apply EV compensation", e)
-        }
+        android.util.Log.d(TAG, "applyEvCompensationToCamera: calling exposureInteractor.setEv($evValue)")
+        runCatching { exposureInteractor.setEv(evValue) }
+            .onSuccess { android.util.Log.d(TAG, "✅ exposureInteractor.setEv succeeded") }
+            .onFailure {
+                android.util.Log.e(TAG, "❌ exposureInteractor.setEv FAILED", it)
+                it.printStackTrace()
+            }
     }
 }

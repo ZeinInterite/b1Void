@@ -14,8 +14,10 @@ import com.bumptech.glide.load.engine.cache.LruResourceCache
 import com.bumptech.glide.load.engine.cache.MemorySizeCalculator
 import com.example.b1void.utils.DropboxClientFactory
 import com.example.b1void.data.AppSettingsBootstrap
+import dagger.hilt.android.HiltAndroidApp
 
-class B1VoidApplication : Application(), WorkConfigurationProvider { // Используем псевдоним
+@HiltAndroidApp
+class B1VoidApplication : Application(), WorkConfigurationProvider {
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
@@ -150,3 +152,4 @@ class B1VoidApplication : Application(), WorkConfigurationProvider { // Испо
         const val MAX_IMAGE_SIZE = 1024
     }
 }
+

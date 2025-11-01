@@ -1,0 +1,260 @@
+        Log.d(AEAF_TAG, "scheduleHideEvOverlay: 1500ms")
+        evOverlay.postDelayed(r, 1500)
+    }
+
+    private fun showFocusIndicator(x: Float, y: Float) {
+        val indicatorWidth = focusIndicator.width.takeIf { it > 0 }
+            ?: focusIndicator.layoutParams.width.takeIf { it > 0 }
+            ?: 0
+        val indicatorHeight = focusIndicator.height.takeIf { it > 0 }
+            ?: focusIndicator.layoutParams.height.takeIf { it > 0 }
+            ?: 0
+
+        // Calculate a physical gap of 0.3 cm in pixels using device xdpi
+        val gapPx = (0.3f * (resources.displayMetrics.xdpi / 2.54f))
+        val evBarWidthPx = (evOverlay.width.takeIf { it > 0 }
+            ?: evOverlay.layoutParams.width.takeIf { it > 0 }
+            ?: 0).toFloat()
+
+        val parentLeft = previewView.left.toFloat()
+        val parentTop = previewView.top.toFloat()
+        val parentRight = previewView.right.toFloat()
+        val parentBottom = previewView.bottom.toFloat()
+
+        val centeredX = parentLeft + x - indicatorWidth / 2f
+        val centeredY = parentTop + y - indicatorHeight / 2f
+
+        val clampedX = centeredX.coerceIn(parentLeft, parentRight - indicatorWidth)
+        val clampedY = centeredY.coerceIn(parentTop, parentBottom - indicatorHeight)
+
+        focusIndicator.apply {
+            removeCallbacks(hideFocusIndicatorRunnable)
+            visibility = View.VISIBLE
+            alpha = 0.8f
+            // Умеренный начальный размер вместо слишком большого 1.5f
+            scaleX = 1.2f
+            scaleY = 1.2f
+            translationX = clampedX
+            translationY = clampedY
+            animate().cancel()
+
+            // Enhanced focus animation with scale and fade
+            animate()
+                .alpha(1f)
+                .scaleX(0.9f)
+                .scaleY(0.9f)
+                .setDuration(150)
+                .withEndAction {
+                    animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(150)
+                        .withEndAction {
+                            // Pulse animation to show focusing is active
+                            animate()
+                                .alpha(0.6f)
+                                .setDuration(300)
+                                .withEndAction {
+                                    animate()
+                                        .alpha(1f)
+                                        .setDuration(300)
+                                        .start()
+                                }
+                                .start()
+                        }
+                        .start()
+                }
+                .start()
+        }
+        // Move lock icon next to ring
+        lockIcon.apply {
+            translationX = clampedX + indicatorWidth + 8f
+            translationY = clampedY - 8f
+            elevation = focusIndicator.elevation + 1f
+            visibility = if (focusCoordinator?.isLocked() == true) View.VISIBLE else View.GONE
+        }
+        // Place EV overlay vertically centered to the focus square,
+        // and 0.3 cm to the left from the focus square's left edge
+        evOverlay.apply {
+            // Ограничиваем X только слева (не выходим за край экрана)
+            translationX = (clampedX - gapPx - evBarWidthPx).coerceAtLeast(0f)
+
+            // Для Y используем правильное ограничение с учетом размеров экрана
+            // Центрируем относительно квадрата фокуса
+            val centeredEvY = clampedY + indicatorHeight / 2f - height / 2f
+            // Ограничиваем сверху и снизу, чтобы evOverlay всегда был виден
+            val minEvY = 0f
+            val maxEvY = (parentBottom - parentTop - height).coerceAtLeast(0f)
+            translationY = centeredEvY.coerceIn(minEvY, maxEvY)
+
+            bringToFront()
+        }
+        // Place sun icon centered over the EV bar horizontally; sync to current EV
+        evSun.apply {
+            translationX = evOverlay.translationX + evOverlay.width / 2f - width / 2f
+            translationY = evOverlay.translationY + evOverlay.height / 2f
+            visibility = View.VISIBLE
+            bringToFront()
+        }
+        showEvUi()
+        syncSunToCurrentEv()
+        logEvOverlayBounds("after-showFocusIndicator")
+        Log.d(AEAF_TAG, "showFocusIndicator: touch(x=" + x + ", y=" + y + ") -> ring(tx=" + clampedX + ", ty=" + clampedY + "); lockVisible=" + (focusCoordinator?.isLocked() == true) + "; evOverlay(tx=" + evOverlay.translationX + ", ty=" + evOverlay.translationY + ", vis=" + (evOverlay.visibility == View.VISIBLE) + ")")
+    }
+
+    private fun logEvOverlayBounds(label: String) {
+        try {
+            val pos = IntArray(2)
+            val pv = IntArray(2)
+            evOverlay.getLocationOnScreen(pos)
+            previewView.getLocationOnScreen(pv)
+            Log.d(
+                AEAF_TAG,
+                "evOverlay bounds [" + pos[0] + "," + pos[1] + ", w=" + evOverlay.width + ", h=" + evOverlay.height + "]; preview@[" + pv[0] + "," + pv[1] + "] label=" + label
+            )
+        } catch (_: Throwable) {}
+    }
+
+    private fun showEvUi() {
+        evOverlay.visibility = View.VISIBLE
+        evSun.visibility = View.VISIBLE
+    }
+
+    private fun hideEvUi() {
+        evOverlay.visibility = View.GONE
+        evSun.visibility = View.GONE
+    }
+
+    private fun syncSunToCurrentEv() {
+        val cam = camera ?: return
+        val st = cam.cameraInfo.exposureState
+        val step = st.exposureCompensationStep.toFloat().takeIf { it > 0 } ?: 0.3333f
+        val minEv = st.exposureCompensationRange.lower * step
+        val maxEv = st.exposureCompensationRange.upper * step
+        val currentEv = st.exposureCompensationIndex * step
+        updateSunPosition(currentEv, minEv, maxEv)
+    }
+
+    private fun updateSunPosition(currentEv: Float, minEv: Float, maxEv: Float) {
+        val range = (maxEv - minEv).takeIf { it != 0f } ?: 1f
+        val t = ((currentEv - minEv) / range).coerceIn(0f, 1f)
+        evOverlay.post {
+            val barH = evOverlay.height.takeIf { it > 0 } ?: return@post
+            val top = evOverlay.translationY
+            val knobY = top + (1f - t) * barH
+            // Center horizontally to the EV bar
+            val centerX = evOverlay.translationX + evOverlay.width / 2f - evSun.width / 2f
+
+            // Используем плавную анимацию вместо мгновенного перемещения
+            // Длительность ~200ms соответствует скорости изменения экспозиции на камере
+            evSun.animate()
+                .translationY(knobY - evSun.height / 2f)
+                .translationX(centerX)
+                .setDuration(200) // Синхронизировано со скоростью изменения камеры
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        }
+    }
+
+    private fun playCaptureAnimation(imageUri: Uri) {
+        captureAnimationView.animate().cancel()
+
+        Glide.with(this)
+            .load(imageUri)
+            .centerCrop()
+            .into(captureAnimationView)
+
+        captureAnimationView.visibility = View.VISIBLE
+        captureAnimationView.alpha = 0f
+        captureAnimationView.scaleX = 0.6f
+        captureAnimationView.scaleY = 0.6f
+        captureAnimationView.translationX = 0f
+        captureAnimationView.translationY = 0f
+
+        captureAnimationView.post {
+            if (!isFinishing && !isDestroyed) {
+                val startLocation = IntArray(2)
+                val endLocation = IntArray(2)
+                captureAnimationView.getLocationOnScreen(startLocation)
+                thumbnailPreview.getLocationOnScreen(endLocation)
+
+                val deltaX = endLocation[0] - startLocation[0]
+                val deltaY = endLocation[1] - startLocation[1]
+
+                captureAnimationView.animate()
+                    .alpha(1f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(140)
+                    .setInterpolator(DecelerateInterpolator())
+                    .withEndAction {
+                        captureAnimationView.animate()
+                            .translationX(deltaX.toFloat())
+                            .translationY(deltaY.toFloat())
+                            .alpha(0f)
+                            .scaleX(0.3f)
+                            .scaleY(0.3f)
+                            .setDuration(280)
+                            .setInterpolator(AccelerateInterpolator())
+                            .withEndAction {
+                                captureAnimationView.visibility = View.GONE
+                                captureAnimationView.translationX = 0f
+                                captureAnimationView.translationY = 0f
+                                captureAnimationView.scaleX = 1f
+                                captureAnimationView.scaleY = 1f
+                                captureAnimationView.alpha = 1f
+                            }
+                            .start()
+                    }
+                    .start()
+            }
+        }
+    }
+
+    
+
+    private fun setupOrientationListener() {
+        orientationEventListener = object : OrientationEventListener(this) {
+            override fun onOrientationChanged(orientationDegrees: Int) {
+                if (orientationDegrees == ORIENTATION_UNKNOWN) return
+                // Не ребиндим камеру по наклону — только обновляем UI при реальном повороте экрана
+                val displayRotation = getDisplayRotation()
+                if (displayRotation != lastLayoutRotation) {
+                    updateLayoutForRotation(displayRotation)
+                }
+            }
+        }
+
+        orientationEventListener?.let { listener ->
+            if (listener.canDetectOrientation()) {
+                listener.enable()
+            } else {
+                listener.disable()
+            }
+        }
+    }
+
+    private fun updateLayoutForRotation(rotation: Int, animate: Boolean = true) {
+        if (!::rootLayout.isInitialized) return
+        if (layoutOrientationInitialized && rotation == lastLayoutRotation) {
+            currentUiOrientation?.let { handleAutoHideForOrientation(it) }
+            return
+        }
+
+        val targetOrientation = when (rotation) {
+            Surface.ROTATION_0 -> UiOrientation.PORTRAIT
+            Surface.ROTATION_180 -> UiOrientation.PORTRAIT_REVERSE
+            Surface.ROTATION_90 -> UiOrientation.LANDSCAPE_RIGHT
+            Surface.ROTATION_270 -> UiOrientation.LANDSCAPE_LEFT
+            else -> UiOrientation.PORTRAIT
+        }
+
+        val orientationChanged = currentUiOrientation != targetOrientation || !layoutOrientationInitialized
+        val shouldAnimate = animate && layoutOrientationInitialized && orientationChanged
+
+        if (orientationChanged) {
+            if (shouldAnimate) {
+                val transition = AutoTransition().apply {
+                    duration = 160
+                    interpolator = AccelerateDecelerateInterpolator()
+                }

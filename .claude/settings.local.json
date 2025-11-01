@@ -17,7 +17,10 @@
       "Bash(./gradlew.bat :feature:camera:lint:*)",
       "Bash(del \"D:\\Code\\projects\\document_llc_prog\\feature\\camera\\src\\main\\java\\com\\example\\b1void\\camera\\ui\\camera\\ExposureControl.kt\")",
       "Bash(./gradlew.bat :feature:camera:test --quiet)",
-      "Bash(./gradlew.bat:*)"
+      "Bash(./gradlew.bat:*)",
+      "Bash(nul)",
+      "Bash(where:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []
