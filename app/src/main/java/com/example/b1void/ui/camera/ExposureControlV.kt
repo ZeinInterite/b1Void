@@ -77,9 +77,12 @@ fun ExposureControlV(
         // Trick to get a vertical slider using rotation:
         // 1) Make the container wide (sliderHeight) and short (48dp)
         // 2) Rotate the whole container by -90°, so perceived height == sliderHeight
+        // Make the effective slider track slightly shorter so the thumb stays
+        // inside the rounded container without shifting the panel itself.
+        // Shrink by 24.dp which roughly equals twice the thumb radius + padding.
         Box(
             modifier = Modifier
-                .width(sliderHeight)
+                .width(sliderHeight - 24.dp)
                 .height(48.dp)
                 .rotate(-90f),
             contentAlignment = Alignment.Center

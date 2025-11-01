@@ -126,7 +126,7 @@ import kotlin.math.abs
 import android.view.TouchDelegate
 import android.graphics.Rect
 import com.example.b1void.utils.dpToPx
-import com.example.b1void.ui.camera.EvControlPanel
+// EvControlPanel removed (legacy)
 
 @AndroidEntryPoint
 class CameraActivity : AppCompatActivity() {
