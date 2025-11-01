@@ -324,8 +324,19 @@ class CameraActivity : AppCompatActivity() {
             }
             preferredVideoQuality = cache.videoQuality
             holdToRecordDelayMs = cache.videoRecordDelayMs.toLong()
-            savedTorchState = cache.torchEnabled
-            shouldRestoreTorchState = true
+        }
+
+        // Load torch state from DataStore (persistent storage)
+        lifecycleScope.launch {
+            try {
+                savedTorchState = settingsManager.getTorchEnabled().first()
+                shouldRestoreTorchState = true
+                Log.d(TAG, "Loaded torch state from DataStore: $savedTorchState")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load torch state from DataStore", e)
+                savedTorchState = false
+                shouldRestoreTorchState = false
+            }
         }
         // Request camera permissions on first launch
         if (!allPermissionsGranted()) {
@@ -378,7 +389,9 @@ class CameraActivity : AppCompatActivity() {
             val camera = camera ?: return true
             val zoomState = camera.cameraInfo.zoomState.value ?: return true
             val currentZoomRatio = zoomState.zoomRatio
-            val minR = zoomState.minZoomRatio`n            val maxR = zoomState.maxZoomRatio`n            val newZoomRatio = (currentZoomRatio * detector.scaleFactor).coerceIn(minR, maxR)
+            val minR = zoomState.minZoomRatio
+            val maxR = zoomState.maxZoomRatio
+            val newZoomRatio = (currentZoomRatio * detector.scaleFactor).coerceIn(minR, maxR)
 
             // Throttling: обновляем зум не чаще чем раз в ZOOM_UPDATE_INTERVAL_MS
             val now = SystemClock.elapsedRealtime()
@@ -453,7 +466,6 @@ class CameraActivity : AppCompatActivity() {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     if (currentMode == CaptureMode.PHOTO) {
-                    if (currentMode == CaptureMode.PHOTO) {
                         v.isPressed = false
 
                         if (waitingForStopTap) {
@@ -468,7 +480,6 @@ class CameraActivity : AppCompatActivity() {
                             cancelHoldRecordingStartIfPending()
                         }
                         return@setOnTouchListener true
-                    }
                     }
                 }
             }
@@ -2263,7 +2274,6 @@ class CameraActivity : AppCompatActivity() {
 
     private fun scheduleHideEvOverlay() { /* removed */ }
 
-    private fun showFocusIndicator(x: Float, y: Float) {
     private fun showFocusIndicator(x: Float, y: Float) {
         if (!::focusIndicator.isInitialized) return
         if (focusIndicator.parent == null || previewView.width <= 0 || previewView.height <= 0) {

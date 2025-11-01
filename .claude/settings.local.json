@@ -20,7 +20,17 @@
       "Bash(./gradlew.bat:*)",
       "Bash(nul)",
       "Bash(where:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(powershell -Command \"Get-Content CameraActivity.kt | Select-Object -Skip 3419 -First 15\")",
+      "Bash(powershell -Command \"Get-Content CameraActivity.kt | Select-Object -Skip 3406 -First 25\")",
+      "Bash(powershell -Command \"(Get-Content CameraActivity.kt).Count\")",
+      "Bash(git checkout:*)",
+      "Bash(powershell -Command \"(Get-Content ''D:\\Code\\projects\\document_llc_prog\\app\\src\\main\\java\\com\\example\\b1void\\activities\\CameraActivity.kt'').Count\")",
+      "Bash(python check_braces.py:*)",
+      "Bash(python find_extra_brace.py:*)",
+      "Bash(python:*)",
+      "Bash(cat:*)",
+      "Bash(del check_braces.py find_extra_brace.py find_extra_brace2.py find_first_problem.py detailed_balance.py)"
     ],
     "deny": [],
     "ask": []

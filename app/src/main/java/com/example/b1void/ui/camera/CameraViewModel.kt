@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import androidx.camera.core.Camera
 import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.core.TorchState
 import androidx.camera.core.ZoomState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
@@ -63,6 +65,13 @@ class CameraViewModel @Inject constructor(
     private val _evRange = MutableStateFlow(-2.0f..2.0f)
     val evRange: StateFlow<ClosedFloatingPointRange<Float>> = _evRange.asStateFlow()
 
+    // Torch state
+    private val _torchEnabled = MutableStateFlow(false)
+    val torchEnabled: StateFlow<Boolean> = _torchEnabled.asStateFlow()
+
+    private val _hasFlashUnit = MutableStateFlow(false)
+    val hasFlashUnit: StateFlow<Boolean> = _hasFlashUnit.asStateFlow()
+
     // EV is bound after we know concrete camera (per-camera key)
 
     fun bindCamera(camera: Camera) {
@@ -86,6 +95,30 @@ class CameraViewModel @Inject constructor(
         android.util.Log.d(TAG, "Initial exposure state: index=${initialExposure.exposureCompensationIndex}, " +
                 "step=${initialExposure.exposureCompensationStep}, " +
                 "range=[${initialExposure.exposureCompensationRange.lower}..${initialExposure.exposureCompensationRange.upper}]")
+
+        // Check flash unit availability
+        _hasFlashUnit.value = camera.cameraInfo.hasFlashUnit()
+        android.util.Log.d(TAG, "Flash unit available: ${_hasFlashUnit.value}")
+
+        // Restore torch state from persistent storage
+        viewModelScope.launch {
+            try {
+                val savedTorchState = settingsManager.getTorchEnabled().first()
+                android.util.Log.d(TAG, "Loaded torch state from DataStore: $savedTorchState")
+
+                if (savedTorchState && camera.cameraInfo.hasFlashUnit()) {
+                    android.util.Log.d(TAG, "Restoring torch state: ON")
+                    camera.cameraControl.enableTorch(true)
+                    _torchEnabled.value = true
+                } else {
+                    android.util.Log.d(TAG, "Torch state is OFF or no flash unit")
+                    _torchEnabled.value = false
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Failed to restore torch state", e)
+                _torchEnabled.value = false
+            }
+        }
 
         zoomCollectJob?.cancel()
         zoomCollectJob = viewModelScope.launch {
@@ -251,5 +284,42 @@ class CameraViewModel @Inject constructor(
                 android.util.Log.e(TAG, "❌ exposureInteractor.setEv FAILED", it)
                 it.printStackTrace()
             }
+    }
+
+    // ==================== Torch Control ====================
+
+    /**
+     * Toggle torch on/off and save state to persistent storage
+     */
+    fun toggleTorch() {
+        val cam = camera ?: run {
+            android.util.Log.w(TAG, "Cannot toggle torch: camera is null")
+            return
+        }
+
+        if (!cam.cameraInfo.hasFlashUnit()) {
+            android.util.Log.w(TAG, "Cannot toggle torch: no flash unit available")
+            return
+        }
+
+        val newState = !_torchEnabled.value
+        android.util.Log.d(TAG, "Toggling torch: ${_torchEnabled.value} -> $newState")
+
+        try {
+            cam.cameraControl.enableTorch(newState)
+            _torchEnabled.value = newState
+
+            // Save to persistent storage
+            viewModelScope.launch {
+                try {
+                    settingsManager.setTorchEnabled(newState)
+                    android.util.Log.d(TAG, "Torch state saved to DataStore: $newState")
+                } catch (e: Exception) {
+                    android.util.Log.e(TAG, "Failed to save torch state to DataStore", e)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Failed to enable torch", e)
+        }
     }
 }
