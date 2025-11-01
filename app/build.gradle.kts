@@ -19,6 +19,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunnerArguments["clearPackageData"] = "true"
         
         // Оптимизация для слабых устройств
         multiDexEnabled = true
@@ -69,6 +70,11 @@ android {
     }
 
     // Using Kotlin 2.1 Compose Compiler plugin; no composeOptions needed.
+
+    testOptions {
+        // Run tests in isolation to avoid UI мерцание/параллелизм
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
+    }
 }
 
 dependencies {
@@ -88,6 +94,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.compose.runtime:runtime-livedata")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.7")
+    implementation("androidx.preference:preference-ktx:1.2.1")
 
     val camerax_version = "1.3.1"
     implementation("androidx.camera:camera-core:${camerax_version}")
@@ -128,6 +135,16 @@ dependencies {
             testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestUtil("androidx.test:orchestrator:1.5.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    // Espresso contrib for pinch gestures, RecyclerView, etc.
+    androidTestImplementation("androidx.test.espresso:espresso-contrib:3.6.1")
+    // Compose UI testing
+    androidTestImplementation(platform("androidx.compose:compose-bom:2024.10.01"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 
     // Remove duplicate activity-ktx declaration
 

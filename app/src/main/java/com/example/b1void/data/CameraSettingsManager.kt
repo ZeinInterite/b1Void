@@ -54,6 +54,9 @@ class CameraSettingsManager(private val context: Context) {
         // Video recording delay preference
         val VIDEO_RECORD_DELAY_KEY = intPreferencesKey("video_record_delay")
 
+        // Orientation lock (true = force landscape; false = allow auto-rotate)
+        val ORIENTATION_LOCK_ENABLED_KEY = booleanPreferencesKey("orientation_lock_enabled")
+
         // Default values
         const val DEFAULT_ISO = 100
         const val DEFAULT_SHUTTER_SPEED = 1000000L // 1/1000 sec in nanoseconds
@@ -189,6 +192,23 @@ class CameraSettingsManager(private val context: Context) {
     fun getVideoQuality(): Flow<Int> {
         return context.dataStore.data.map {
             it[VIDEO_QUALITY_KEY] ?: 720
+        }
+    }
+
+    /**
+     * Orientation lock preference
+     * true  -> force landscape (default)
+     * false -> allow system auto-rotate (portrait + landscape)
+     */
+    fun isOrientationLockEnabled(): Flow<Boolean> {
+        return context.dataStore.data.map {
+            it[ORIENTATION_LOCK_ENABLED_KEY] ?: true
+        }
+    }
+
+    suspend fun setOrientationLockEnabled(enabled: Boolean) {
+        context.dataStore.edit {
+            it[ORIENTATION_LOCK_ENABLED_KEY] = enabled
         }
     }
 
@@ -378,6 +398,36 @@ class CameraSettingsManager(private val context: Context) {
             android.util.Log.d("CameraSettingsManager", "EV compensation saved: $evValue")
         } catch (e: Exception) {
             android.util.Log.e("CameraSettingsManager", "Failed to save EV compensation", e)
+        }
+    }
+
+    /**
+     * Per-camera EV getters/setters using a dynamic key composed from
+     * manufacturer_model_cameraId_lensFacing. Falls back to global EV if absent.
+     */
+    fun getEvCompensationFor(cameraKey: String): Flow<Float> {
+        val key = floatPreferencesKey("ev_compensation_" + cameraKey)
+        return context.dataStore.data.map { prefs ->
+            prefs[key] ?: prefs[EV_COMPENSATION_KEY] ?: 0.0f
+        }
+    }
+
+    suspend fun setEvCompensationFor(cameraKey: String, evValue: Float) {
+        val key = floatPreferencesKey("ev_compensation_" + cameraKey)
+        try {
+            context.dataStore.edit {
+                it[key] = evValue.coerceIn(-2.0f, 2.0f)
+            }
+            android.util.Log.d(
+                "CameraSettingsManager",
+                "EV compensation for $cameraKey saved: $evValue"
+            )
+        } catch (e: Exception) {
+            android.util.Log.e(
+                "CameraSettingsManager",
+                "Failed to save EV compensation for $cameraKey",
+                e
+            )
         }
     }
 

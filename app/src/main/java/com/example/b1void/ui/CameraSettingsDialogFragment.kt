@@ -59,6 +59,28 @@ class CameraSettingsDialogFragment : BottomSheetDialogFragment() {
         view.findViewById<Button>(R.id.video_quality_settings_button).setOnClickListener {
             showVideoQualitySettingsSubmenu()
         }
+
+        // Orientation lock switch: ON = force landscape; OFF = allow auto-rotate
+        val orientationSwitch = view.findViewById<android.widget.Switch>(R.id.orientation_lock_switch)
+        var init = true
+        lifecycleScope.launch {
+            val enabled = settingsManager.isOrientationLockEnabled().first()
+            orientationSwitch.isChecked = enabled
+            init = false
+        }
+        orientationSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (init) return@setOnCheckedChangeListener
+            lifecycleScope.launch {
+                runCatching { settingsManager.setOrientationLockEnabled(isChecked) }
+                    .onFailure { Log.e("CameraSettings", "Failed to save orientation lock", it); Toast.makeText(requireContext(), R.string.error_saving_settings, Toast.LENGTH_SHORT).show() }
+            }
+            // Apply immediately to hosting activity
+            try {
+                val mode = if (isChecked) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                requireActivity().requestedOrientation = mode
+            } catch (_: Throwable) { }
+        }
     }
 
     private fun showFlashSettingsSubmenu() {

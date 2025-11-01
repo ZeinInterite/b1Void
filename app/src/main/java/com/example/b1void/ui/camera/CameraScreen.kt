@@ -22,6 +22,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import android.util.Size
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -33,6 +34,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
@@ -54,7 +56,7 @@ private const val TAG = "TONEMAP_DEBUG"
  * CameraScreen shows CameraX Preview and the iPhone-like ZoomControl, with pinch/double-tap hooks.
  * This is a sample screen for integration and tests.
  */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun CameraScreen(
     leftHanded: Boolean = false,
@@ -332,6 +334,11 @@ fun CameraScreen(
             detectTransformGestures { _, _, zoomChange, _ ->
                 if (zoomChange.isFinite()) vm.onPinch(zoomChange)
             }
+        }
+        .pointerInteropFilter { ev ->
+            // Consume multi-touch so it doesn't bubble to AndroidView/PreviewView
+            if (ev.pointerCount >= 2) return@pointerInteropFilter true
+            false
         }
         .pointerInput(Unit) {
             // Tap gestures: tap for focus, double-tap for zoom, long-press shows EV slider

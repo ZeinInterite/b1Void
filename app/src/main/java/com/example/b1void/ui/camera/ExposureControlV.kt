@@ -48,31 +48,24 @@ fun ExposureControlV(
 
     Column(
         modifier = modifier
+            // Restore previous panel height so the semi-transparent square
+            // does not shrink after removing labels.
+            .sizeIn(minHeight = sliderHeight + 48.dp)
             .background(
                 color = Color.Black.copy(alpha = 0.5f),
                 shape = RoundedCornerShape(16.dp)
             )
             .padding(vertical = 16.dp, horizontal = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.Top
     ) {
-        Text(
-            text = when {
-                animatedEv > 0.05f -> "+%.1f EV".format(animatedEv)
-                animatedEv < -0.05f -> "%.1f EV".format(animatedEv)
-                else -> "0.0 EV"
-            },
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = evColor
-        )
-
-        Text(
-            text = "EV",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Normal,
-            color = Color.White.copy(alpha = 0.7f)
-        )
+        // All textual labels removed per UI request
+        // Container to center slider within the panel
+        Box(
+            modifier = Modifier
+                .weight(1f, fill = true),
+            contentAlignment = Alignment.Center
+        ) {
 
         // Trick to get a vertical slider using rotation:
         // 1) Make the container wide (sliderHeight) and short (48dp)
@@ -80,13 +73,13 @@ fun ExposureControlV(
         // Make the effective slider track slightly shorter so the thumb stays
         // inside the rounded container without shifting the panel itself.
         // Shrink by 24.dp which roughly equals twice the thumb radius + padding.
-        Box(
-            modifier = Modifier
-                .width(sliderHeight - 24.dp)
-                .height(48.dp)
-                .rotate(-90f),
-            contentAlignment = Alignment.Center
-        ) {
+            Box(
+                modifier = Modifier
+                    .width(sliderHeight - 24.dp)
+                    .height(48.dp)
+                    .rotate(-90f),
+                contentAlignment = Alignment.Center
+            ) {
             // Crop the visual TOP by ~1 cm (≈ 64dp) using start padding before rotation mapping
             Slider(
                 value = currentEv,
@@ -121,32 +114,14 @@ fun ExposureControlV(
             )
         }
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = "+${evRange.endInclusive}",
-                fontSize = 10.sp,
-                color = Color.White.copy(alpha = 0.5f)
-            )
-            Text(
-                text = "0",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.7f)
-            )
-            Text(
-                text = "${evRange.start}",
-                fontSize = 10.sp,
-                color = Color.White.copy(alpha = 0.5f)
-            )
-        }
+        // Scale marks removed
 
         if (abs(currentEv) > 0.05f) {
             IconButton(
                 onClick = onResetEv,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier
+                    .size(40.dp)
+                    .align(Alignment.BottomCenter)
             ) {
                 Icon(
                     imageVector = Icons.Default.Refresh,
@@ -155,6 +130,7 @@ fun ExposureControlV(
                     modifier = Modifier.size(24.dp)
                 )
             }
+        }
         }
     }
 }

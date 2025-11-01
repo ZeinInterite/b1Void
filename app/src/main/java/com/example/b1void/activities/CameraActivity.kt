@@ -285,8 +285,32 @@ class CameraActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_camera)
+        try {
+            // Keep screen on; optionally boost brightness on Xiaomi/Redmi
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            val maker = android.os.Build.MANUFACTURER.lowercase()
+            val mgr = com.example.b1void.data.CameraSettingsManager(this)
+            lifecycleScope.launchWhenCreated {
+                val boost = runCatching { mgr.getXiaomiBrightnessBoostEnabled().first() }
+                    .getOrElse { maker.contains("xiaomi") }
+                if (boost || maker.contains("xiaomi") || maker.contains("redmi")) {
+                    val lp = window.attributes
+                    lp.screenBrightness = 1f
+                    window.attributes = lp
+                    Log.d(TONEMAP_TAG, "Applied brightness boost (maker=$maker)")
+                }
+            }
+        } catch (_: Throwable) { }
 
         settingsManager = CameraSettingsManager(this)
+        // Apply orientation preference (default: lock to landscape)
+        lifecycleScope.launch {
+            try {
+                val lock = settingsManager.isOrientationLockEnabled().first()
+                requestedOrientation = if (lock) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                    else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+            } catch (_: Throwable) { /* ignore */ }
+        }
         // Initialize camera settings from app-wide cache (restored at app startup)
         runCatching {
             val cache = com.example.b1void.data.AppSettingsCache
@@ -354,7 +378,7 @@ class CameraActivity : AppCompatActivity() {
             val camera = camera ?: return true
             val zoomState = camera.cameraInfo.zoomState.value ?: return true
             val currentZoomRatio = zoomState.zoomRatio
-            val newZoomRatio = currentZoomRatio * detector.scaleFactor
+            val minR = zoomState.minZoomRatio`n            val maxR = zoomState.maxZoomRatio`n            val newZoomRatio = (currentZoomRatio * detector.scaleFactor).coerceIn(minR, maxR)
 
             // Throttling: обновляем зум не чаще чем раз в ZOOM_UPDATE_INTERVAL_MS
             val now = SystemClock.elapsedRealtime()
@@ -362,7 +386,7 @@ class CameraActivity : AppCompatActivity() {
 
             if (timeSinceLastUpdate >= ZOOM_UPDATE_INTERVAL_MS) {
                 // Достаточно времени прошло - применяем зум сразу
-                camera.cameraControl.setZoomRatio(newZoomRatio)
+                try { camera.cameraControl.setZoomRatio(newZoomRatio) } catch (_: Throwable) {}
                 lastZoomUpdateTime = now
                 pendingZoomRatio = null
                 Log.v(TAG, "Pinch-to-zoom APPLIED: ${currentZoomRatio} -> ${newZoomRatio}")
@@ -395,6 +419,17 @@ class CameraActivity : AppCompatActivity() {
             if (currentMode == CaptureMode.VIDEO) {
                 toggleVideoRecording()
             }
+        }
+
+        // Diagnostic long-press: reset EV & Zoom
+        settingsButton.setOnLongClickListener {
+            val cam = camera
+            if (cam != null) {
+                try { cam.cameraControl.setExposureCompensationIndex(0) } catch (_: Throwable) {}
+                try { cam.cameraControl.setZoomRatio(1.0f) } catch (_: Throwable) {}
+                Toast.makeText(this, "EV & Zoom reset", Toast.LENGTH_SHORT).show()
+                true
+            } else false
         }
 
         captureButton.setOnTouchListener { v, e ->
@@ -864,11 +899,11 @@ class CameraActivity : AppCompatActivity() {
                                 .background(ComposeColor.Black.copy(alpha = 0.25f))
                                 .pointerInput(Unit) { detectTapGestures(onTap = { visible.value = false }) }
                         )
-                        // Foreground centered slider (panel shifted UP by 1 cm in landscape)
+                        // Foreground centered slider (panel shifted UP by ~1 cm in landscape)
                         Box(Modifier.fillMaxSize()) {
                             androidx.compose.ui.platform.LocalView.current // ensure composition
-                            // Lower the centered panel by ~0.5 cm in landscape (~32dp)
-                            val yOffset = if (isLandscape) 32.dp else 0.dp
+                            // Raise panel by ~0.5 cm in landscape (~19dp up)
+                            val yOffset = if (isLandscape) (-19).dp else 0.dp
                             Box(
                                 Modifier
                                     .align(Alignment.Center)
@@ -1230,6 +1265,23 @@ class CameraActivity : AppCompatActivity() {
                 camera = cameraProvider?.bindToLifecycle(
                     this, cameraSelector, useCaseGroupBuilder.build()
                 )
+
+                // Observe camera state to detect device/HAL errors and recover gracefully
+                try {
+                    camera?.cameraInfo?.cameraState?.observe(this) { state ->
+                        val err = state?.error
+                        if (err != null) {
+                            Log.e(TAG, "CameraState error: code=${err.code}, will attempt restart")
+                            if (!isRebinding) {
+                                isRebinding = true
+                                previewView.postDelayed({
+                                    restartCameraSession()
+                                    isRebinding = false
+                                }, 600)
+                            }
+                        }
+                    }
+                } catch (_: Throwable) { }
 
                 // Set surface provider after binding to ensure proper initialization
                 preview.setSurfaceProvider(previewView.surfaceProvider)
@@ -2212,6 +2264,12 @@ class CameraActivity : AppCompatActivity() {
     private fun scheduleHideEvOverlay() { /* removed */ }
 
     private fun showFocusIndicator(x: Float, y: Float) {
+    private fun showFocusIndicator(x: Float, y: Float) {
+        if (!::focusIndicator.isInitialized) return
+        if (focusIndicator.parent == null || previewView.width <= 0 || previewView.height <= 0) {
+            previewView.post { showFocusIndicator(x, y) }
+            return
+        }
         val indicatorWidth = focusIndicator.width.takeIf { it > 0 }
             ?: focusIndicator.layoutParams?.width?.takeIf { it > 0 }
             ?: 0
@@ -2809,7 +2867,10 @@ class CameraActivity : AppCompatActivity() {
         // Обновить targetRotation и перебиндить use-cases с актуальным ViewPort
         currentTargetRotation = previewView.display?.rotation ?: Surface.ROTATION_0
         // Для плавности используем SurfaceView-режим
-        previewView.implementationMode = PreviewView.ImplementationMode.PERFORMANCE
+        // Avoid PERFORMANCE mode on Xiaomi/Redmi due to black preview/brightness quirks
+        val maker = android.os.Build.MANUFACTURER.lowercase()
+        previewView.implementationMode = if (maker.contains("xiaomi") || maker.contains("redmi"))
+            PreviewView.ImplementationMode.COMPATIBLE else PreviewView.ImplementationMode.PERFORMANCE
         // Единоразовый быстрый перебинд с актуальным ViewPort
         // Debounce rebind slightly so layout can settle and PreviewView gets final size
         rebindAfterRotationRunnable?.let { previewView.removeCallbacks(it) }

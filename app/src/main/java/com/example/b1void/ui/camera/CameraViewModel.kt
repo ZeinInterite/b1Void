@@ -1,7 +1,9 @@
 package com.example.b1void.ui.camera
 
 import android.content.Context
+import android.os.Build
 import androidx.camera.core.Camera
+import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.ZoomState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asFlow
@@ -30,6 +32,8 @@ class CameraViewModel @Inject constructor(
 ) : ViewModel() {
     private var camera: Camera? = null
     private var zoomCollectJob: Job? = null
+    private var evCollectJob: Job? = null
+    private var currentCameraKey: String? = null
 
     companion object {
         private const val TAG = "TONEMAP_DEBUG"
@@ -59,19 +63,23 @@ class CameraViewModel @Inject constructor(
     private val _evRange = MutableStateFlow(-2.0f..2.0f)
     val evRange: StateFlow<ClosedFloatingPointRange<Float>> = _evRange.asStateFlow()
 
-    init {
-        // Load saved EV compensation from settings
-        viewModelScope.launch {
-            settingsManager.getEvCompensation().collectLatest { savedEv ->
-                _evCompensation.value = savedEv
-                camera?.let { applyEvCompensationToCamera(savedEv) }
-            }
-        }
-    }
+    // EV is bound after we know concrete camera (per-camera key)
 
     fun bindCamera(camera: Camera) {
         android.util.Log.d(TAG, "=== bindCamera START ===")
         this.camera = camera
+
+        // Build per-camera persistence key
+        val info2 = Camera2CameraInfo.from(camera.cameraInfo)
+        val cameraId = info2.cameraId
+        val facingInt = info2.getCameraCharacteristic(android.hardware.camera2.CameraCharacteristics.LENS_FACING)
+            ?: android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
+        val facing = if (facingInt == android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT) "front" else "back"
+        val deviceKey = "${Build.MANUFACTURER}_${Build.MODEL}_${cameraId}_$facing"
+            .replace("\\s+".toRegex(), "_")
+            .lowercase()
+        currentCameraKey = deviceKey
+        android.util.Log.d(TAG, "Camera passport key=$deviceKey")
 
         // Log initial exposure state
         val initialExposure = camera.cameraInfo.exposureState
@@ -98,10 +106,17 @@ class CameraViewModel @Inject constructor(
         initializeEvRange()
         android.util.Log.d(TAG, "Initialized EV range: ${_evRange.value}")
 
-        // Apply saved EV compensation
-        val savedEv = _evCompensation.value
-        android.util.Log.d(TAG, "Applying saved EV compensation: $savedEv")
-        applyEvCompensationToCamera(savedEv)
+        // Observe per-camera EV and apply with clamp
+        evCollectJob?.cancel()
+        val key = deviceKey
+        evCollectJob = viewModelScope.launch {
+            settingsManager.getEvCompensationFor(key).collectLatest { savedEv ->
+                val clamped = savedEv.coerceIn(_evRange.value)
+                _evCompensation.value = clamped
+                android.util.Log.d(TAG, "Apply saved EV (key=$key): $savedEv -> $clamped")
+                applyEvCompensationToCamera(clamped)
+            }
+        }
         android.util.Log.d(TAG, "=== bindCamera END ===")
     }
 
@@ -199,8 +214,14 @@ class CameraViewModel @Inject constructor(
         android.util.Log.d(TAG, "✅ State updated to $clampedEv, calling applyEvCompensationToCamera")
         applyEvCompensationToCamera(clampedEv)
         viewModelScope.launch {
-            settingsManager.setEvCompensation(clampedEv)
-            android.util.Log.d(TAG, "Saved EV $clampedEv to settings")
+            val key = currentCameraKey
+            if (key != null) {
+                settingsManager.setEvCompensationFor(key, clampedEv)
+                android.util.Log.d(TAG, "Saved EV $clampedEv for $key")
+            } else {
+                settingsManager.setEvCompensation(clampedEv)
+                android.util.Log.d(TAG, "Saved EV $clampedEv (global, no camera key)")
+            }
         }
     }
 

@@ -8,7 +8,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.preference.PreferenceManager
+import androidx.preference.PreferenceManager
 import android.provider.MediaStore
 import android.util.Log
 import android.view.*
