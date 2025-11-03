@@ -50,6 +50,11 @@ class CameraViewModel @Inject constructor(
     private val _maxZoomRatio = MutableStateFlow(10f)
     val maxZoomRatio: StateFlow<Float> = _maxZoomRatio.asStateFlow()
 
+    /**
+     * XIAOMI BUG FIX #4: Get current zoom ratio for applying to capture
+     */
+    fun getCurrentZoomRatio(): Float = lastUserZoomRatio
+
     // Presets: 0.5x, 1x, 2x, 3x. Filtered by available range at runtime.
     private val allPresets = listOf(0.5f, 1f, 2f, 3f)
     private val _availablePresets = MutableStateFlow<List<Float>>(allPresets)

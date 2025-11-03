@@ -1,6 +1,7 @@
 package com.example.b1void.camera.domain.camera
 
 import android.graphics.RectF
+import android.os.Build
 import com.example.b1void.camera.core.camera.FocusState
 import com.example.b1void.camera.data.camera.FocusRepository
 import kotlinx.coroutines.CoroutineScope
@@ -71,7 +72,21 @@ class FocusInteractor(
     /** Set absolute exposure compensation value in EV stops (-2.0 to +2.0). */
     fun setAbsoluteEv(evValue: Float) {
         scope.launch {
-            repo.setAbsoluteEv(evValue)
+            // === XIAOMI BUG FIX #3: Limit EV range ===
+            val clampedValue = if (isXiaomiDevice()) {
+                // Xiaomi devices have issues with negative EV values
+                val model = Build.MODEL.lowercase()
+                val minEv = if (model.contains("redmi")) -1.0f else -1.5f
+                val maxEv = 2.0f
+                evValue.coerceIn(minEv, maxEv).also {
+                    if (it != evValue) {
+                        _events.tryEmit("xiaomi_ev_clamped")
+                    }
+                }
+            } else {
+                evValue
+            }
+            repo.setAbsoluteEv(clampedValue)
         }
     }
 
@@ -95,4 +110,12 @@ class FocusInteractor(
         repo.exposureStep
             .map { if (it > 0f) it else 0.3333f }
             .stateIn(scope, SharingStarted.Eagerly, 0.3333f).value
+
+    /**
+     * XIAOMI BUG FIX #3: Check if device is Xiaomi/Redmi
+     */
+    private fun isXiaomiDevice(): Boolean {
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        return manufacturer == "xiaomi" || manufacturer == "redmi"
+    }
 }

@@ -199,6 +199,18 @@ class CameraActivity : AppCompatActivity() {
     private var currentTargetRotation = Surface.ROTATION_0
     private var cameraRestartJob: Job? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    // === XIAOMI BUG FIX #5: Preview watchdog for black screen detection ===
+    private var previewStartTime = 0L
+    private val previewTimeoutHandler = Handler(Looper.getMainLooper())
+    private val PREVIEW_TIMEOUT_MS = 5000L  // 5 seconds timeout
+    private val previewTimeoutRunnable = Runnable {
+        if (System.currentTimeMillis() - previewStartTime > PREVIEW_TIMEOUT_MS) {
+            Log.w(TAG, "XIAOMI FIX: Preview timeout detected (black screen), restarting camera")
+            restartCamera()
+        }
+    }
+
     private var isLandscapeUi: Boolean = false
     private var layoutOrientationInitialized = false
     private var lastLayoutRotation: Int = Surface.ROTATION_0
@@ -1063,17 +1075,29 @@ class CameraActivity : AppCompatActivity() {
             Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
 
             // Выбираем разрешение с учетом особенностей устройства
-            val captureResolution = selectBestResolution(
+            var captureResolution = selectBestResolution(
                 selectedResolution,
                 manufacturer,
                 model
             )
+
+            // === XIAOMI BUG FIX #2: Stretched Photos ===
+            // Xiaomi devices have issues with aspect ratio, enforce 4:3 ratio
+            val quirks = com.example.b1void.utils.ManufacturerCompatibility.getCameraQuirks()
+            if (quirks.useHardcodedAspectRatio()) {
+                // Force 4:3 aspect ratio for Xiaomi devices
+                val targetWidth = 4000
+                val targetHeight = 3000
+                captureResolution = Size(targetWidth, targetHeight)
+                Log.d(TAG, "XIAOMI FIX: Forcing 4:3 aspect ratio (${targetWidth}x${targetHeight})")
+            }
 
             Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
             Log.e("CAMERA_DEBUG", "║ ПОСЛЕ selectBestResolution()")
             Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
             Log.e("CAMERA_DEBUG", "║ captureResolution: ${captureResolution.width}x${captureResolution.height}")
             Log.e("CAMERA_DEBUG", "║ Изменилось? ${selectedResolution != captureResolution}")
+            Log.e("CAMERA_DEBUG", "║ Xiaomi workaround активен: ${quirks.useHardcodedAspectRatio()}")
             Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
 
             // Use the same resolution for both Preview and ImageCapture to keep crop/viewport in sync
@@ -1147,17 +1171,34 @@ class CameraActivity : AppCompatActivity() {
             // КРИТИЧНО: ImageCapture должен использовать ТОЧНОЕ разрешение, выбранное пользователем
             // НЕ используем AspectRatioStrategy для ImageCapture - это переопределяет точное разрешение!
             // Если пользователь выбрал 960x720, фото ДОЛЖНО быть 960x720, а не "ближайшее с соотношением 4:3"
-            val imageCaptureSelector = ResolutionSelector.Builder()
-                .setResolutionStrategy(
+            // ИСКЛЮЧЕНИЕ: Xiaomi устройства требуют принудительного 4:3 aspect ratio
+            val imageCaptureSelector = ResolutionSelector.Builder().apply {
+                if (quirks.useHardcodedAspectRatio()) {
+                    // Xiaomi fix: use AspectRatioStrategy to enforce 4:3
+                    setAspectRatioStrategy(
+                        AspectRatioStrategy(
+                            androidx.camera.core.AspectRatio.RATIO_4_3,
+                            AspectRatioStrategy.FALLBACK_RULE_AUTO
+                        )
+                    )
+                    Log.d(TAG, "XIAOMI FIX: ImageCapture using AspectRatio.RATIO_4_3")
+                }
+                setResolutionStrategy(
                     ResolutionStrategy(
                         captureResolution,  // ТОЧНОЕ разрешение от пользователя (например, 960x720)
                         ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
                     )
                 )
-                .build()
+            }.build()
 
             // Для Preview можем использовать AspectRatioStrategy - это влияет только на отображение
-            val targetAspect = CameraSettingsManager.CAMERA_ASPECT_RATIO
+            // Xiaomi fix: force 4:3 aspect ratio for preview as well
+            val targetAspect = if (quirks.useHardcodedAspectRatio()) {
+                Log.d(TAG, "XIAOMI FIX: Preview using AspectRatio.RATIO_4_3")
+                androidx.camera.core.AspectRatio.RATIO_4_3
+            } else {
+                CameraSettingsManager.CAMERA_ASPECT_RATIO
+            }
             val previewAspectRatioStrategy = AspectRatioStrategy(
                 targetAspect,
                 AspectRatioStrategy.FALLBACK_RULE_AUTO
@@ -1296,6 +1337,11 @@ class CameraActivity : AppCompatActivity() {
 
                 // Set surface provider after binding to ensure proper initialization
                 preview.setSurfaceProvider(previewView.surfaceProvider)
+
+                // === XIAOMI BUG FIX #5: Start preview watchdog ===
+                if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
+                    startPreviewWatchdog()
+                }
 
                 // After bind, switch ImplementationMode back to COMPATIBLE to maximize fidelity
                 previewView.postDelayed({
@@ -2951,6 +2997,7 @@ class CameraActivity : AppCompatActivity() {
 
     private fun takePhoto() {
         val imageCapture = this.imageCapture ?: return
+        val currentCamera = this.camera ?: return
 
         Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
         Log.e("CAMERA_DEBUG", "║ НАЧАЛО СЪЕМКИ ФОТО")
@@ -2964,6 +3011,35 @@ class CameraActivity : AppCompatActivity() {
 
         val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
+        // === XIAOMI BUG FIX #4: Apply zoom before capture ===
+        val currentZoomRatio = currentCamera.cameraInfo.zoomState.value?.zoomRatio ?: 1.0f
+        val quirks = com.example.b1void.utils.ManufacturerCompatibility.getCameraQuirks()
+
+        if (quirks.requiresZoomStabilizationDelay() && currentZoomRatio > 1.0f) {
+            // Re-apply zoom to ensure it's applied to capture request on Xiaomi
+            Log.d(TAG, "XIAOMI FIX: Re-applying zoom ($currentZoomRatio) before capture")
+            currentCamera.cameraControl.setZoomRatio(currentZoomRatio)
+
+            // Wait for zoom stabilization before capture
+            val delayMs = quirks.getZoomStabilizationDelayMs()
+            Handler(Looper.getMainLooper()).postDelayed({
+                performCapture(imageCapture, outputOptions, photoFile, currentZoomRatio)
+            }, delayMs)
+        } else {
+            // No delay needed for non-Xiaomi devices
+            performCapture(imageCapture, outputOptions, photoFile, currentZoomRatio)
+        }
+    }
+
+    /**
+     * XIAOMI BUG FIX #4: Separate method for actual capture
+     */
+    private fun performCapture(
+        imageCapture: ImageCapture,
+        outputOptions: ImageCapture.OutputFileOptions,
+        photoFile: File,
+        zoomRatio: Float
+    ) {
         imageCapture.takePicture(
             outputOptions,
             cameraExecutor,
@@ -3009,6 +3085,12 @@ class CameraActivity : AppCompatActivity() {
                         Log.e("CAMERA_DEBUG", "║ Файл: ${photoFile.name}")
                         Log.e("CAMERA_DEBUG", "║ Размер файла: ${photoFile.length() / 1024} KB")
                         Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
+
+                        // === XIAOMI BUG FIX #2: Post-capture aspect ratio correction ===
+                        correctAspectRatioIfNeeded(photoFile.absolutePath)
+
+                        // === XIAOMI BUG FIX #4: Post-capture zoom crop (fallback) ===
+                        applyZoomPostCapture(photoFile.absolutePath, zoomRatio)
                     } catch (e: Exception) {
                         Log.e(TAG, "Error adding timestamp", e)
                         Log.e("CAMERA_DEBUG", "ОШИБКА при обработке: ${e.message}")
@@ -3359,7 +3441,7 @@ class CameraActivity : AppCompatActivity() {
         recording = null
         orientationEventListener?.disable()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
+
         clearControlsAutoHide()
 
         // Save current torch state before pausing
@@ -3372,15 +3454,31 @@ class CameraActivity : AppCompatActivity() {
             }
             Log.d(TAG, "Saved torch state on pause: $currentTorchState")
         }
+
+        // === XIAOMI BUG FIX #5: Aggressive camera cleanup ===
+        if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
+            Log.d(TAG, "XIAOMI FIX: Releasing camera resources in onPause()")
+            cancelPreviewWatchdog()
+            releaseCamera()
+        }
     }
 
     override fun onResume() {
         super.onResume()
         orientationEventListener?.enable()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
+
         updateLayoutForRotation(getDisplayRotation(), animate = false)
         loadLatestPhotoThumbnail()
+
+        // === XIAOMI BUG FIX #5: Re-initialize camera if released ===
+        if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice() && camera == null) {
+            Log.d(TAG, "XIAOMI FIX: Camera was released, re-initializing in onResume()")
+            // Small delay to ensure activity is fully resumed
+            Handler(Looper.getMainLooper()).postDelayed({
+                startCamera()
+            }, 100)
+        }
 
         // Load and restore torch state after camera initializes
         lifecycleScope.launch {
@@ -3411,8 +3509,207 @@ class CameraActivity : AppCompatActivity() {
         orientationEventListener = null
         focusIndicator.removeCallbacks(hideFocusIndicatorRunnable)
         captureAnimationView.animate().cancel()
-        
+
+        // === XIAOMI BUG FIX #5: Cancel preview watchdog ===
+        cancelPreviewWatchdog()
+
+        // Release camera resources
+        releaseCamera()
+
         cameraExecutor.shutdown()
+    }
+
+    /**
+     * XIAOMI BUG FIX #5: Release camera resources to prevent memory leaks
+     */
+    private fun releaseCamera() {
+        try {
+            cameraProvider?.unbindAll()
+            camera = null
+            imageCapture = null
+            previewUseCase = null
+
+            // Force GC on Xiaomi devices to reclaim memory
+            if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
+                System.gc()
+                Log.d(TAG, "XIAOMI FIX: Forced garbage collection after camera release")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing camera", e)
+        }
+    }
+
+    /**
+     * XIAOMI BUG FIX #5: Start preview watchdog to detect black screen
+     */
+    private fun startPreviewWatchdog() {
+        previewStartTime = System.currentTimeMillis()
+        previewTimeoutHandler.removeCallbacks(previewTimeoutRunnable)
+        previewTimeoutHandler.postDelayed(previewTimeoutRunnable, PREVIEW_TIMEOUT_MS)
+        Log.d(TAG, "XIAOMI FIX: Preview watchdog started")
+    }
+
+    /**
+     * XIAOMI BUG FIX #5: Cancel preview watchdog (called when preview successfully starts)
+     */
+    private fun cancelPreviewWatchdog() {
+        previewTimeoutHandler.removeCallbacks(previewTimeoutRunnable)
+        Log.d(TAG, "XIAOMI FIX: Preview watchdog cancelled (preview OK)")
+    }
+
+    /**
+     * XIAOMI BUG FIX #5: Restart camera (used for black screen recovery)
+     */
+    private fun restartCamera() {
+        Log.w(TAG, "XIAOMI FIX: Restarting camera")
+        releaseCamera()
+        Handler(Looper.getMainLooper()).postDelayed({
+            startCamera()
+        }, 100)
+    }
+
+    /**
+     * XIAOMI BUG FIX #2: Post-capture aspect ratio correction
+     * Проверяет и корректирует aspect ratio сохраненного изображения, если оно отличается от 4:3
+     */
+    private fun correctAspectRatioIfNeeded(imagePath: String) {
+        // Применяем только для Xiaomi устройств
+        if (!com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
+            return
+        }
+
+        try {
+            // Загружаем информацию о размере изображения
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            BitmapFactory.decodeFile(imagePath, options)
+
+            val width = options.outWidth
+            val height = options.outHeight
+            val ratio = width.toFloat() / height.toFloat()
+            val targetRatio = 4f / 3f  // 1.333...
+
+            Log.d(TAG, "XIAOMI FIX: Checking aspect ratio - ${width}x${height}, ratio=$ratio, target=$targetRatio")
+
+            // Если ratio отличается от 4:3 более чем на 10%, корректируем
+            if (kotlin.math.abs(ratio - targetRatio) > 0.1f) {
+                Log.w(TAG, "XIAOMI FIX: Incorrect aspect ratio detected! Correcting image...")
+                correctImageAspectRatio(imagePath, 4, 3)
+            } else {
+                Log.d(TAG, "XIAOMI FIX: Aspect ratio OK, no correction needed")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "XIAOMI FIX: Error checking aspect ratio", e)
+        }
+    }
+
+    /**
+     * Корректирует aspect ratio изображения, обрезая его до заданного соотношения
+     */
+    private fun correctImageAspectRatio(imagePath: String, aspectWidth: Int, aspectHeight: Int) {
+        try {
+            // Загружаем полное изображение
+            val bitmap = BitmapFactory.decodeFile(imagePath)
+            if (bitmap == null) {
+                Log.e(TAG, "XIAOMI FIX: Failed to load bitmap for correction")
+                return
+            }
+
+            val originalWidth = bitmap.width
+            val originalHeight = bitmap.height
+            val targetRatio = aspectWidth.toFloat() / aspectHeight.toFloat()
+            val currentRatio = originalWidth.toFloat() / originalHeight.toFloat()
+
+            // Вычисляем новые размеры с сохранением максимальной площади
+            val newWidth: Int
+            val newHeight: Int
+
+            if (currentRatio > targetRatio) {
+                // Изображение слишком широкое - обрезаем по ширине
+                newHeight = originalHeight
+                newWidth = (originalHeight * targetRatio).toInt()
+            } else {
+                // Изображение слишком высокое - обрезаем по высоте
+                newWidth = originalWidth
+                newHeight = (originalWidth / targetRatio).toInt()
+            }
+
+            // Вычисляем offset для центрального crop
+            val offsetX = (originalWidth - newWidth) / 2
+            val offsetY = (originalHeight - newHeight) / 2
+
+            Log.d(TAG, "XIAOMI FIX: Cropping image from ${originalWidth}x${originalHeight} to ${newWidth}x${newHeight}")
+
+            // Создаем обрезанное изображение
+            val croppedBitmap = Bitmap.createBitmap(bitmap, offsetX, offsetY, newWidth, newHeight)
+            bitmap.recycle()
+
+            // Сохраняем обрезанное изображение обратно
+            saveBitmapToFile(croppedBitmap, File(imagePath))
+            croppedBitmap.recycle()
+
+            Log.d(TAG, "XIAOMI FIX: Aspect ratio correction completed successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "XIAOMI FIX: Error correcting aspect ratio", e)
+        }
+    }
+
+    /**
+     * XIAOMI BUG FIX #4: Post-capture zoom crop (fallback method)
+     * Applies zoom by cropping the captured image if zoom was not applied during capture
+     */
+    private fun applyZoomPostCapture(imagePath: String, zoomRatio: Float) {
+        // Apply only for Xiaomi devices and when zoom > 1.0
+        if (!com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
+            return
+        }
+
+        if (zoomRatio <= 1.0f) {
+            Log.d(TAG, "XIAOMI FIX: No zoom to apply (ratio=$zoomRatio)")
+            return
+        }
+
+        // Only apply if manual zoom workaround is enabled
+        val quirks = com.example.b1void.utils.ManufacturerCompatibility.getCameraQuirks()
+        if (!quirks.useManualZoom()) {
+            return
+        }
+
+        try {
+            val bitmap = BitmapFactory.decodeFile(imagePath)
+            if (bitmap == null) {
+                Log.e(TAG, "XIAOMI FIX: Failed to load bitmap for zoom crop")
+                return
+            }
+
+            val originalWidth = bitmap.width
+            val originalHeight = bitmap.height
+
+            // Calculate crop rectangle based on zoom ratio
+            val cropWidth = (originalWidth / zoomRatio).toInt()
+            val cropHeight = (originalHeight / zoomRatio).toInt()
+            val x = (originalWidth - cropWidth) / 2
+            val y = (originalHeight - cropHeight) / 2
+
+            Log.d(TAG, "XIAOMI FIX: Applying zoom $zoomRatio via crop - ${originalWidth}x${originalHeight} -> ${cropWidth}x${cropHeight}")
+
+            // Create cropped bitmap (center crop)
+            val croppedBitmap = Bitmap.createBitmap(bitmap, x, y, cropWidth, cropHeight)
+            bitmap.recycle()
+
+            // Scale back to original resolution for consistent output size
+            val scaledBitmap = Bitmap.createScaledBitmap(croppedBitmap, originalWidth, originalHeight, true)
+            croppedBitmap.recycle()
+
+            // Save the zoomed image
+            saveBitmapToFile(scaledBitmap, File(imagePath))
+            scaledBitmap.recycle()
+
+            Log.d(TAG, "XIAOMI FIX: Zoom crop applied successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "XIAOMI FIX: Error applying zoom post-capture", e)
+        }
     }
 
     companion object {
