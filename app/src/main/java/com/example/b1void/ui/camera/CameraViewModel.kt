@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.max
@@ -28,12 +29,13 @@ import kotlin.math.min
  * Identifiers and comments are in English, production-leaning style.
  */
 @HiltViewModel
-class CameraViewModel @Inject constructor(
-    private val exposureInteractor: ExposureInteractor,
-    private val settingsManager: CameraSettingsManager
-) : ViewModel() {
+    class CameraViewModel @Inject constructor(
+        private val exposureInteractor: ExposureInteractor,
+        private val settingsManager: CameraSettingsManager
+    ) : ViewModel() {
     private var camera: Camera? = null
     private var zoomCollectJob: Job? = null
+    private var zoomPersistJob: Job? = null
     private var evCollectJob: Job? = null
     private var currentCameraKey: String? = null
 
@@ -125,17 +127,52 @@ class CameraViewModel @Inject constructor(
             }
         }
 
+        // 1) Observe live ZoomState from CameraX and mirror into VM state.
         zoomCollectJob?.cancel()
         zoomCollectJob = viewModelScope.launch {
             camera.cameraInfo.zoomState.asFlow().collectLatest { state ->
                 updateFromZoomState(state)
             }
         }
-        // Restore last user zoom ratio after rebind to preserve user's zoom setting
-        // This ensures zoom persists across camera configuration changes
-        if (lastUserZoomRatio != 1.0f) {
-            android.util.Log.d(TAG, "Restoring zoom ratio: $lastUserZoomRatio")
-            camera.cameraControl.setZoomRatio(lastUserZoomRatio)
+
+        // 2) Restore persisted zoom for this concrete camera (per-device/camera key),
+        // but only after ZoomState has reported min/max so we can clamp safely.
+        viewModelScope.launch {
+            try {
+                val saved = settingsManager.getZoomRatioFor(deviceKey).first()
+                val zState = camera.cameraInfo.zoomState.value
+                if (zState != null) {
+                    val clamped = saved.coerceIn(zState.minZoomRatio, zState.maxZoomRatio)
+                    if (kotlin.math.abs(clamped - zState.zoomRatio) > 0.01f) {
+                        android.util.Log.d(TAG, "Restoring persisted zoom for $deviceKey: $saved -> $clamped")
+                        lastUserZoomRatio = clamped
+                        camera.cameraControl.setZoomRatio(clamped)
+                        _zoomRatio.value = clamped
+                    }
+                } else {
+                    // Fallback: apply after first ZoomState arrives
+                    android.util.Log.d(TAG, "ZoomState not ready; will apply persisted zoom on first emission")
+                }
+            } catch (t: Throwable) {
+                android.util.Log.e(TAG, "Failed to restore zoom from DataStore", t)
+            }
+        }
+
+        // 3) Persist user zoom changes with debounce to avoid DataStore thrash and write races.
+        zoomPersistJob?.cancel()
+        zoomPersistJob = viewModelScope.launch {
+            // Mirror of _zoomRatio changes; debounce to 250ms to minimize writes.
+            // Note: We intentionally persist VM state, not raw ZoomState, to store user intent.
+            zoomRatio
+                .debounce(250)
+                .collectLatest { z ->
+                    val key = currentCameraKey
+                    if (key != null) {
+                        runCatching { settingsManager.setZoomRatioFor(key, z) }
+                            .onSuccess { android.util.Log.d(TAG, "Persisted zoom $z for $key") }
+                            .onFailure { android.util.Log.e(TAG, "Failed to persist zoom for $key", it) }
+                    }
+                }
         }
 
         // Initialize EV range from camera capabilities
@@ -280,14 +317,56 @@ class CameraViewModel @Inject constructor(
 
     /**
      * Apply EV compensation to camera hardware
+     * === CRITICAL SAFETY for Xiaomi: Logs show "Invalid exposure parameters: gain: 0.000000, exposureTime: 0" ===
+     * HOTFIX: NEVER send 0.0 or invalid values - they cause HAL crash with "gain: 0.0"
      */
     private fun applyEvCompensationToCamera(evValue: Float) {
-        android.util.Log.d(TAG, "applyEvCompensationToCamera: calling exposureInteractor.setEv($evValue)")
-        runCatching { exposureInteractor.setEv(evValue) }
-            .onSuccess { android.util.Log.d(TAG, "✅ exposureInteractor.setEv succeeded") }
+        android.util.Log.d(TAG, "applyEvCompensationToCamera: input=$evValue")
+
+        // === CRITICAL VALIDATION ===
+        // NEVER send invalid values to camera HAL (causes crash on Xiaomi)
+        if (!evValue.isFinite() || evValue.isNaN()) {
+            android.util.Log.e(TAG, "❌ CRITICAL: Invalid EV value detected: $evValue - SKIP setting EV")
+            // DO NOT send any value to camera - keep current exposure
+            return
+        }
+
+        // Additional safety check for Xiaomi: clamp to safe range
+        val safeValue = if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
+            evValue.coerceIn(-1.0f, 2.0f).also {
+                if (it != evValue) {
+                    android.util.Log.w(TAG, "XIAOMI: EV clamped from $evValue to $it")
+                }
+            }
+        } else {
+            evValue.coerceIn(-2.0f, 2.0f)
+        }
+
+        // === XIAOMI HOTFIX: Never send exactly 0.0 - use small offset ===
+        val finalValue = if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice() &&
+                             kotlin.math.abs(safeValue) < 0.01f) {
+            0.1f.also {
+                android.util.Log.w(TAG, "XIAOMI HOTFIX: Replacing near-zero EV $safeValue with minimal positive 0.1f")
+            }
+        } else {
+            safeValue
+        }
+
+        android.util.Log.d(TAG, "applyEvCompensationToCamera: final value=$finalValue")
+
+        // Check camera is bound before attempting EV change
+        val cam = camera
+        if (cam == null) {
+            android.util.Log.e(TAG, "❌ Camera not bound, cannot set EV")
+            return
+        }
+
+        runCatching { exposureInteractor.setEv(finalValue) }
+            .onSuccess { android.util.Log.d(TAG, "✅ exposureInteractor.setEv($finalValue) succeeded") }
             .onFailure {
-                android.util.Log.e(TAG, "❌ exposureInteractor.setEv FAILED", it)
+                android.util.Log.e(TAG, "❌ exposureInteractor.setEv FAILED - camera may be in invalid state", it)
                 it.printStackTrace()
+                // DO NOT attempt fallback - let camera maintain current exposure
             }
     }
 

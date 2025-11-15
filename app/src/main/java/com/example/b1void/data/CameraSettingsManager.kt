@@ -41,6 +41,9 @@ class CameraSettingsManager(private val context: Context) {
         // Exposure compensation
         val EV_COMPENSATION_KEY = floatPreferencesKey("ev_compensation")
 
+        // Zoom ratio (global fallback) and dynamic per-camera keys
+        val ZOOM_RATIO_KEY = floatPreferencesKey("zoom_ratio")
+
         // Xiaomi brightness boost settings
         val XIAOMI_BRIGHTNESS_BOOST_ENABLED_KEY = booleanPreferencesKey("xiaomi_brightness_boost_enabled")
         val CUSTOM_EV_COMPENSATION_KEY = floatPreferencesKey("custom_ev_compensation")
@@ -192,6 +195,41 @@ class CameraSettingsManager(private val context: Context) {
     fun getVideoQuality(): Flow<Int> {
         return context.dataStore.data.map {
             it[VIDEO_QUALITY_KEY] ?: 720
+        }
+    }
+
+    /**
+     * Get persisted zoom ratio for a specific camera key.
+     * Falls back to global zoom if per-camera is not present, then to 1.0f.
+     */
+    fun getZoomRatioFor(cameraKey: String): Flow<Float> {
+        val key = floatPreferencesKey("zoom_ratio_" + cameraKey)
+        return context.dataStore.data.map { prefs ->
+            prefs[key] ?: prefs[ZOOM_RATIO_KEY] ?: 1.0f
+        }
+    }
+
+    /**
+     * Persist zoom ratio for a specific camera key. Value is clamped to sane range [0.5f..20f].
+     */
+    suspend fun setZoomRatioFor(cameraKey: String, ratio: Float) {
+        val key = floatPreferencesKey("zoom_ratio_" + cameraKey)
+        try {
+            context.dataStore.edit {
+                // Clamp broadly; ViewModel further clamps to actual camera min/max
+                it[key] = ratio.coerceIn(0.5f, 20f)
+                it[ZOOM_RATIO_KEY] = ratio.coerceIn(0.5f, 20f) // keep a global fallback too
+            }
+            android.util.Log.d(
+                "CameraSettingsManager",
+                "Zoom ratio for $cameraKey saved: ${ratio.coerceIn(0.5f, 20f)}"
+            )
+        } catch (e: Exception) {
+            android.util.Log.e(
+                "CameraSettingsManager",
+                "Failed to save zoom ratio for $cameraKey",
+                e
+            )
         }
     }
 

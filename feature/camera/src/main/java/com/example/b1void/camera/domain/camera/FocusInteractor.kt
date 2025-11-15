@@ -72,6 +72,12 @@ class FocusInteractor(
     /** Set absolute exposure compensation value in EV stops (-2.0 to +2.0). */
     fun setAbsoluteEv(evValue: Float) {
         scope.launch {
+            // === HOTFIX: Validate input to prevent HAL crash ===
+            if (!evValue.isFinite() || evValue.isNaN()) {
+                android.util.Log.e("FocusInteractor", "❌ Invalid EV value: $evValue - SKIP")
+                return@launch
+            }
+
             // === XIAOMI BUG FIX #3: Limit EV range ===
             val clampedValue = if (isXiaomiDevice()) {
                 // Xiaomi devices have issues with negative EV values
@@ -86,7 +92,17 @@ class FocusInteractor(
             } else {
                 evValue
             }
-            repo.setAbsoluteEv(clampedValue)
+
+            // === XIAOMI HOTFIX: Never send exactly 0.0 - causes "gain: 0.0" error ===
+            val finalValue = if (isXiaomiDevice() && kotlin.math.abs(clampedValue) < 0.01f) {
+                0.1f.also {
+                    android.util.Log.w("FocusInteractor", "XIAOMI HOTFIX: Replacing near-zero EV $clampedValue with 0.1f")
+                }
+            } else {
+                clampedValue
+            }
+
+            repo.setAbsoluteEv(finalValue)
         }
     }
 

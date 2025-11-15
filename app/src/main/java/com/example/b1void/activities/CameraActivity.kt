@@ -211,6 +211,10 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
+    // === XIAOMI BUG FIX: Graceful cleanup job ===
+    private var gracefulCleanupJob: Job? = null
+    private val GRACEFUL_CLEANUP_DELAY_MS = 500L  // 500ms delay to finish pending captures
+
     private var isLandscapeUi: Boolean = false
     private var layoutOrientationInitialized = false
     private var lastLayoutRotation: Int = Surface.ROTATION_0
@@ -469,8 +473,7 @@ class CameraActivity : AppCompatActivity() {
                             // Остановка произойдет в ACTION_UP
                         } else if (!isHoldRecordingActive && !isRecording) {
                             // Запись не идет - начинаем отсчет 0.8 сек
-                            imageCapture?.targetRotation = previewView.display?.rotation ?: Surface.ROTATION_0
-                            takePhoto()
+                            // Start hold-to-record timer; photo will be decided on release
                             scheduleHoldRecordingStart()
                         }
                         return@setOnTouchListener true
@@ -484,13 +487,21 @@ class CameraActivity : AppCompatActivity() {
                             // Stop recording on the next tap release
                             stopVideoRecordingForHoldNow()
                             waitingForStopTap = false
+                            return@setOnTouchListener true
                         } else if (isRecording || isHoldRecordingActive) {
                             // Do not stop on release; wait for next tap
                             waitingForStopTap = true
-                        } else {
-                            // Released before hold threshold — cancel scheduled video start
-                            cancelHoldRecordingStartIfPending()
+                            return@setOnTouchListener true
                         }
+
+                        // Released without recording: decide tap vs. long press by duration
+                        val dt = SystemClock.uptimeMillis() - pressDownUptime
+                        if (dt <= quickTapThresholdMs) {
+                            imageCapture?.targetRotation = previewView.display?.rotation ?: Surface.ROTATION_0
+                            takePhoto()
+                        }
+                        // Cancel any pending hold start (if not yet fired)
+                        cancelHoldRecordingStartIfPending()
                         return@setOnTouchListener true
                     }
                 }
@@ -1323,17 +1334,89 @@ class CameraActivity : AppCompatActivity() {
                     camera?.cameraInfo?.cameraState?.observe(this) { state ->
                         val err = state?.error
                         if (err != null) {
-                            Log.e(TAG, "CameraState error: code=${err.code}, will attempt restart")
-                            if (!isRebinding) {
-                                isRebinding = true
-                                previewView.postDelayed({
-                                    restartCameraSession()
-                                    isRebinding = false
-                                }, 600)
+                            Log.e(TAG, "CameraState error detected: code=${err.code}, type=${state?.type}")
+
+                            // === XIAOMI BUG FIX: Enhanced error recovery ===
+                            if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
+                                when (err.code) {
+                                    CameraState.ERROR_CAMERA_IN_USE -> {
+                                        Log.e(TAG, "❌ XIAOMI: Camera in use by another app, attempting recovery in 1000ms")
+                                        if (!isRebinding) {
+                                            isRebinding = true
+                                            previewView.postDelayed({
+                                                restartCameraSession()
+                                                isRebinding = false
+                                            }, 1000)
+                                        }
+                                    }
+                                    CameraState.ERROR_MAX_CAMERAS_IN_USE -> {
+                                        Log.e(TAG, "❌ XIAOMI: Max cameras in use, attempting recovery in 1500ms")
+                                        if (!isRebinding) {
+                                            isRebinding = true
+                                            previewView.postDelayed({
+                                                restartCameraSession()
+                                                isRebinding = false
+                                            }, 1500)
+                                        }
+                                    }
+                                    CameraState.ERROR_OTHER_RECOVERABLE_ERROR -> {
+                                        Log.e(TAG, "❌ XIAOMI: Recoverable error, attempting recovery in 800ms")
+                                        if (!isRebinding) {
+                                            isRebinding = true
+                                            previewView.postDelayed({
+                                                restartCameraSession()
+                                                isRebinding = false
+                                            }, 800)
+                                        }
+                                    }
+                                    CameraState.ERROR_CAMERA_DISABLED -> {
+                                        Log.e(TAG, "❌ XIAOMI: Camera disabled by device policy")
+                                        // Don't attempt restart - show message to user
+                                        runOnUiThread {
+                                            Toast.makeText(
+                                                this,
+                                                "Камера отключена системой. Проверьте настройки устройства.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    }
+                                    CameraState.ERROR_CAMERA_FATAL_ERROR -> {
+                                        Log.e(TAG, "❌ XIAOMI: Fatal camera error - restarting after 2000ms")
+                                        if (!isRebinding) {
+                                            isRebinding = true
+                                            previewView.postDelayed({
+                                                restartCameraSession()
+                                                isRebinding = false
+                                            }, 2000)
+                                        }
+                                    }
+                                    else -> {
+                                        Log.e(TAG, "❌ XIAOMI: Unknown error code ${err.code}, attempting standard recovery")
+                                        if (!isRebinding) {
+                                            isRebinding = true
+                                            previewView.postDelayed({
+                                                restartCameraSession()
+                                                isRebinding = false
+                                            }, 1000)
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Standard error recovery for non-Xiaomi devices
+                                Log.e(TAG, "CameraState error: code=${err.code}, will attempt restart")
+                                if (!isRebinding) {
+                                    isRebinding = true
+                                    previewView.postDelayed({
+                                        restartCameraSession()
+                                        isRebinding = false
+                                    }, 600)
+                                }
                             }
                         }
                     }
-                } catch (_: Throwable) { }
+                } catch (e: Throwable) {
+                    Log.e(TAG, "Failed to observe camera state", e)
+                }
 
                 // Set surface provider after binding to ensure proper initialization
                 preview.setSurfaceProvider(previewView.surfaceProvider)
@@ -2996,8 +3079,37 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun takePhoto() {
-        val imageCapture = this.imageCapture ?: return
-        val currentCamera = this.camera ?: return
+        val imageCapture = this.imageCapture ?: run {
+            Log.e(TAG, "❌ ImageCapture is null, cannot take photo")
+            Toast.makeText(this, "Камера не инициализирована", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val currentCamera = this.camera ?: run {
+            Log.e(TAG, "❌ Camera is null, cannot take photo")
+            Toast.makeText(this, "Камера не инициализирована", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // === XIAOMI SAFETY CHECK: Validate camera state ===
+        if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
+            val cameraState = currentCamera.cameraInfo.cameraState.value
+            if (cameraState?.type != CameraState.Type.OPEN) {
+                Log.e(TAG, "❌ XIAOMI: Camera not in OPEN state: ${cameraState?.type}")
+                Toast.makeText(this, "Камера не готова. Повторите попытку.", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            // Validate zoom state (logs show invalid zoom can crash camera HAL)
+            val zoomState = currentCamera.cameraInfo.zoomState.value
+            if (zoomState == null || zoomState.zoomRatio.isNaN() || !zoomState.zoomRatio.isFinite()) {
+                Log.e(TAG, "❌ XIAOMI: Invalid zoom state: $zoomState, resetting to 1.0")
+                currentCamera.cameraControl.setZoomRatio(1.0f)
+                Toast.makeText(this, "Сброс зума, повторите съёмку", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            Log.d(TAG, "✅ XIAOMI: Pre-capture validation passed (state=${cameraState.type}, zoom=${zoomState.zoomRatio})")
+        }
 
         Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
         Log.e("CAMERA_DEBUG", "║ НАЧАЛО СЪЕМКИ ФОТО")
@@ -3048,6 +3160,12 @@ class CameraActivity : AppCompatActivity() {
                     lastSavedFile = photoFile
                     val savedUri = output.savedUri ?: Uri.fromFile(photoFile)
 
+                    // Update UI immediately for perceived speed; heavy processing continues in background
+                    runOnUiThread {
+                        updateThumbnail(savedUri)
+                        playCaptureAnimation(savedUri)
+                    }
+
                     // === КРИТИЧЕСКАЯ ДИАГНОСТИКА: РАЗМЕР СОХРАНЕННОГО ФОТО ===
                     Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
                     Log.e("CAMERA_DEBUG", "║ ФОТО СОХРАНЕНО (ДО обработки timestamp)")
@@ -3096,10 +3214,7 @@ class CameraActivity : AppCompatActivity() {
                         Log.e("CAMERA_DEBUG", "ОШИБКА при обработке: ${e.message}")
                     }
 
-                    runOnUiThread {
-                        updateThumbnail(savedUri)
-                        playCaptureAnimation(savedUri)
-                    }
+                    // UI already updated above
                 }
 
                 override fun onError(exc: ImageCaptureException) {
@@ -3455,11 +3570,27 @@ class CameraActivity : AppCompatActivity() {
             Log.d(TAG, "Saved torch state on pause: $currentTorchState")
         }
 
-        // === XIAOMI BUG FIX #5: Aggressive camera cleanup ===
+        // === XIAOMI BUG FIX #5: Graceful camera cleanup with delay ===
+        // Logs show "buffer error" and "frame dropped" when cleanup is too aggressive
         if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
-            Log.d(TAG, "XIAOMI FIX: Releasing camera resources in onPause()")
+            Log.d(TAG, "XIAOMI FIX: Scheduling graceful camera cleanup in ${GRACEFUL_CLEANUP_DELAY_MS}ms")
             cancelPreviewWatchdog()
-            releaseCamera()
+
+            // Cancel any existing cleanup job
+            gracefulCleanupJob?.cancel()
+
+            // Schedule cleanup with delay to allow pending captures to finish
+            gracefulCleanupJob = lifecycleScope.launch {
+                kotlinx.coroutines.delay(GRACEFUL_CLEANUP_DELAY_MS)
+
+                // Check if activity resumed before cleanup
+                if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+                    Log.d(TAG, "XIAOMI FIX: Activity resumed before cleanup, skipping release")
+                } else {
+                    Log.d(TAG, "XIAOMI FIX: Executing delayed camera cleanup")
+                    releaseCamera()
+                }
+            }
         }
     }
 
@@ -3471,13 +3602,19 @@ class CameraActivity : AppCompatActivity() {
         updateLayoutForRotation(getDisplayRotation(), animate = false)
         loadLatestPhotoThumbnail()
 
-        // === XIAOMI BUG FIX #5: Re-initialize camera if released ===
-        if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice() && camera == null) {
-            Log.d(TAG, "XIAOMI FIX: Camera was released, re-initializing in onResume()")
-            // Small delay to ensure activity is fully resumed
-            Handler(Looper.getMainLooper()).postDelayed({
-                startCamera()
-            }, 100)
+        // === XIAOMI BUG FIX #5: Cancel any pending cleanup ===
+        if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
+            gracefulCleanupJob?.cancel()
+            Log.d(TAG, "XIAOMI FIX: Cancelled pending cleanup job")
+
+            // Re-initialize camera if released
+            if (camera == null) {
+                Log.d(TAG, "XIAOMI FIX: Camera was released, re-initializing in onResume()")
+                // Small delay to ensure activity is fully resumed
+                Handler(Looper.getMainLooper()).postDelayed({
+                    startCamera()
+                }, 100)
+            }
         }
 
         // Load and restore torch state after camera initializes
@@ -3504,6 +3641,7 @@ class CameraActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         cameraRestartJob?.cancel()
+        gracefulCleanupJob?.cancel()  // === XIAOMI FIX: Cancel pending cleanup ===
         mainHandler.removeCallbacksAndMessages(null)
         orientationEventListener?.disable()
         orientationEventListener = null
