@@ -88,11 +88,17 @@ fun CameraScreen(
 
     val previewView = remember {
         PreviewView(context).apply {
+            val isXiaomi = com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
-            implementationMode = PreviewView.ImplementationMode.PERFORMANCE
+            // Xiaomi/Redmi: use COMPATIBLE (TextureView) to avoid black preview / HAL quirks
+            implementationMode = if (isXiaomi) {
+                PreviewView.ImplementationMode.COMPATIBLE
+            } else {
+                PreviewView.ImplementationMode.PERFORMANCE
+            }
             // FIT_CENTER shows full image without cropping, matching what will be captured
             scaleType = PreviewView.ScaleType.FIT_CENTER
         }
@@ -119,12 +125,7 @@ fun CameraScreen(
         try {
             provider.unbindAll()
 
-            // Create shared ViewPort to ensure Preview and ImageCapture use the same crop region
-            // This is THE key to making preview match captured photo exactly
-            val viewPort = ViewPort.Builder(
-                android.util.Rational(4, 3), // Use 4:3 aspect ratio (sensor native)
-                previewView.display.rotation
-            ).build()
+            val isXiaomi = com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()
 
             val cameraPreview = Preview.Builder()
                 .build()
@@ -133,12 +134,23 @@ fun CameraScreen(
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                 .build()
 
-            // UseCaseGroup with shared ViewPort ensures both use cases see the same area
-            val useCaseGroup = UseCaseGroup.Builder()
-                .setViewPort(viewPort)
+            // UseCaseGroup: on Xiaomi we intentionally skip ViewPort to avoid black preview bug
+            val useCaseGroupBuilder = UseCaseGroup.Builder()
                 .addUseCase(cameraPreview)
                 .addUseCase(imageCapture)
-                .build()
+
+            if (!isXiaomi) {
+                // Non-Xiaomi: keep shared ViewPort so preview matches capture crop
+                val viewPort = ViewPort.Builder(
+                    android.util.Rational(4, 3), // Use 4:3 aspect ratio (sensor native)
+                    previewView.display.rotation
+                ).build()
+                useCaseGroupBuilder.setViewPort(viewPort)
+            } else {
+                Log.d("CameraScreen", "XIAOMI WORKAROUND: Skipping ViewPort to avoid black preview")
+            }
+
+            val useCaseGroup = useCaseGroupBuilder.build()
 
             camera = provider.bindToLifecycle(
                 lifecycleOwner,

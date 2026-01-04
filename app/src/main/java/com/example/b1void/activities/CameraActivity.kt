@@ -204,10 +204,31 @@ class CameraActivity : AppCompatActivity() {
     private var previewStartTime = 0L
     private val previewTimeoutHandler = Handler(Looper.getMainLooper())
     private val PREVIEW_TIMEOUT_MS = 5000L  // 5 seconds timeout
+    // When watchdog fires on Xiaomi, we first try switching PreviewView implementation mode
+    // from TEXTURE_VIEW (COMPATIBLE) to SURFACE_VIEW (PERFORMANCE). Some MIUI builds
+    // fail to render camera frames into TextureView which results in a permanent black
+    // preview. Toggling implementation mode and rebinding the camera fixes this.
+    private var xiaomiPreviewTriedPerformanceMode = false
     private val previewTimeoutRunnable = Runnable {
         if (System.currentTimeMillis() - previewStartTime > PREVIEW_TIMEOUT_MS) {
-            Log.w(TAG, "XIAOMI FIX: Preview timeout detected (black screen), restarting camera")
-            restartCamera()
+            Log.w(TAG, "XIAOMI FIX: Preview timeout detected (black screen)")
+
+            if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()
+                && !xiaomiPreviewTriedPerformanceMode
+            ) {
+                xiaomiPreviewTriedPerformanceMode = true
+                Log.w(
+                    TAG,
+                    "XIAOMI FIX: Switching PreviewView.implementationMode to PERFORMANCE and restarting camera"
+                )
+                previewView.post {
+                    // PERFORMANCE -> SurfaceView-based preview, avoids TextureView black screen
+                    previewView.implementationMode = PreviewView.ImplementationMode.PERFORMANCE
+                    restartCamera()
+                }
+            } else {
+                restartCamera()
+            }
         }
     }
 
