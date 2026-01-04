@@ -1055,8 +1055,49 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
+    private fun selectFixedStandardPreviewResolution(supportedSizes: List<Size>): Size {
+        val preferredResolutions = listOf(
+            Size(1920, 1080), // FHD
+            Size(1280, 720)   // HD
+        )
+
+        // Ищем первое предпочтительное разрешение из списка, которое поддерживается устройством
+        for (preferred in preferredResolutions) {
+            if (supportedSizes.contains(preferred)) {
+                Log.d(TAG, "FIXED PREVIEW: Found supported standard resolution: ${preferred.width}x${preferred.height}")
+                return preferred
+            }
+        }
+
+        // Если ни одно из предпочтительных не найдено, выбираем лучшее из доступных, но не выше 1080p
+        val fallback = supportedSizes
+            .filter { it.width <= 1920 && it.height <= 1080 && (abs(it.width.toFloat() / it.height.toFloat() - 1.0f) > 0.1f) }
+            .maxByOrNull { it.width.toLong() * it.height }
+
+        if (fallback != null) {
+            Log.w(TAG, "FIXED PREVIEW: Preferred resolutions not found. Falling back to best available: ${fallback.width}x${fallback.height}")
+            return fallback
+        }
+
+        // Абсолютно последний вариант, если ничего не подошло
+        Log.e(TAG, "FIXED PREVIEW: No suitable resolution found. Defaulting to 640x480.")
+        return Size(640, 480)
+    }
+
     @SuppressLint("UnsafeOptInUsageError")
     private fun startCamera() {
+        // === XIAOMI BUG FIX #1: Proactively set compatible mode & add readiness checks ===
+        // Ensure the view is attached to a window and has been laid out.
+        if (!ViewCompat.isAttachedToWindow(previewView)) {
+            previewView.post { startCamera() }
+            return
+        }
+        
+        if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
+            previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            Log.d(TAG, "XIAOMI FIX: Proactively set PreviewView implementation mode to COMPATIBLE.")
+        }
+
         // Prevent re-binding camera while recording video to avoid stopping the session
         if (isRecording) {
             Log.d(TAG, "startCamera() ignored: recording in progress")
@@ -1101,43 +1142,24 @@ class CameraActivity : AppCompatActivity() {
             Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
             Log.e("CAMERA_DEBUG", "║ НАСТРОЙКИ ПОЛЬЗОВАТЕЛЯ")
             Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
-            Log.e("CAMERA_DEBUG", "║ selectedResolution (из настроек): ${selectedResolution?.width}x${selectedResolution?.height}")
+            Log.e("CAMERA_DEBUG", "║ selectedResolution (для фото): ${selectedResolution?.width}x${selectedResolution?.height}")
             Log.e("CAMERA_DEBUG", "║ Производитель устройства: $manufacturer")
             Log.e("CAMERA_DEBUG", "║ Модель устройства: $model")
             Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
 
-            // Выбираем разрешение с учетом особенностей устройства
-            var captureResolution = selectBestResolution(
+            // Выбираем разрешение для ФОТО
+            val captureResolution = selectBestResolution(
                 selectedResolution,
                 manufacturer,
                 model
             )
 
-            // === XIAOMI BUG FIX #2: Stretched Photos ===
-            // Xiaomi devices have issues with aspect ratio, enforce 4:3 ratio
-            val quirks = com.example.b1void.utils.ManufacturerCompatibility.getCameraQuirks()
-            if (quirks.useHardcodedAspectRatio()) {
-                // Force 4:3 aspect ratio for Xiaomi devices
-                val targetWidth = 4000
-                val targetHeight = 3000
-                captureResolution = Size(targetWidth, targetHeight)
-                Log.d(TAG, "XIAOMI FIX: Forcing 4:3 aspect ratio (${targetWidth}x${targetHeight})")
-            }
+            // === ИСПРАВЛЕНИЕ: Выбираем отдельное, безопасное разрешение для ПРЕВЬЮ ===
+            val previewResolution = selectFixedStandardPreviewResolution(availablePreviewResolutions)
 
-            Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
-            Log.e("CAMERA_DEBUG", "║ ПОСЛЕ selectBestResolution()")
-            Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
-            Log.e("CAMERA_DEBUG", "║ captureResolution: ${captureResolution.width}x${captureResolution.height}")
-            Log.e("CAMERA_DEBUG", "║ Изменилось? ${selectedResolution != captureResolution}")
-            Log.e("CAMERA_DEBUG", "║ Xiaomi workaround активен: ${quirks.useHardcodedAspectRatio()}")
-            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
-
-            // Use the same resolution for both Preview and ImageCapture to keep crop/viewport in sync
-            val previewResolution: Size? = captureResolution
-
-            Log.d(TAG, "=== Resolution Configuration ===")
-            Log.d(TAG, "Capture resolution: ${captureResolution.width}x${captureResolution.height}")
-            Log.d(TAG, "Preview resolution: ${previewResolution?.let { "${it.width}x${it.height}" } ?: "same as capture"}")
+            Log.d(TAG, "=== Resolution Configuration (FIXED) ===")
+            Log.d(TAG, "Capture (фото) resolution: ${captureResolution.width}x${captureResolution.height}")
+            Log.d(TAG, "Preview (просмотр) resolution: ${previewResolution.width}x${previewResolution.height}")
 
             if (selectedResolution != captureResolution) {
                 lifecycleScope.launch {
@@ -1150,162 +1172,60 @@ class CameraActivity : AppCompatActivity() {
             val rotation = previewView.display?.rotation ?: Surface.ROTATION_0
             currentTargetRotation = rotation
 
-            Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
-            Log.e("CAMERA_DEBUG", "║ ОРИЕНТАЦИЯ И ROTATION")
-            Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
-            Log.e("CAMERA_DEBUG", "║ Display rotation: $rotation")
-            val rotationDegrees = when(rotation) {
-                Surface.ROTATION_0 -> "0° (Portrait)"
-                Surface.ROTATION_90 -> "90° (Landscape)"
-                Surface.ROTATION_180 -> "180°"
-                Surface.ROTATION_270 -> "270° (Landscape reverse)"
-                else -> "Unknown"
-            }
-            Log.e("CAMERA_DEBUG", "║ Rotation в градусах: $rotationDegrees")
-            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
-
-            // ViewPort должен соответствовать aspect ratio целевого разрешения камеры (4:3)
-            // чтобы избежать нежелательного cropping изображения
             val isLandscape = (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270)
 
-            Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
-            Log.e("CAMERA_DEBUG", "║ isLandscape = $isLandscape")
-            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
-
-            // Используем aspect ratio целевого разрешения для ViewPort
-            // Это гарантирует, что захваченное изображение будет точно соответствовать captureResolution
-            val viewPortWidth: Int
-            val viewPortHeight: Int
-
-            if (isLandscape) {
-                // В landscape режиме ширина больше высоты
-                viewPortWidth = captureResolution.width
-                viewPortHeight = captureResolution.height
-            } else {
-                // В portrait режиме высота больше ширины (меняем местами)
-                viewPortWidth = captureResolution.height
-                viewPortHeight = captureResolution.width
-            }
-
-            val viewPortScaleType = when (previewView.scaleType) {
-                PreviewView.ScaleType.FILL_CENTER -> 1 // ViewPort.FILL
-                else -> 0 // ViewPort.FIT
-            }
             val viewPort = ViewPort.Builder(
-                android.util.Rational(viewPortWidth, viewPortHeight),
+                android.util.Rational(previewResolution.width, previewResolution.height),
                 rotation
-            )
-                // Используем FIT чтобы показать всё изображение без обрезки
-                // FIT гарантирует, что весь контент будет виден в preview
-                .setScaleType(0) // ViewPort.FIT - избегаем cropping
-                .build()
+            ).setScaleType(ViewPort.FIT).build()
+            
+            val quirks = com.example.b1void.utils.ManufacturerCompatibility.getCameraQuirks()
 
-            // КРИТИЧНО: ImageCapture должен использовать ТОЧНОЕ разрешение, выбранное пользователем
-            // НЕ используем AspectRatioStrategy для ImageCapture - это переопределяет точное разрешение!
-            // Если пользователь выбрал 960x720, фото ДОЛЖНО быть 960x720, а не "ближайшее с соотношением 4:3"
-            // ИСКЛЮЧЕНИЕ: Xiaomi устройства требуют принудительного 4:3 aspect ratio
             val imageCaptureSelector = ResolutionSelector.Builder().apply {
                 if (quirks.useHardcodedAspectRatio()) {
-                    // Xiaomi fix: use AspectRatioStrategy to enforce 4:3
                     setAspectRatioStrategy(
                         AspectRatioStrategy(
                             androidx.camera.core.AspectRatio.RATIO_4_3,
                             AspectRatioStrategy.FALLBACK_RULE_AUTO
                         )
                     )
-                    Log.d(TAG, "XIAOMI FIX: ImageCapture using AspectRatio.RATIO_4_3")
                 }
                 setResolutionStrategy(
                     ResolutionStrategy(
-                        captureResolution,  // ТОЧНОЕ разрешение от пользователя (например, 960x720)
+                        captureResolution,
                         ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
                     )
                 )
             }.build()
 
-            // Для Preview можем использовать AspectRatioStrategy - это влияет только на отображение
-            // Xiaomi fix: force 4:3 aspect ratio for preview as well
-            val targetAspect = if (quirks.useHardcodedAspectRatio()) {
-                Log.d(TAG, "XIAOMI FIX: Preview using AspectRatio.RATIO_4_3")
-                androidx.camera.core.AspectRatio.RATIO_4_3
-            } else {
-                CameraSettingsManager.CAMERA_ASPECT_RATIO
-            }
-            val previewAspectRatioStrategy = AspectRatioStrategy(
-                targetAspect,
-                AspectRatioStrategy.FALLBACK_RULE_AUTO
-            )
+            val previewSelector = ResolutionSelector.Builder()
+                .setResolutionStrategy(
+                    ResolutionStrategy(
+                        previewResolution,
+                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                    )
+                ).build()
 
-            // КРИТИЧНО: НЕ используем ViewPort для UseCaseGroup!
-            // ViewPort переопределяет разрешение ImageCapture и приводит к 720x540 вместо 960x720
-            // Preview будет работать без ViewPort, используя ResolutionSelector
             val useCaseGroupBuilder = UseCaseGroup.Builder()
-                // .setViewPort(viewPort)  // УДАЛЕНО - это причина бага!
 
             val previewBuilder = Preview.Builder()
                 .setTargetRotation(rotation)
-
-            // Preview использует AspectRatioStrategy для красивого отображения
-            val previewSelector = ResolutionSelector.Builder()
-                .setAspectRatioStrategy(previewAspectRatioStrategy)
-                .setResolutionStrategy(
-                    ResolutionStrategy(
-                        previewResolution ?: captureResolution,
-                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
-                    )
-                )
-                .build()
-            previewBuilder.setResolutionSelector(previewSelector)
+                .setResolutionSelector(previewSelector)
 
             val preview = previewBuilder.build()
             previewUseCase = preview
             useCaseGroupBuilder.addUseCase(preview)
 
-            Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
-            Log.e("CAMERA_DEBUG", "║ СОЗДАНИЕ ImageCapture")
-            Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
-            Log.e("CAMERA_DEBUG", "║ Передаем captureResolution в ResolutionSelector:")
-            Log.e("CAMERA_DEBUG", "║   ${captureResolution.width}x${captureResolution.height}")
-            Log.e("CAMERA_DEBUG", "║ targetRotation: $rotation")
-            Log.e("CAMERA_DEBUG", "║ flashMode: $flashMode")
-            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
-
             val imageCaptureBuilder = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                 .setFlashMode(flashMode)
                 .setTargetRotation(rotation)
-
-            imageCaptureBuilder.setResolutionSelector(imageCaptureSelector)
+                .setResolutionSelector(imageCaptureSelector)
 
             val newImageCapture = imageCaptureBuilder.build()
             imageCapture = newImageCapture
-
-            Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
-            Log.e("CAMERA_DEBUG", "║ ImageCapture СОЗДАН")
-            Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
-            Log.e("CAMERA_DEBUG", "║ ImageCapture.targetRotation: ${newImageCapture.targetRotation}")
-            Log.e("CAMERA_DEBUG", "║ ImageCapture.flashMode: ${newImageCapture.flashMode}")
-            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
             useCaseGroupBuilder.addUseCase(newImageCapture)
-
-            // DEBUG: Log preview and capture configuration
-            Log.d(TAG, "=== CameraX Configuration ===")
-            Log.d(TAG, "ViewPort: ${viewPortWidth}x${viewPortHeight} (based on capture resolution), ScaleType=FIT, rotation=$rotation")
-            Log.d(
-                TAG,
-                "Preview target resolution: " + (
-                    previewResolution?.let { "${it.width}x${it.height}" }
-                        ?: "${captureResolution.width}x${captureResolution.height}"
-                    )
-            )
-            Log.d(TAG, "ImageCapture target resolution: ${captureResolution.width}x${captureResolution.height} (EXACT - no aspect ratio override)")
-            Log.d(TAG, "SYNC CHECK: Preview and Capture using SAME resolution = ${previewResolution == captureResolution}")
-            Log.d(TAG, "PreviewView ScaleType: ${previewView.scaleType}")
-            Log.d(TAG, "PreviewView ImplementationMode: ${previewView.implementationMode}")
-            Log.d(TAG, "Preview AspectRatioStrategy: ${if (targetAspect == androidx.camera.core.AspectRatio.RATIO_16_9) "RATIO_16_9" else "RATIO_4_3"} (for display only)")
-            Log.d(TAG, "ImageCapture: NO AspectRatioStrategy - using exact resolution")
-            Log.d(TAG, "TargetRotation (Preview/ImageCapture): $rotation / $rotation")
-
+            
             // Always bind VideoCapture to support hold-to-record in PHOTO mode
             run {
                 val targetQuality = mapPreferredVideoQuality(preferredVideoQuality)
@@ -1318,22 +1238,16 @@ class CameraActivity : AppCompatActivity() {
                     )
                     .build()
 
-                // Создаем VideoCapture с применением стабилизации видео
                 val videoCaptureBuilder = VideoCapture.Builder(recorder)
                     .setTargetRotation(rotation)
 
-                // Применяем стабилизацию для видео через Camera2 Interop
                 try {
-                    val quirks = com.example.b1void.utils.ManufacturerCompatibility.getCameraQuirks()
                     if (!quirks.hasEisIssues()) {
                         val videoExtender = Camera2Interop.Extender(videoCaptureBuilder)
                         videoExtender.setCaptureRequestOption(
                             CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
                             CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON
                         )
-                        Log.d(TAG, "Video stabilization enabled for VideoCapture")
-                    } else {
-                        Log.d(TAG, "Video stabilization disabled for VideoCapture due to quirks")
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to enable video stabilization for VideoCapture: ${e.message}")
@@ -1350,87 +1264,41 @@ class CameraActivity : AppCompatActivity() {
                     this, cameraSelector, useCaseGroupBuilder.build()
                 )
 
-                // Observe camera state to detect device/HAL errors and recover gracefully
                 try {
                     camera?.cameraInfo?.cameraState?.observe(this) { state ->
                         val err = state?.error
                         if (err != null) {
                             Log.e(TAG, "CameraState error detected: code=${err.code}, type=${state?.type}")
 
-                            // === XIAOMI BUG FIX: Enhanced error recovery ===
                             if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
                                 when (err.code) {
-                                    CameraState.ERROR_CAMERA_IN_USE -> {
-                                        Log.e(TAG, "❌ XIAOMI: Camera in use by another app, attempting recovery in 1000ms")
+                                    CameraState.ERROR_CAMERA_IN_USE,
+                                    CameraState.ERROR_MAX_CAMERAS_IN_USE,
+                                    CameraState.ERROR_OTHER_RECOVERABLE_ERROR,
+                                    CameraState.ERROR_CAMERA_FATAL_ERROR -> {
+                                        Log.e(TAG, "❌ XIAOMI: Recoverable camera error (${err.code}), attempting restart.")
                                         if (!isRebinding) {
                                             isRebinding = true
-                                            previewView.postDelayed({
-                                                restartCameraSession()
-                                                isRebinding = false
-                                            }, 1000)
-                                        }
-                                    }
-                                    CameraState.ERROR_MAX_CAMERAS_IN_USE -> {
-                                        Log.e(TAG, "❌ XIAOMI: Max cameras in use, attempting recovery in 1500ms")
-                                        if (!isRebinding) {
-                                            isRebinding = true
-                                            previewView.postDelayed({
-                                                restartCameraSession()
-                                                isRebinding = false
-                                            }, 1500)
-                                        }
-                                    }
-                                    CameraState.ERROR_OTHER_RECOVERABLE_ERROR -> {
-                                        Log.e(TAG, "❌ XIAOMI: Recoverable error, attempting recovery in 800ms")
-                                        if (!isRebinding) {
-                                            isRebinding = true
-                                            previewView.postDelayed({
-                                                restartCameraSession()
-                                                isRebinding = false
-                                            }, 800)
+                                            previewView.postDelayed({ restartCameraSession(); isRebinding = false }, 1000)
                                         }
                                     }
                                     CameraState.ERROR_CAMERA_DISABLED -> {
-                                        Log.e(TAG, "❌ XIAOMI: Camera disabled by device policy")
-                                        // Don't attempt restart - show message to user
+                                        Log.e(TAG, "❌ XIAOMI: Camera disabled by device policy.")
                                         runOnUiThread {
-                                            Toast.makeText(
-                                                this,
-                                                "Камера отключена системой. Проверьте настройки устройства.",
-                                                Toast.LENGTH_LONG
-                                            ).show()
-                                        }
-                                    }
-                                    CameraState.ERROR_CAMERA_FATAL_ERROR -> {
-                                        Log.e(TAG, "❌ XIAOMI: Fatal camera error - restarting after 2000ms")
-                                        if (!isRebinding) {
-                                            isRebinding = true
-                                            previewView.postDelayed({
-                                                restartCameraSession()
-                                                isRebinding = false
-                                            }, 2000)
+                                            Toast.makeText(this, "Камера отключена системой.", Toast.LENGTH_LONG).show()
                                         }
                                     }
                                     else -> {
-                                        Log.e(TAG, "❌ XIAOMI: Unknown error code ${err.code}, attempting standard recovery")
-                                        if (!isRebinding) {
+                                         if (!isRebinding) {
                                             isRebinding = true
-                                            previewView.postDelayed({
-                                                restartCameraSession()
-                                                isRebinding = false
-                                            }, 1000)
+                                            previewView.postDelayed({ restartCameraSession(); isRebinding = false }, 1000)
                                         }
                                     }
                                 }
                             } else {
-                                // Standard error recovery for non-Xiaomi devices
-                                Log.e(TAG, "CameraState error: code=${err.code}, will attempt restart")
                                 if (!isRebinding) {
                                     isRebinding = true
-                                    previewView.postDelayed({
-                                        restartCameraSession()
-                                        isRebinding = false
-                                    }, 600)
+                                    previewView.postDelayed({ restartCameraSession(); isRebinding = false }, 600)
                                 }
                             }
                         }
@@ -1439,55 +1307,18 @@ class CameraActivity : AppCompatActivity() {
                     Log.e(TAG, "Failed to observe camera state", e)
                 }
 
-                // Set surface provider after binding to ensure proper initialization
                 preview.setSurfaceProvider(previewView.surfaceProvider)
 
-                // === XIAOMI BUG FIX #5: Start preview watchdog ===
                 if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
                     startPreviewWatchdog()
                 }
 
-                // After bind, switch ImplementationMode back to COMPATIBLE to maximize fidelity
                 previewView.postDelayed({
                     if (!isFinishing && !isDestroyed) {
                         previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
                     }
                 }, 250)
-
-                // Zoom is managed by CameraViewModel which preserves user's zoom setting across rebinds
-
-                // DEBUG: Log actual resolved dimensions and zoom state after binding
-                camera?.cameraInfo?.let { info ->
-                    var previewResActual: Size? = null
-                    var captureResActual: Size? = null
-
-                    preview.resolutionInfo?.let { resInfo ->
-                        previewResActual = resInfo.resolution
-                        Log.d(TAG, "Preview resolved resolution: ${previewResActual!!.width}x${previewResActual!!.height}, " +
-                                "aspect ratio: ${previewResActual!!.width.toFloat() / previewResActual!!.height}")
-                    }
-                    newImageCapture.resolutionInfo?.let { resInfo ->
-                        captureResActual = resInfo.resolution
-                        Log.d(TAG, "ImageCapture resolved resolution: ${captureResActual!!.width}x${captureResActual!!.height}, " +
-                                "aspect ratio: ${captureResActual!!.width.toFloat() / captureResActual!!.height}")
-                    }
-
-                    // CRITICAL CHECK: Verify preview and capture use same resolution
-                    if (previewResActual != null && captureResActual != null) {
-                        val isMatching = previewResActual == captureResActual
-                        Log.d(TAG, "=== RESOLUTION SYNC STATUS: ${if (isMatching) "✓ MATCHED" else "✗ MISMATCH"} ===")
-                        if (!isMatching) {
-                            Log.w(TAG, "WARNING: Preview and Capture resolutions don't match!")
-                            Log.w(TAG, "This will cause preview to show different area than captured photo")
-                        }
-                    }
-
-                    info.zoomState.value?.let { zoom ->
-                        Log.d(TAG, "Initial zoom ratio: ${zoom.zoomRatio} (min: ${zoom.minZoomRatio}, max: ${zoom.maxZoomRatio})")
-                    }
-                }
-
-                // Bind Compose zoom VM to CameraX for live zoom state
+                
                 if (useComposeZoom) {
                     try {
                         val vm = ViewModelProvider(this)[ComposeCameraViewModel::class.java]
@@ -1498,41 +1329,24 @@ class CameraActivity : AppCompatActivity() {
                 setupCameraStateObserver()
                 setupTorchObserver()
                 setupXiaomiBrightnessBoost()
-                // Compose zoom used; no legacy zoom observer
-                val resolutionConfirmed = verifyBoundCaptureResolution(captureResolution)
-                if (!resolutionConfirmed) {
-                    return@addListener
-                }
-                // Initialize modern focus coordinator via feature module provider
+                
                 camera?.let { cam ->
                     focusCoordinator = com.example.b1void.camera.focus.FocusProvider.create(
                         previewView = previewView,
                         camera = cam,
                         mainExecutor = ContextCompat.getMainExecutor(this),
                         callbacks = object : com.example.b1void.camera.focus.FocusCoordinator.Callbacks {
-                            override fun showIndicator(x: Float, y: Float) {
-                                Log.d(AEAF_TAG, "callbacks.showIndicator(x=" + x + ", y=" + y + ")")
-                                showFocusIndicator(x, y); focusLastX = x; focusLastY = y
-                            }
-                            override fun hideIndicator() {
-                                Log.d(AEAF_TAG, "callbacks.hideIndicator() -> schedule ring hide 1500ms")
-                                focusIndicator.removeCallbacks(hideFocusIndicatorRunnable)
-                                focusIndicator.postDelayed(hideFocusIndicatorRunnable, 1500)
-                            }
-                            override fun onFocusResult(success: Boolean) {
-                                Log.d(AEAF_TAG, "callbacks.onFocusResult(success=" + success + ")")
-                                focusIndicator.removeCallbacks(hideFocusIndicatorRunnable)
-                                Log.d(AEAF_TAG, "callbacks.onFocusResult(success=" + success + ") -> schedule ring hide 1500ms")
+                            override fun showIndicator(x: Float, y: Float) { showFocusIndicator(x, y); focusLastX = x; focusLastY = y }
+                            override fun hideIndicator() { focusIndicator.postDelayed(hideFocusIndicatorRunnable, 1500) }
+                            override fun onFocusResult(success: Boolean) { 
                                 focusIndicator.postDelayed(hideFocusIndicatorRunnable, 1500)
                                 if (success) previewView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
                             }
                             override fun onLockChanged(locked: Boolean) {
-                                Log.d(AEAF_TAG, "callbacks.onLockChanged(locked=" + locked + ")")
                                 if (!locked) focusIndicator.post(hideFocusIndicatorRunnable)
                                 toggleLockIcon(locked)
                             }
                         },
-                        // Автоотмена ручного фокуса через 5 секунд
                         config = com.example.b1void.camera.focus.FocusCoordinator.Config(
                             tapAutoCancelSeconds = 0,
                             showIndicatorOnCenter = false,
@@ -1540,33 +1354,21 @@ class CameraActivity : AppCompatActivity() {
                             cafReturnDelayMs = 1800L
                         )
                     )
-                    
                 }
                 focusAtCenter()
 
-                // Restore torch state if needed (with slight delay to ensure camera is ready)
-                Log.d(TAG, "Camera binding complete - shouldRestoreTorchState=$shouldRestoreTorchState, savedTorchState=$savedTorchState")
                 if (shouldRestoreTorchState) {
                     lifecycleScope.launch {
-                        Log.d(TAG, "Waiting 100ms before restoring torch state...")
-                        delay(100) // Small delay to ensure camera is fully initialized
+                        delay(100)
                         restoreTorchState()
                         shouldRestoreTorchState = false
-                        Log.d(TAG, "Torch state restoration complete, shouldRestoreTorchState set to false")
                     }
-                } else {
-                    Log.d(TAG, "Skipping torch restoration - shouldRestoreTorchState is false")
                 }
-            } catch (exc: IllegalArgumentException) {
-                Log.w(TAG, "Binding failed for resolution ${captureResolution.width}x${captureResolution.height}", exc)
-                handleUnsupportedCaptureResolution(captureResolution)
-                return@addListener
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
                 scheduleCameraRestart("Use case binding failed")
                 return@addListener
             }
-
         }, ContextCompat.getMainExecutor(this))
     }
 
@@ -3591,20 +3393,14 @@ class CameraActivity : AppCompatActivity() {
             Log.d(TAG, "Saved torch state on pause: $currentTorchState")
         }
 
-        // === XIAOMI BUG FIX #5: Graceful camera cleanup with delay ===
-        // Logs show "buffer error" and "frame dropped" when cleanup is too aggressive
+        // === XIAOMI BUG FIX: Refactored Lifecycle Handling ===
+        // Always release camera onPause to ensure a clean state.
+        // For Xiaomi, use a delayed release to prevent race conditions with the camera HAL.
+        gracefulCleanupJob?.cancel() // Cancel any previous cleanup job
         if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
             Log.d(TAG, "XIAOMI FIX: Scheduling graceful camera cleanup in ${GRACEFUL_CLEANUP_DELAY_MS}ms")
-            cancelPreviewWatchdog()
-
-            // Cancel any existing cleanup job
-            gracefulCleanupJob?.cancel()
-
-            // Schedule cleanup with delay to allow pending captures to finish
             gracefulCleanupJob = lifecycleScope.launch {
-                kotlinx.coroutines.delay(GRACEFUL_CLEANUP_DELAY_MS)
-
-                // Check if activity resumed before cleanup
+                delay(GRACEFUL_CLEANUP_DELAY_MS)
                 if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
                     Log.d(TAG, "XIAOMI FIX: Activity resumed before cleanup, skipping release")
                 } else {
@@ -3612,7 +3408,11 @@ class CameraActivity : AppCompatActivity() {
                     releaseCamera()
                 }
             }
+        } else {
+            // For other devices, release immediately.
+            releaseCamera()
         }
+        cancelPreviewWatchdog()
     }
 
     override fun onResume() {
@@ -3620,23 +3420,15 @@ class CameraActivity : AppCompatActivity() {
         orientationEventListener?.enable()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+        // === XIAOMI BUG FIX: Refactored Lifecycle Handling ===
+        // Always restart the camera onResume as it's always released onPause.
+        gracefulCleanupJob?.cancel()
+        Log.d(TAG, "onResume: Restarting camera.")
+        // Post the camera start to allow the view to be measured.
+        previewView.post { startCamera() }
+
         updateLayoutForRotation(getDisplayRotation(), animate = false)
         loadLatestPhotoThumbnail()
-
-        // === XIAOMI BUG FIX #5: Cancel any pending cleanup ===
-        if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
-            gracefulCleanupJob?.cancel()
-            Log.d(TAG, "XIAOMI FIX: Cancelled pending cleanup job")
-
-            // Re-initialize camera if released
-            if (camera == null) {
-                Log.d(TAG, "XIAOMI FIX: Camera was released, re-initializing in onResume()")
-                // Small delay to ensure activity is fully resumed
-                Handler(Looper.getMainLooper()).postDelayed({
-                    startCamera()
-                }, 100)
-            }
-        }
 
         // Load and restore torch state after camera initializes
         lifecycleScope.launch {
@@ -3687,6 +3479,7 @@ class CameraActivity : AppCompatActivity() {
             camera = null
             imageCapture = null
             previewUseCase = null
+            Log.d(TAG, "Camera resources released.")
 
             // Force GC on Xiaomi devices to reclaim memory
             if (com.example.b1void.utils.ManufacturerCompatibility.isXiaomiDevice()) {
@@ -3882,7 +3675,6 @@ class CameraActivity : AppCompatActivity() {
         private const val ASPECT_RATIO_TOLERANCE = 0.02f
     }
 }
-
 
 
 
