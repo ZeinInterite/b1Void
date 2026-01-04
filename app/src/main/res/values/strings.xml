@@ -54,10 +54,10 @@
 
     <string name="file_manager_sort_description">Переключить порядок сортировки</string>
 
-    <string name="camera_resolution_title">����������</string>
-    <string name="camera_resolution_close">������� ������ ����������</string>
+    <string name="camera_resolution_title"></string>
+    <string name="camera_resolution_close"></string>
 
-    <string name="trash_cleared_automatically">������� ������������� �������</string>
+    <string name="trash_cleared_automatically"></string>
     <!-- Context menu actions -->
     <string name="action_move">Переместить</string>
     <string name="action_delete">Удалить</string>
@@ -71,7 +71,7 @@
     <string name="image_preview_file_not_found">Файл не найден</string>
     <string name="cd_af_ae_lock">AE/AF Lock indicator</string>
     <string name="cd_exposure_overlay">Exposure adjustment overlay</string>
-    
+
     <!-- Sort menu labels (Russian) -->
     <string name="sort_date_asc_label">По дате (возрастание)</string>
     <string name="sort_date_desc_label">По дате (убывание)</string>
@@ -80,4 +80,12 @@
     <string name="sort_size_asc_label">По размеру (возрастание)</string>
     <string name="sort_size_desc_label">По размеру (убывание)</string>
     <string name="error_saving_settings">Ошибка сохранения настроек</string>
+    <string name="no_images_to_display">No images to display.</string>
+    <string name="delete_image_dialog_title">Delete Image</string>
+    <string name="delete_image_dialog_message">Are you sure you want to delete this image?</string>
+    <string name="delete_button_text">Delete</string>
+    <string name="cancel_button_text">Cancel</string>
+    <string name="delete_image_failed">Failed to delete image.</string>
+    <string name="share_image_chooser_title">Share Image</string>
+    <string name="image_not_found">Image not found.</string>
 </resources>

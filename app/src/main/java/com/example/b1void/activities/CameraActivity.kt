@@ -1616,89 +1616,46 @@ class CameraActivity : AppCompatActivity() {
         manufacturer: String,
         model: String
     ): Size {
-        Log.e("CAMERA_DEBUG", "╔════════════════════════════════════════════════")
-        Log.e("CAMERA_DEBUG", "║ selectBestResolution() ВЫЗВАНА")
-        Log.e("CAMERA_DEBUG", "╠════════════════════════════════════════════════")
-        Log.e("CAMERA_DEBUG", "║ requested: ${requested?.width}x${requested?.height}")
-        Log.e("CAMERA_DEBUG", "║ manufacturer: $manufacturer")
-        Log.e("CAMERA_DEBUG", "║ model: $model")
-        Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
+        val targetResolution = Size(960, 720)
+        val targetAspectRatio = targetResolution.width.toFloat() / targetResolution.height.toFloat()
 
-        // Если запрошенное разрешение поддерживается, используем его
-        if (requested != null &&
-            (selectableCaptureResolutions.contains(requested) ||
-                    availableCaptureResolutions.contains(requested))) {
-            Log.e("CAMERA_DEBUG", "║ ✅ requested разрешение ПОДДЕРЖИВАЕТСЯ")
-            Log.e("CAMERA_DEBUG", "║ ВОЗВРАЩАЕМ: ${requested.width}x${requested.height}")
-            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
-            return requested
-        }
-
-        Log.e("CAMERA_DEBUG", "║ ❌ requested разрешение НЕ поддерживается")
-
-        // Получаем список доступных разрешений
         val available = selectableCaptureResolutions.ifEmpty {
             availableCaptureResolutions.ifEmpty { supportedResolutions }
         }
 
-        Log.e("CAMERA_DEBUG", "║")
-        Log.e("CAMERA_DEBUG", "║ ДОСТУПНЫЕ РАЗРЕШЕНИЯ:")
-        available.take(10).forEach {
-            Log.e("CAMERA_DEBUG", "║   - ${it.width}x${it.height}")
-        }
-        if (available.size > 10) {
-            Log.e("CAMERA_DEBUG", "║   ... и еще ${available.size - 10}")
-        }
-        Log.e("CAMERA_DEBUG", "║")
-
-        // ПРИОРИТЕТ: Если DEFAULT_PHOTO_RESOLUTION (960x720) поддерживается камерой, используем его
-        if (available.contains(DEFAULT_PHOTO_RESOLUTION)) {
-            Log.e("CAMERA_DEBUG", "║ ✅ DEFAULT_PHOTO_RESOLUTION (960x720) ПОДДЕРЖИВАЕТСЯ")
-            Log.e("CAMERA_DEBUG", "║ ВОЗВРАЩАЕМ: 960x720")
-            Log.e("CAMERA_DEBUG", "╚════════════════════════════════════════════════")
-            Log.d(TAG, "Using DEFAULT_PHOTO_RESOLUTION (960x720) as it's supported by camera")
-            return DEFAULT_PHOTO_RESOLUTION
+        // 1. Try to find an exact match
+        if (available.contains(targetResolution)) {
+            Log.d(TAG, "selectBestResolution: Found exact match for ${targetResolution.width}x${targetResolution.height}")
+            return targetResolution
         }
 
-        // Если DEFAULT_PHOTO_RESOLUTION недоступно, выбираем наилучшее для данного устройства
-        Log.e("CAMERA_DEBUG", "║ ❌ DEFAULT_PHOTO_RESOLUTION (960x720) НЕ поддерживается")
-        Log.e("CAMERA_DEBUG", "║ Используем manufacturer-specific logic...")
-        Log.d(TAG, "DEFAULT_PHOTO_RESOLUTION not available, using manufacturer-specific logic")
-
-        // Получаем рекомендации для производителя
-        val quirks = com.example.b1void.utils.ManufacturerCompatibility.getCameraQuirks()
-        val maxRecommended = quirks.getMaxRecommendedResolution()
-
-        return when {
-            manufacturer == "samsung" && model.contains("galaxy s") -> {
-                // Флагманские Samsung - можем использовать высокое разрешение
-                available.firstOrNull { it.width >= 1920 } ?: available.firstOrNull() ?: DEFAULT_PHOTO_RESOLUTION
-            }
-            manufacturer == "xiaomi" && model.contains("redmi") -> {
-                // Бюджетные Xiaomi - консервативный выбор
-                available.firstOrNull { it.width in 1280..1920 } ?: available.firstOrNull() ?: Size(1280, 720)
-            }
-            manufacturer == "huawei" -> {
-                // Huawei - предпочитаем 4:3
-                available.firstOrNull {
-                    val ratio = it.width.toFloat() / it.height
-                    kotlin.math.abs(ratio - 1.333f) < 0.1f
-                } ?: available.firstOrNull() ?: DEFAULT_PHOTO_RESOLUTION
-            }
-            maxRecommended != null -> {
-                // Используем рекомендацию производителя
-                available.firstOrNull {
-                    it.width <= maxRecommended.width && it.height <= maxRecommended.height
-                } ?: available.firstOrNull() ?: DEFAULT_PHOTO_RESOLUTION
-            }
-            else -> {
-                // Безопасное разрешение для всех устройств
-                available.firstOrNull { it.width == 1920 && it.height == 1080 }
-                    ?: available.firstOrNull { it.width == 1280 && it.height == 720 }
-                    ?: available.firstOrNull()
-                    ?: Size(1280, 720) // Fallback на 720p
-            }
+        // 2. If no exact match, find resolutions with the same aspect ratio
+        val sameAspectRatio = available.filter {
+            val ratio = it.width.toFloat() / it.height
+            abs(ratio - targetAspectRatio) < 0.1
         }
+
+        if (sameAspectRatio.isNotEmpty()) {
+            // Select the one with the closest area to the target
+            val bestMatch = sameAspectRatio.minByOrNull {
+                abs(it.width.toLong() * it.height - targetResolution.width.toLong() * targetResolution.height)
+            }!!
+            Log.d(TAG, "selectBestResolution: No exact match. Found best match with same aspect ratio: ${bestMatch.width}x${bestMatch.height}")
+            return bestMatch
+        }
+
+        // 3. If no resolutions with the same aspect ratio are found, find the one with the closest area from all available
+        val closestArea = available.minByOrNull {
+            abs(it.width.toLong() * it.height - targetResolution.width.toLong() * targetResolution.height)
+        }
+        if(closestArea != null) {
+            Log.d(TAG, "selectBestResolution: No same aspect ratio. Found closest area: ${closestArea.width}x${closestArea.height}")
+            return closestArea
+        }
+
+        // 4. Fallback if no resolutions are available
+        Log.d(TAG, "selectBestResolution: No suitable resolution found. Falling back to 1280x720")
+        return Size(1280, 720)
     }
 
     /**
