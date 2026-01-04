@@ -862,7 +862,7 @@ class CameraActivity : AppCompatActivity() {
         // Default preview scaling. В портретной ориентации избегаем кропа (FIT_CENTER),
         // в альбомной — заполняем экран без чёрных полос (FILL_CENTER).
         previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-        previewView.scaleType = PreviewView.ScaleType.FIT_CENTER
+        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
         captureButton = findViewById(R.id.shutterButton)
         // modeSwitchButton removed from layout
         flipCameraButton = findViewById(R.id.switchCameraButton)
@@ -1154,12 +1154,14 @@ class CameraActivity : AppCompatActivity() {
                 model
             )
 
-            // === ИСПРАВЛЕНИЕ: Выбираем отдельное, безопасное разрешение для ПРЕВЬЮ ===
-            val previewResolution = selectFixedStandardPreviewResolution(availablePreviewResolutions)
+            // === Aspect Ratio Fix: Prioritize 16:9 for Preview ===
+            val previewSelector = ResolutionSelector.Builder()
+                .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
+                .build()
 
-            Log.d(TAG, "=== Resolution Configuration (FIXED) ===")
-            Log.d(TAG, "Capture (фото) resolution: ${captureResolution.width}x${captureResolution.height}")
-            Log.d(TAG, "Preview (просмотр) resolution: ${previewResolution.width}x${previewResolution.height}")
+            Log.d(TAG, "=== Resolution Configuration (Aspect Ratio Fix) ===")
+            Log.d(TAG, "Capture (photo) resolution: ${captureResolution.width}x${captureResolution.height}")
+            Log.d(TAG, "Preview Aspect Ratio Strategy: 16:9 Fallback Auto")
 
             if (selectedResolution != captureResolution) {
                 lifecycleScope.launch {
@@ -1171,13 +1173,6 @@ class CameraActivity : AppCompatActivity() {
             // Derive rotation directly from PreviewView display to keep use cases aligned
             val rotation = previewView.display?.rotation ?: Surface.ROTATION_0
             currentTargetRotation = rotation
-
-            val isLandscape = (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270)
-
-            val viewPort = ViewPort.Builder(
-                android.util.Rational(previewResolution.width, previewResolution.height),
-                rotation
-            ).setScaleType(ViewPort.FIT).build()
             
             val quirks = com.example.b1void.utils.ManufacturerCompatibility.getCameraQuirks()
 
@@ -1197,14 +1192,6 @@ class CameraActivity : AppCompatActivity() {
                     )
                 )
             }.build()
-
-            val previewSelector = ResolutionSelector.Builder()
-                .setResolutionStrategy(
-                    ResolutionStrategy(
-                        previewResolution,
-                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
-                    )
-                ).build()
 
             val useCaseGroupBuilder = UseCaseGroup.Builder()
 
