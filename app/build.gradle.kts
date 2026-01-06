@@ -3,7 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("com.google.gms.google-services")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.google.devtools.ksp")
+    id("com.google.devtools.ksp") version "1.9.22-1.0.17"
     id("com.google.dagger.hilt.android")
 }
 
@@ -30,20 +30,10 @@ android {
         }
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = file("release.keystore")
-            storePassword = "b1void123"
-            keyAlias = "b1void"
-            keyPassword = "b1void123"
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -65,8 +55,8 @@ android {
     }
 
     buildFeatures {
-        viewBinding = true
         compose = true
+        buildConfig = true
     }
 
     // Using Kotlin 2.1 Compose Compiler plugin; no composeOptions needed.
@@ -78,10 +68,11 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.constraintlayout:constraintlayout:2.2.0")
+    // Exclude conflicting annotations to resolve duplicate class errors
+    configurations.all {
+        exclude(group = "com.intellij", module = "annotations")
+    }
+    // Core AndroidX removed. These dependencies should be handled by core modules.
 
     // Compose BOM and core
     implementation(platform("androidx.compose:compose-bom:2024.10.01"))
@@ -94,45 +85,68 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.compose.runtime:runtime-livedata")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.7")
-    implementation("androidx.preference:preference-ktx:1.2.1")
+    // AndroidX Preference removed. Should be provided by core modules.
 
-    val camerax_version = "1.3.1"
+    // Kotlin Coroutines removed. Should be provided by core modules.
+
+    // Datastore removed. Should be provided by core modules.
+
+    // Play Services Auth removed. Should be provided by core modules.
+
+    // Hilt DI
+    implementation("com.google.dagger:hilt-android:2.52")
+    implementation("androidx.hilt:hilt-common:1.2.0")
+
+    ksp("androidx.hilt:hilt-compiler:1.2.0")
+
+    // Hilt Work removed. It was contributing to the original Hilt error.
+
+    // Compose Navigation removed. Should be provided by core modules.
+    // val nav_version = "2.7.7"
+
+    // LeakCanary removed. Can be added to a dedicated debug module if needed.
+
+    // Зависимости от feature модулей
+    implementation(project(":feature:camera"))
+    implementation(project(":feature:gallery"))
+
+    // Зависимости от core модулей
+    implementation(project(":core:common"))
+    implementation(project(":core:model"))
+    implementation(project(":core:ui"))
+    implementation(project(":core:domain"))
+    implementation(project(":core:data"))
+    implementation(project(":core:network"))
+    implementation(project(":core:camera"))
+
+    // Added to resolve adapter, UI, and worker dependencies
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+    // CameraX
+    val camerax_version = "1.5.2"
     implementation("androidx.camera:camera-core:${camerax_version}")
     implementation("androidx.camera:camera-camera2:${camerax_version}")
     implementation("androidx.camera:camera-lifecycle:${camerax_version}")
     implementation("androidx.camera:camera-view:${camerax_version}")
-    implementation("androidx.camera:camera-video:${camerax_version}")
-    implementation("androidx.exifinterface:exifinterface:1.3.7")
-    implementation("androidx.media3:media3-transformer:1.4.1")
-    implementation("androidx.media3:media3-effect:1.4.1")
-    implementation("androidx.media3:media3-common:1.4.1")
 
-    implementation ("com.github.bumptech.glide:glide:4.16.0")
-    implementation("com.google.firebase:firebase-storage-ktx:21.0.1")
-    implementation("androidx.datastore:datastore-core-android:1.1.1")
-    implementation("com.google.firebase:firebase-crashlytics-buildtools:3.0.3")
-    annotationProcessor ("com.github.bumptech.glide:compiler:4.16.0")
+    // Firebase
+    // implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
+    // implementation("com.google.firebase:firebase-auth-ktx")
+    // implementation("com.google.firebase:firebase-database-ktx")
+    // implementation("com.google.firebase:firebase-storage-ktx")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    // Dropbox
+    // implementation("com.dropbox.core:dropbox-core-sdk:6.0.0")
 
-    implementation ("androidx.datastore:datastore-preferences:1.1.1")
-    implementation ("androidx.activity:activity-ktx:1.9.3")
-    implementation ("androidx.fragment:fragment-ktx:1.8.5")
-    implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation ("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
-    implementation(project(":feature:camera"))
+    // Glide
+    // implementation("com.github.bumptech.glide:glide:4.16.0")
 
-    implementation("com.google.android.gms:play-services-auth:21.3.0")
+    // SwipeRefreshLayout
+    // implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.2.0-alpha01")
 
-    implementation ("com.dropbox.core:dropbox-core-sdk:7.0.0")
-    implementation ("com.dropbox.core:dropbox-android-sdk:7.0.0")
-
-    // Removed unused Picasso to reduce size
-    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
-    implementation("com.google.firebase:firebase-database:21.0.0")
-    implementation("com.google.firebase:firebase-auth:23.2.0")
-    implementation("io.getstream:photoview:1.0.3")
-            testImplementation("junit:junit:4.13.2")
+    testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
     androidTestImplementation("androidx.test:core:1.6.1")
@@ -145,26 +159,4 @@ dependencies {
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.10.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
-
-    // Remove duplicate activity-ktx declaration
-
-    implementation("com.github.yukuku:ambilwarna:2.0.1")
-
-    api("com.otaliastudios:cameraview:2.7.2")
-
-    
-
-    implementation ("com.google.code.gson:gson:2.10.1")
-    implementation ("com.h6ah4i.android.widget.verticalseekbar:verticalseekbar:1.0.0")
-    
-    // Оптимизация для слабых устройств
-    implementation("androidx.multidex:multidex:2.0.1")
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
-    implementation("androidx.lifecycle:lifecycle-process:2.8.7")
-
-    // Hilt DI
-    implementation("com.google.dagger:hilt-android:2.52")
-    ksp("com.google.dagger:hilt-compiler:2.52")
-    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
-
 }

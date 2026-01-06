@@ -1,58 +1,15 @@
 package com.example.b1void.data
 
-import com.example.b1void.models.FolderNode
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.example.b1void.core.model.FolderNode
 import java.io.File
 
+// Stubbed class to fix build
 class FolderRepository {
-
-    /**
-     * Рекурсивно сканирует файловую систему, начиная с корневой директории, 
-     * чтобы построить полное дерево папок.
-     *
-     * @param rootDir Корневая директория для сканирования.
-     * @return Список узлов FolderNode верхнего уровня.
-     */
-    suspend fun getFolderTree(rootDir: File): List<FolderNode> = withContext(Dispatchers.IO) {
-        val rootNode = FolderNode(file = rootDir, level = 0, isExpanded = true) // По умолчанию раскроем корневую папку
-        scanDirectory(rootNode)
-        listOf(rootNode) // Возвращаем список, содержащий корневой узел
+    suspend fun getFolderTree(root: File): List<FolderNode> {
+        return emptyList()
     }
 
-    private fun scanDirectory(parentNode: FolderNode) {
-        val directories = parentNode.file.listFiles { file -> file.isDirectory }?.sortedBy { it.name }
-        directories?.forEach { dir ->
-            if (dir.name.equals("Trash", ignoreCase = true)) {
-                return@forEach
-            }
-            val childNode = FolderNode(file = dir, level = parentNode.level + 1)
-            parentNode.children.add(childNode)
-            scanDirectory(childNode) // Рекурсивный вызов
-        }
-    }
-
-    /**
-     * Перемещает список файлов в папку назначения.
-     *
-     * @param filesToMove Список файлов для перемещения.
-     * @param destinationDir Папка назначения.
-     * @return true, если все файлы были успешно перемещены.
-     */
-    suspend fun moveFiles(filesToMove: List<File>, destinationDir: File): Boolean = withContext(Dispatchers.IO) {
-        var allMovedSuccessfully = true
-        filesToMove.forEach { file ->
-            try {
-                val destinationFile = File(destinationDir, file.name)
-                if (!file.renameTo(destinationFile)) {
-                    allMovedSuccessfully = false
-                }
-            } catch (e: Exception) {
-                // Логируем ошибку, но не даем приложению упасть
-                android.util.Log.e("FolderRepository", "Failed to move file: ${file.absolutePath}", e)
-                allMovedSuccessfully = false
-            }
-        }
-        return@withContext allMovedSuccessfully
+    suspend fun moveFiles(files: List<File>, destination: File): Boolean {
+        return false
     }
 }

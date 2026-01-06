@@ -1,91 +1,37 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="editTextStyle" parent="@android:style/Widget.EditText">
-        <item name="hintTextColor">#000000</item>
+    <style name="editTextStyle" parent="Widget.AppCompat.EditText">
         <item name="android:textColor">@color/black</item>
-        <item name="android:background">@drawable/edit_text_background</item>
-        <item name="android:paddingLeft">10dp</item>
-        <item name="android:ems">10</item>
-
+        <item name="android:textColorHint">@color/gray</item>
     </style>
 
-    <style name="textBoxStyle">
-        <item name="android:textColor">@color/black</item>
-        <item name="android:paddingLeft">5dp</item>
-        <item name="android:ems">7</item>
-        <item name="android:layout_gravity">center_vertical</item>
-        <item name="android:textSize">15dp</item>
+    <style name="SelectionToolbarButtonStyle" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:textColor">@color/white</item>
+    </style>
+
+    <style name="VerticalSeekBarStyle">
+        <item name="android:thumb">@drawable/custom_seekbar_thumb</item>
+    </style>
+
+    <style name="BottomButtonStyle" parent="Widget.AppCompat.Button">
+        <item name="android:background">@color/blue</item>
+        <item name="android:textColor">@color/white</item>
     </style>
 
     <style name="headLineStyle">
-        <item name="android:textColor">@color/white</item>
-        <item name="android:layout_gravity">center_vertical</item>
-        <item name="android:textSize">20dp</item>
-    </style>
-
-    <style name="itemStyle">
-        <item name="android:background">@drawable/list_item_background</item>
-        <item name="android:layout_margin">10dp</item>
-    </style>
-
-    <style name="TableHeaderStyle">
-        <item name="android:textColor">#FFFFFF</item>
-        <item name="android:background">@color/blue</item>
-        <item name="android:padding">8dp</item>
-    </style>
-
-    <style name="TableCellStyle">
-        <item name="android:padding">10dp</item>
-        <item name="android:background">@color/selection_toolbar_background</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:textColor">@color/black</item>
     </style>
 
     <style name="TableRowText">
         <item name="android:textSize">16sp</item>
-        <item name="android:padding">8dp</item>
-        <item name="android:textColor">#FFFFFF</item>
-        <item name="android:layout_width">wrap_content</item>
-    </style>
-    
-    <style name="DateStyle">
-
-    </style>
-
-    <declare-styleable name="VerticalSeekBar">
-        <attr name="vsb_background_color" format="color" />
-        <attr name="vsb_progress_color" format="color" />
-        <attr name="vsb_thumb_color" format="color" />
-        <attr name="vsb_bar_width" format="dimension" />
-        <attr name="vsb_thumb_radius" format="dimension" />
-        <attr name="vsb_max" format="integer" />
-        <attr name="vsb_progress" format="integer" />
-    </declare-styleable>
-
-    <style name="VerticalSeekBarStyle">
-        <item name="android:progressDrawable">@drawable/vertical_seekbar_progress</item>
-        <item name="android:thumb">@drawable/custom_seekbar_thumb</item>
-        <item name="android:minHeight">2dp</item>
-        <item name="android:maxHeight">2dp</item>
-    </style>
-
-    <style name="BottomButtonStyle" parent="Widget.AppCompat.Button">
-        <item name="android:background">@drawable/button_background</item>
-        <item name="android:textColor">#FFFFFF</item> <!-- Р—Р°РјРµРЅРёС‚Рµ РЅР° РЅСѓР¶РЅС‹Р№ С†РІРµС‚ С‚РµРєСЃС‚Р° -->
-        <item name="android:textSize">16sp</item> <!-- Р Р°Р·РјРµСЂ С‚РµРєСЃС‚Р° (РїРѕ Р¶РµР»Р°РЅРёСЋ) -->
-        <item name="android:textAllCaps">false</item> <!-- РћС‚РєР»СЋС‡РµРЅРёРµ РїСЂРµРѕР±СЂР°Р·РѕРІР°РЅРёСЏ РІ РІРµСЂС…РЅРёР№ СЂРµРіРёСЃС‚СЂ (РїРѕ Р¶РµР»Р°РЅРёСЋ) -->
-        <item name="android:gravity">center</item>
-    </style>
-
-    <style name="SelectionToolbarButtonStyle" parent="Widget.AppCompat.Button.Borderless">
-        <item name="android:minHeight">@dimen/selection_toolbar_button_min_height</item>
-        <item name="android:minWidth">0dp</item>
-        <item name="android:paddingLeft">@dimen/selection_toolbar_button_padding_horizontal</item>
-        <item name="android:paddingRight">@dimen/selection_toolbar_button_padding_horizontal</item>
-        <item name="android:paddingTop">@dimen/selection_toolbar_button_padding_vertical</item>
-        <item name="android:paddingBottom">@dimen/selection_toolbar_button_padding_vertical</item>
-        <item name="android:textAllCaps">false</item>
         <item name="android:textColor">@color/black</item>
-        <item name="android:textSize">@dimen/selection_toolbar_button_text_size</item>
-        <item name="android:includeFontPadding">false</item>
     </style>
-
+    <style name="itemStyle">
+        <item name="android:background">@color/white</item>
+    </style>
+    <style name="textBoxStyle">
+        <item name="android:textColor">@color/black</item>
+        <item name="android:textSize">14sp</item>
+    </style>
 </resources>

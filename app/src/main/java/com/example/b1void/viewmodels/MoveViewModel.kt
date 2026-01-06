@@ -4,7 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.b1void.data.FolderRepository
-import com.example.b1void.models.FolderNode
+import com.example.b1void.core.model.FolderNode
 import com.example.b1void.models.MoveUiState
 import com.example.b1void.models.SelectedFolderState
 import kotlinx.coroutines.flow.MutableStateFlow

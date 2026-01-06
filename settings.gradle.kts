@@ -23,4 +23,12 @@ dependencyResolutionManagement {
 rootProject.name = "b1Void"
 include(":app")
 include(":feature:camera")
+include(":core:common")
+include(":core:model")
+include(":core:data")
+include(":core:domain")
+include(":core:ui")
+include(":core:camera")
+include(":core:network")
+include(":feature:gallery")
  
