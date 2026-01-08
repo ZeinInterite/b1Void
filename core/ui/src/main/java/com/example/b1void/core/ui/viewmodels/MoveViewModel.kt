@@ -1,21 +1,24 @@
-package com.example.b1void.viewmodels
+package com.example.b1void.core.ui.viewmodels
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.b1void.data.FolderRepository
+import com.example.b1void.core.domain.repository.FolderRepository
 import com.example.b1void.core.model.FolderNode
-import com.example.b1void.models.MoveUiState
-import com.example.b1void.models.SelectedFolderState
+import com.example.b1void.core.model.MoveUiState
+import com.example.b1void.core.model.SelectedFolderState
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
+import javax.inject.Inject
 
-class MoveViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel() {
-
-    // В реальном приложении репозиторий бы инжектировался через Hilt/Koin
-    private val folderRepository = FolderRepository()
+@HiltViewModel
+class MoveViewModel @Inject constructor(
+    private val folderRepository: FolderRepository,
+    private val savedStateHandle: SavedStateHandle
+    ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<MoveUiState>(MoveUiState.Loading)
     val uiState = _uiState.asStateFlow()

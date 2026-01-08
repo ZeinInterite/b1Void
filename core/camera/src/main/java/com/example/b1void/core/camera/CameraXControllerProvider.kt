@@ -1,5 +1,6 @@
 package com.example.b1void.core.camera
 
+import android.app.Application
 import androidx.camera.core.Camera
 import androidx.camera.view.PreviewView
 import com.example.b1void.core.camera.quirks.DeviceQuirksManager
@@ -17,7 +18,9 @@ class CameraXControllerProvider @Inject constructor(
         camera: Camera,
         mainExecutor: Executor
     ): CameraController {
+        val application = previewView.context.applicationContext as Application
         return CameraXController(
+            application = application,
             previewView = previewView,
             camera = camera,
             mainExecutor = mainExecutor,

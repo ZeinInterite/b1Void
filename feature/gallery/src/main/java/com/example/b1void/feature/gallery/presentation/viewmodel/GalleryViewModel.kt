@@ -12,7 +12,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class GalleryViewModel @Inject constructor(
-    getPhotosUseCase: GetPhotosUseCase
+    private val getPhotosUseCase: GetPhotosUseCase
 ) : ViewModel() {
 
     val photos: StateFlow<List<Photo>> = getPhotosUseCase()

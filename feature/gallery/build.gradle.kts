@@ -34,8 +34,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
     // Hilt DI
-    implementation("com.google.dagger:hilt-android:2.50")
-    ksp("com.google.dagger:hilt-compiler:2.50")
+    implementation("com.google.dagger:hilt-android:2.54")
+    ksp("com.google.dagger:hilt-compiler:2.54")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
 
     // Compose BOM and core
@@ -47,6 +47,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation(project(":core:ui"))
 
     // Зависимости от core модулей
     implementation(project(":core:common"))

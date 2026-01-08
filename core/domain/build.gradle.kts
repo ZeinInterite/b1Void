@@ -25,4 +25,5 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation(project(":core:model"))
     implementation("javax.inject:javax.inject:1")
+    implementation("androidx.camera:camera-core:1.3.1")
 }

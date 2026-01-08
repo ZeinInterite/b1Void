@@ -18,11 +18,22 @@ import coil.compose.AsyncImage
 import com.example.b1void.feature.gallery.presentation.viewmodel.GalleryViewModel
 import androidx.compose.foundation.layout.PaddingValues // Added this import
 
+import androidx.compose.material3.Button
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.b1void.core.ui.MoveFilesSheet
+
 @Composable
 fun GalleryScreen(viewModel: GalleryViewModel) {
     val photos by viewModel.photos.collectAsState()
+    var showMoveSheet by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        Button(onClick = { showMoveSheet = true }) {
+            Text("Move Files")
+        }
+
         if (photos.isEmpty()) {
             Text("No photos found")
         } else {
@@ -44,5 +55,12 @@ fun GalleryScreen(viewModel: GalleryViewModel) {
                 }
             }
         }
+    }
+
+    if (showMoveSheet) {
+        MoveFilesSheet(
+            onDismiss = { showMoveSheet = false },
+            onMoveSuccess = { showMoveSheet = false }
+        )
     }
 }

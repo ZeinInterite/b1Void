@@ -1,45 +1,56 @@
 package com.example.b1void.core.camera
 
-import android.net.Uri
+import android.app.Application
 import android.util.Log
 import androidx.camera.core.Camera
-import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.view.PreviewView
-import com.example.b1void.core.camera.FocusState
-import com.example.b1void.core.domain.camera.CameraController
 import com.example.b1void.core.camera.quirks.DeviceQuirksManager
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeoutOrNull
+import com.example.b1void.core.domain.camera.CameraController
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.Executor
-import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 
-@androidx.camera.camera2.interop.ExperimentalCamera2Interop
 class CameraXController(
+    private val application: Application,
     private val previewView: PreviewView,
     private val camera: Camera,
     private val mainExecutor: Executor,
-    private val deviceQuirksManager: DeviceQuirksManager,
-    ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val logTag: String = "CameraXController",
+    private val deviceQuirksManager: DeviceQuirksManager
 ) : CameraController {
 
-    private val scope = CoroutineScope(ioDispatcher)
+    private lateinit var imageCapture: ImageCapture
+    private val cameraExecutor: Executor = mainExecutor
 
-    private val _state = MutableStateFlow<FocusState>(FocusState.Idle())
-    val state = _state.asStateFlow()
+    override fun initialize(imageCapture: ImageCapture) {
+        this.imageCapture = imageCapture
+    }
 
-    override suspend fun takePicture(): String? {
-        // TODO: Implement takePicture logic that returns a file path string
-        return null
+    override suspend fun takePicture(): String? = suspendCoroutine { continuation ->
+        val outputDirectory = getOutputDirectory()
+        val photoFile = createFile(outputDirectory, FILENAME, PHOTO_EXTENSION)
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+
+        imageCapture.takePicture(
+            outputOptions,
+            cameraExecutor,
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    val savedUri = output.savedUri ?: photoFile.toURI()
+                    Log.d(TAG, "Photo capture succeeded: $savedUri")
+                    continuation.resume(savedUri.toString())
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    Log.e(TAG, "Photo capture failed: ${exception.message}", exception)
+                    continuation.resume(null)
+                }
+            }
+        )
     }
 
     override fun setZoom(zoomRatio: Float) {
@@ -51,6 +62,34 @@ class CameraXController(
     }
 
     override fun setExposure(value: Float) {
-        // TODO: Implement exposure logic
+        // Not implemented
+    }
+
+    private fun getOutputDirectory(): File {
+        val mediaDir = application.externalMediaDirs.firstOrNull()?.let {
+            File(it, "b1void").apply { mkdirs() }
+        }
+        return if (mediaDir != null && mediaDir.exists())
+            mediaDir else application.filesDir
+    }
+
+    companion object {
+        private const val TAG = "CameraXController"
+        private const val FILENAME = "yyyy-MM-dd-HH-mm-ss-SSS"
+        private const val PHOTO_EXTENSION = ".jpg"
+
+        private fun createFile(baseFolder: File, format: String, extension: String) =
+            File(
+                baseFolder,
+                SimpleDateFormat(format, Locale.US).format(System.currentTimeMillis()) + extension
+            )
+
+        fun getOutputDirectory(application: Application): File {
+            val mediaDir = application.externalMediaDirs.firstOrNull()?.let {
+                File(it, "b1void").apply { mkdirs() }
+            }
+            return if (mediaDir != null && mediaDir.exists())
+                mediaDir else application.filesDir
+        }
     }
 }

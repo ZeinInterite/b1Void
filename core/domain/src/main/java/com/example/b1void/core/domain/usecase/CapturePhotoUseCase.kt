@@ -6,7 +6,7 @@ import javax.inject.Inject
 class CapturePhotoUseCase @Inject constructor(
     private val photoRepository: PhotoRepository
 ) {
-    suspend operator fun invoke(): Result<Unit> {
-        return photoRepository.takePhoto()
+    suspend operator fun invoke(uri: String): Result<Unit> {
+        return photoRepository.savePhoto(uri)
     }
 }

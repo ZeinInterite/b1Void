@@ -3,7 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("com.google.gms.google-services")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.google.devtools.ksp") version "1.9.22-1.0.17"
+    id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
 }
 
@@ -94,15 +94,18 @@ dependencies {
     // Play Services Auth removed. Should be provided by core modules.
 
     // Hilt DI
-    implementation("com.google.dagger:hilt-android:2.52")
+    implementation("com.google.dagger:hilt-android:2.54")
     implementation("androidx.hilt:hilt-common:1.2.0")
 
+    ksp("com.google.dagger:hilt-compiler:2.54")
+    implementation("androidx.hilt:hilt-work:1.2.0")
     ksp("androidx.hilt:hilt-compiler:1.2.0")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+
+    // Compose Navigation
+    implementation("androidx.navigation:navigation-compose:2.8.0")
 
     // Hilt Work removed. It was contributing to the original Hilt error.
-
-    // Compose Navigation removed. Should be provided by core modules.
-    // val nav_version = "2.7.7"
 
     // LeakCanary removed. Can be added to a dedicated debug module if needed.
 
@@ -125,11 +128,16 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
     // CameraX
-    val camerax_version = "1.5.2"
-    implementation("androidx.camera:camera-core:${camerax_version}")
-    implementation("androidx.camera:camera-camera2:${camerax_version}")
-    implementation("androidx.camera:camera-lifecycle:${camerax_version}")
-    implementation("androidx.camera:camera-view:${camerax_version}")
+    val cameraxVersion = "1.3.1"
+    implementation("androidx.camera:camera-core:$cameraxVersion")
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
+
+    // Coroutines для CameraX
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.7.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
 
     // Firebase
     // implementation(platform("com.google.firebase:firebase-bom:33.1.2"))

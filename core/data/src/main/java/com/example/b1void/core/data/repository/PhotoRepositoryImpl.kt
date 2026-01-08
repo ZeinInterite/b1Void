@@ -3,31 +3,19 @@ package com.example.b1void.core.data.repository
 import android.app.Application
 import android.content.ContentUris
 import android.provider.MediaStore
-import com.example.b1void.core.domain.camera.CameraController
 import com.example.b1void.core.data.database.dao.InspectorDao
 import com.example.b1void.core.domain.repository.PhotoRepository
 import com.example.b1void.core.model.Photo
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
+import javax.inject.Singleton
 
+@Singleton
 class PhotoRepositoryImpl @Inject constructor(
     private val application: Application,
-    private val cameraController: CameraController,
     private val inspectorDao: InspectorDao
 ) : PhotoRepository {
-    override suspend fun takePhoto(): Result<Unit> {
-        return try {
-            val imagePath = cameraController.takePicture()
-            if (imagePath != null) {
-                Result.success(Unit)
-            } else {
-                Result.failure(Exception("Failed to capture picture, path is null"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
 
     override fun getPhotos(): Flow<List<Photo>> = flow {
         val photos = mutableListOf<Photo>()
@@ -71,5 +59,11 @@ class PhotoRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    override suspend fun savePhoto(uri: String): Result<Unit> {
+        // TODO: Implement logic to save photo metadata to Room or other database if needed.
+        // For now, the photo is already saved in the MediaStore by the CameraXController.
+        return Result.success(Unit)
     }
 }

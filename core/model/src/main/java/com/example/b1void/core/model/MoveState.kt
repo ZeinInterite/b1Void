@@ -1,4 +1,4 @@
-package com.example.b1void.models
+package com.example.b1void.core.model
 
 import com.example.b1void.core.model.FolderNode
 import java.io.File

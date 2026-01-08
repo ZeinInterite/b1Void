@@ -26,8 +26,8 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     // Зависимости Hilt
-    implementation("com.google.dagger:hilt-android:2.50")
-    ksp("com.google.dagger:hilt-compiler:2.50")
+    implementation("com.google.dagger:hilt-android:2.54")
+    ksp("com.google.dagger:hilt-compiler:2.54")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
     // Зависимости CameraX
